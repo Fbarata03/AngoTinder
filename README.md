@@ -1,7 +1,5 @@
 # AngoTinder 💛❤️🖤
 
-> **O Amor à Angolana.** 🇦🇴
-
 O **AngoTinder** é a primeira plataforma de encontros (dating app) desenhada especificamente para conectar solteiros angolanos. Seja em Luanda, Huambo, Benguela ou na diáspora, o nosso objetivo é facilitar conexões reais, seguras e com a nossa identidade.
 
 
