@@ -9,25 +9,17 @@ import { useApp } from "../context";
 
 export function TelaLikes() {
   const navigate = useNavigate();
-  const { userId, isLoggedIn } = useApp();
+  const { isLoggedIn } = useApp();
   const [likes, setLikes] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
   const isPremiumUser = false;
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
-    profilesApi.getLikes(userId).then((l) => { setLikes(l); setLoading(false); }).catch(() => setLoading(false));
-  }, [userId, isLoggedIn]);
+    profilesApi.getLikes().then((l) => { setLikes(l); setLoading(false); }).catch(() => setLoading(false));
+  }, [isLoggedIn]);
 
-  // For demo: always show some likes
-  const displayLikes = likes.length > 0 ? likes : [
-    { id: "1", photos: ["https://images.unsplash.com/photo-1557296387-5358ad7997bb?w=400"], name: "Ana", age: 26, is_verified: 1 } as UserType,
-    { id: "2", photos: ["https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400"], name: "Sofia", age: 24, is_verified: 1 } as UserType,
-    { id: "3", photos: ["https://images.unsplash.com/photo-1619194617426-f460de77ff72?w=400"], name: "Joana", age: 29, is_verified: 0 } as UserType,
-    { id: "4", photos: ["https://images.unsplash.com/photo-1560114928-40f1f1eb26a0?w=400"], name: "Isabel", age: 27, is_verified: 0 } as UserType,
-    { id: "5", photos: ["https://images.unsplash.com/photo-1509967419530-da38b4704bc6?w=400"], name: "Beatriz", age: 25, is_verified: 0 } as UserType,
-    { id: "6", photos: ["https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400"], name: "Carolina", age: 28, is_verified: 0 } as UserType,
-  ];
+  const displayLikes = likes;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] flex flex-col relative overflow-hidden">

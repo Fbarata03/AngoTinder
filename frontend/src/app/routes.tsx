@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router";
 import { TelaInicial } from "./components/TelaInicial";
+import { TelaRegisto } from "./components/TelaRegisto";
 import { TelaPerfil } from "./components/TelaPerfil";
 import { TelaDescoberta } from "./components/TelaDescoberta";
 import { TelaChat } from "./components/TelaChat";
@@ -9,6 +10,7 @@ import { TelaConfiguracoes } from "./components/TelaConfiguracoes";
 
 export const router = createBrowserRouter([
   { path: "/", Component: TelaInicial },
+  { path: "/register", Component: TelaRegisto },
   { path: "/profile", Component: TelaPerfil },
   { path: "/discover", Component: TelaDescoberta },
   { path: "/chat", Component: TelaChat },

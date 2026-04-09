@@ -2,10 +2,49 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const BASE_URL = (import.meta as any).env?.VITE_API_URL || "/api";
 
+const TOKEN_KEY = "angotinder_token";
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...(options?.headers as Record<string, string> | undefined),
+    },
     ...options,
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err || `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+async function upload<T>(path: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
   });
   if (!res.ok) {
     const err = await res.text();
@@ -27,44 +66,67 @@ export interface User {
   education?: string;
   hometown?: string;
   interests: string[];
+  gender?: string;
+  looking_for?: string;
+  email?: string;
 }
 
-export interface LoginResponse {
-  user_id: string;
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
+export interface RegisterData {
+  email: string;
+  password: string;
   name: string;
-  photos: string[];
+  age: number;
   location: string;
+  gender?: string;
+  looking_for?: string;
+  bio?: string;
+  work?: string;
 }
 
 export const authApi = {
-  login: (provider: string, user_id = "user_me") =>
-    request<LoginResponse>("/auth/login", {
+  register: (data: RegisterData) =>
+    request<AuthResponse>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ provider, user_id }),
+      body: JSON.stringify(data),
     }),
 
-  getMe: (userId: string) => request<User>(`/auth/me/${userId}`),
+  login: (email: string, password: string) =>
+    request<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+
+  getMe: () => request<User>("/auth/me"),
 };
 
 // ---------- Profiles ----------
 export const profilesApi = {
-  discover: (userId: string) =>
-    request<User[]>(`/profiles/discover?user_id=${userId}`),
+  discover: () => request<User[]>("/profiles/discover"),
 
-  getProfile: (profileId: string) =>
-    request<User>(`/profiles/${profileId}`),
+  getProfile: (profileId: string) => request<User>(`/profiles/${profileId}`),
 
-  updateProfile: (userId: string, data: Partial<User>) =>
-    request<User>(`/profiles/me/${userId}`, {
+  updateProfile: (data: Partial<User>) =>
+    request<User>("/profiles/me", {
       method: "PUT",
       body: JSON.stringify(data),
     }),
 
-  getLikes: (userId: string) =>
-    request<User[]>(`/profiles/likes/${userId}`),
+  uploadPhoto: (file: File) =>
+    upload<{ photo_url: string; photos: string[] }>("/profiles/me/photos", file),
 
-  getTopPicks: (userId: string) =>
-    request<(User & { reason: string })[]>(`/profiles/top-picks/${userId}`),
+  deletePhoto: (photo_url: string) =>
+    request<{ photos: string[] }>(`/profiles/me/photos?photo_url=${encodeURIComponent(photo_url)}`, {
+      method: "DELETE",
+    }),
+
+  getLikes: () => request<User[]>("/profiles/likes/received"),
+
+  getTopPicks: () => request<(User & { reason: string })[]>("/profiles/top-picks/today"),
 };
 
 // ---------- Matches ----------
@@ -76,8 +138,8 @@ export interface Match {
   age: number;
   location: string;
   photos: string[];
-  lastMessage?: string;
-  unread?: boolean;
+  last_message?: string;
+  last_message_at?: string;
 }
 
 export interface SwipeResponse {
@@ -86,13 +148,13 @@ export interface SwipeResponse {
 }
 
 export const matchesApi = {
-  swipe: (swiper_id: string, swiped_id: string, direction: "left" | "right" | "super") =>
+  swipe: (swiped_id: string, direction: "left" | "right" | "super") =>
     request<SwipeResponse>("/matches/swipe", {
       method: "POST",
-      body: JSON.stringify({ swiper_id, swiped_id, direction }),
+      body: JSON.stringify({ swiped_id, direction }),
     }),
 
-  getMatches: (userId: string) => request<Match[]>(`/matches/${userId}`),
+  getMatches: () => request<Match[]>("/matches/"),
 
   unmatch: (matchId: string) =>
     request(`/matches/${matchId}`, { method: "DELETE" }),
@@ -112,9 +174,17 @@ export const messagesApi = {
   getMessages: (matchId: string) =>
     request<Message[]>(`/messages/${matchId}`),
 
-  sendMessage: (matchId: string, sender_id: string, text: string) =>
+  sendMessage: (matchId: string, text: string) =>
     request<Message>(`/messages/${matchId}`, {
       method: "POST",
-      body: JSON.stringify({ sender_id, text }),
+      body: JSON.stringify({ text }),
     }),
 };
+
+// ---------- WebSocket ----------
+export function createChatSocket(matchId: string): WebSocket {
+  const token = getToken() || "";
+  const wsBase = BASE_URL.replace(/^http/, "ws").replace(/^\/api$/, "");
+  const url = `${wsBase}/api/messages/ws/${matchId}?token=${token}`;
+  return new WebSocket(url);
+}

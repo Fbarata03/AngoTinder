@@ -1,63 +1,78 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { authApi, User } from "./api";
-import { MOCK_USER } from "./mockData";
+import { authApi, User, setToken, getToken, clearToken, RegisterData } from "./api";
 
 interface AppContextType {
   currentUser: User | null;
   userId: string;
   isLoggedIn: boolean;
-  login: (provider: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   updateUser: (user: User) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
-const USER_ID_KEY = "angotinder_user_id";
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userId, setUserId] = useState<string>(() => localStorage.getItem(USER_ID_KEY) || "");
+  const [userId, setUserId] = useState<string>("");
+  const [loading, setLoading] = useState(true);
 
   const isLoggedIn = !!userId && !!currentUser;
 
+  // Restore session from stored token
   useEffect(() => {
-    if (userId) {
+    const token = getToken();
+    if (token) {
       authApi
-        .getMe(userId)
-        .then((user) => setCurrentUser(user))
+        .getMe()
+        .then((user) => {
+          setCurrentUser(user);
+          setUserId(user.id);
+        })
         .catch(() => {
-          // Backend unavailable — use mock user so app still works
-          setCurrentUser({ ...MOCK_USER, id: userId });
-        });
+          clearToken();
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
     }
-  }, [userId]);
+  }, []);
 
-  const login = async (provider: string) => {
-    try {
-      const res = await authApi.login(provider);
-      localStorage.setItem(USER_ID_KEY, res.user_id);
-      setUserId(res.user_id);
-      const user = await authApi.getMe(res.user_id);
-      setCurrentUser(user);
-    } catch {
-      // Backend unavailable — use mock data
-      const uid = "user_me";
-      localStorage.setItem(USER_ID_KEY, uid);
-      setUserId(uid);
-      setCurrentUser(MOCK_USER);
-    }
+  const login = async (email: string, password: string) => {
+    const res = await authApi.login(email, password);
+    setToken(res.token);
+    setCurrentUser(res.user);
+    setUserId(res.user.id);
+  };
+
+  const register = async (data: RegisterData) => {
+    const res = await authApi.register(data);
+    setToken(res.token);
+    setCurrentUser(res.user);
+    setUserId(res.user.id);
   };
 
   const logout = () => {
-    localStorage.removeItem(USER_ID_KEY);
+    clearToken();
     setUserId("");
     setCurrentUser(null);
   };
 
-  const updateUser = (user: User) => setCurrentUser(user);
+  const updateUser = (user: User) => {
+    setCurrentUser(user);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#CE1126] flex items-center justify-center">
+        <div className="w-16 h-16 border-4 border-[#FFCD00] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
-    <AppContext.Provider value={{ currentUser, userId, isLoggedIn, login, logout, updateUser }}>
+    <AppContext.Provider value={{ currentUser, userId, isLoggedIn, login, register, logout, updateUser }}>
       {children}
     </AppContext.Provider>
   );

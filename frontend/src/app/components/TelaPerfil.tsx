@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Camera, User, Heart, MessageCircle, LogOut, Sparkles, MapPin, Star, Settings } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Camera, User, Heart, MessageCircle, LogOut, Sparkles, MapPin, Star, Settings, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -10,10 +10,12 @@ import { useApp } from "../context";
 
 export function TelaPerfil() {
   const navigate = useNavigate();
-  const { userId, currentUser, isLoggedIn, logout, updateUser } = useApp();
+  const { currentUser, isLoggedIn, logout, updateUser } = useApp();
   const [profile, setProfile] = useState<UserType | null>(currentUser);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
@@ -24,7 +26,7 @@ export function TelaPerfil() {
     if (!profile) return;
     setSaving(true);
     try {
-      const updated = await profilesApi.updateProfile(userId, {
+      const updated = await profilesApi.updateProfile({
         name: profile.name,
         age: profile.age,
         location: profile.location,
@@ -37,9 +39,34 @@ export function TelaPerfil() {
       updateUser(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch { /* offline */ } finally {
+    } catch { /* ignore */ } finally {
       setSaving(false);
     }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+    setUploading(true);
+    try {
+      const res = await profilesApi.uploadPhoto(file);
+      const updated = { ...profile, photos: res.photos };
+      setProfile(updated);
+      updateUser(updated);
+    } catch { /* ignore */ } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDeletePhoto = async (url: string) => {
+    if (!profile) return;
+    try {
+      const res = await profilesApi.deletePhoto(url);
+      const updated = { ...profile, photos: res.photos };
+      setProfile(updated);
+      updateUser(updated);
+    } catch { /* ignore */ }
   };
 
   if (!profile) return null;
@@ -95,18 +122,34 @@ export function TelaPerfil() {
           </label>
           <div className="grid grid-cols-3 gap-4">
             {profile.photos.map((photo, i) => (
-              <div key={i} className="aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-primary/10 to-secondary/10 relative group cursor-pointer border-4 border-secondary/30 hover:border-secondary transition-all">
+              <div key={i} className="aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-primary/10 to-secondary/10 relative group border-4 border-secondary/30 hover:border-secondary transition-all">
                 <img src={photo} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Camera className="w-10 h-10 text-secondary drop-shadow-lg" />
-                </div>
+                <button
+                  onClick={() => handleDeletePhoto(photo)}
+                  className="absolute top-2 right-2 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                >
+                  <Trash2 className="w-4 h-4 text-white" />
+                </button>
               </div>
             ))}
-            <button className="aspect-square rounded-2xl bg-gradient-to-br from-secondary/20 to-[#FFD700]/20 border-4 border-dashed border-secondary/50 flex flex-col items-center justify-center hover:border-secondary hover:from-secondary/30 hover:to-[#FFD700]/30 transition-all">
-              <Camera className="w-10 h-10 text-primary mb-2" />
-              <span className="text-sm font-bold text-primary">Adicionar</span>
-            </button>
+            {profile.photos.length < 6 && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="aspect-square rounded-2xl bg-gradient-to-br from-secondary/20 to-[#FFD700]/20 border-4 border-dashed border-secondary/50 flex flex-col items-center justify-center hover:border-secondary hover:from-secondary/30 hover:to-[#FFD700]/30 transition-all"
+              >
+                <Camera className="w-10 h-10 text-primary mb-2" />
+                <span className="text-sm font-bold text-primary">{uploading ? "A enviar..." : "Adicionar"}</span>
+              </button>
+            )}
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePhotoUpload}
+          />
         </div>
 
         <div className="mb-6">

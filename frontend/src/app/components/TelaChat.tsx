@@ -5,22 +5,21 @@ import { Input } from "./ui/input";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { motion } from "motion/react";
-import { matchesApi, messagesApi, Match, Message } from "../api";
+import { matchesApi, messagesApi, createChatSocket, Match, Message } from "../api";
 import { useApp } from "../context";
-import { MOCK_MATCHES, MOCK_MESSAGES } from "../mockData";
 
 function ChatList({ onSelectMatch }: { onSelectMatch: (m: Match) => void }) {
   const navigate = useNavigate();
-  const { userId, isLoggedIn } = useApp();
+  const { isLoggedIn } = useApp();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
-    matchesApi.getMatches(userId)
-      .then((m) => { setMatches(m.length > 0 ? m : MOCK_MATCHES); setLoading(false); })
-      .catch(() => { setMatches(MOCK_MATCHES); setLoading(false); });
-  }, [userId, isLoggedIn]);
+    matchesApi.getMatches()
+      .then((m) => { setMatches(m); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [isLoggedIn]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] flex flex-col relative overflow-hidden">
@@ -37,7 +36,7 @@ function ChatList({ onSelectMatch }: { onSelectMatch: (m: Match) => void }) {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-secondary rounded-full animate-pulse"></div>
-            <p className="text-secondary font-bold">{matches.length} conversas {matches.length === 1 ? "esperando" : "esperando"} 🔥</p>
+            <p className="text-secondary font-bold">{matches.length} {matches.length === 1 ? "conversa" : "conversas"} 🔥</p>
           </div>
         </div>
       </div>
@@ -99,18 +98,20 @@ function ChatList({ onSelectMatch }: { onSelectMatch: (m: Match) => void }) {
                   <img src={m.photos[0] || "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200"}
                     alt={m.name} className="w-full h-full object-cover" />
                 </div>
-                <div className="absolute bottom-0 right-0 w-5 h-5 bg-gradient-to-br from-primary to-[#8B0000] rounded-full border-2 border-white shadow-lg"></div>
                 <Star className="absolute -top-1 -right-1 w-5 h-5 text-secondary fill-secondary drop-shadow-lg" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="font-black truncate text-lg">{m.name}</h3>
-                  <span className="text-sm text-muted-foreground font-bold">Agora</span>
+                  {m.last_message_at && (
+                    <span className="text-xs text-muted-foreground font-bold">
+                      {new Date(m.last_message_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
                 </div>
-                <p className="text-sm truncate font-bold text-foreground">{m.location}</p>
-              </div>
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-gradient-to-br from-primary to-[#8B0000] rounded-full flex items-center justify-center text-white text-xs font-black shadow-lg">1</div>
+                <p className="text-sm truncate text-muted-foreground">
+                  {m.last_message || "Diga olá! 👋"}
+                </p>
               </div>
             </motion.button>
           ))}
@@ -133,12 +134,44 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
+  // Load existing messages
   useEffect(() => {
     messagesApi.getMessages(match.match_id)
-      .then((m) => { setMessages(m.length > 0 ? m : MOCK_MESSAGES.filter(msg => msg.match_id === match.match_id)); setLoading(false); })
-      .catch(() => { setMessages(MOCK_MESSAGES.filter(msg => msg.match_id === match.match_id)); setLoading(false); });
+      .then((m) => { setMessages(m); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [match.match_id]);
+
+  // Connect WebSocket
+  useEffect(() => {
+    const ws = createChatSocket(match.match_id);
+    wsRef.current = ws;
+
+    ws.onopen = () => setConnected(true);
+    ws.onclose = () => setConnected(false);
+    ws.onerror = () => setConnected(false);
+
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === "message") {
+          setMessages((prev) => {
+            // Avoid duplicates (the sender already has the message from the REST call)
+            if (prev.some((m) => m.id === payload.data.id)) return prev;
+            return [...prev, payload.data];
+          });
+        }
+      } catch {
+        // ignore malformed frames
+      }
+    };
+
+    return () => {
+      ws.close();
+    };
   }, [match.match_id]);
 
   useEffect(() => {
@@ -147,13 +180,20 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
   const handleSend = async () => {
     if (!newMessage.trim()) return;
-    const text = newMessage;
+    const text = newMessage.trim();
     setNewMessage("");
-    try {
-      const msg = await messagesApi.sendMessage(match.match_id, userId, text);
-      setMessages((m) => [...m, msg]);
-    } catch {
-      setMessages((m) => [...m, { id: Date.now(), match_id: match.match_id, sender_id: userId, text, created_at: new Date().toISOString() }]);
+
+    // If WebSocket is connected, send through it (no REST call needed — backend broadcasts)
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ text }));
+    } else {
+      // Fallback to REST API
+      try {
+        const msg = await messagesApi.sendMessage(match.match_id, text);
+        setMessages((m) => [...m, msg]);
+      } catch {
+        // ignore
+      }
     }
   };
 
@@ -172,8 +212,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           <div className="flex-1">
             <h2 className="font-black text-lg">{match.name}</h2>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-secondary rounded-full animate-pulse"></div>
-              <p className="text-sm text-secondary font-bold">Online agora</p>
+              <div className={`w-2 h-2 rounded-full ${connected ? "bg-secondary animate-pulse" : "bg-white/40"}`}></div>
+              <p className="text-sm font-bold" style={{ color: connected ? "#FFCD00" : "rgba(255,255,255,0.4)" }}>
+                {connected ? "Online agora" : "A ligar..."}
+              </p>
             </div>
           </div>
           <Sparkles className="w-6 h-6 text-secondary animate-pulse" />

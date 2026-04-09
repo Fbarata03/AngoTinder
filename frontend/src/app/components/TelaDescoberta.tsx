@@ -8,7 +8,6 @@ import { MatchModal } from "./MatchModal";
 import { FiltersModal, Filters } from "./FiltersModal";
 import { profilesApi, matchesApi, User as UserType } from "../api";
 import { useApp } from "../context";
-import { MOCK_PROFILES } from "../mockData";
 
 function SwipeCard({ profile, onSwipe }: { profile: UserType; onSwipe: (dir: "left" | "right") => void }) {
   const [currentPhoto, setCurrentPhoto] = useState(0);
@@ -101,7 +100,7 @@ function SwipeCard({ profile, onSwipe }: { profile: UserType; onSwipe: (dir: "le
 
 export function TelaDescoberta() {
   const navigate = useNavigate();
-  const { userId, currentUser, isLoggedIn } = useApp();
+  const { currentUser, isLoggedIn } = useApp();
   const [profiles, setProfiles] = useState<UserType[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [history, setHistory] = useState<UserType[]>([]);
@@ -115,10 +114,10 @@ export function TelaDescoberta() {
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
-    profilesApi.discover(userId)
-      .then((p) => { setProfiles(p.length > 0 ? p : MOCK_PROFILES); setLoading(false); })
-      .catch(() => { setProfiles(MOCK_PROFILES); setLoading(false); });
-  }, [userId, isLoggedIn]);
+    profilesApi.discover()
+      .then((p) => { setProfiles(p); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [isLoggedIn]);
 
   const handleSwipe = async (dir: "left" | "right" | "super") => {
     const profile = profiles[currentIndex];
@@ -127,7 +126,7 @@ export function TelaDescoberta() {
     setHistory((h) => [...h, profile]);
 
     try {
-      const res = await matchesApi.swipe(userId, profile.id, dir === "super" ? "super" : dir);
+      const res = await matchesApi.swipe(profile.id, dir === "super" ? "super" : dir);
       if (res.is_match) {
         setMatchedProfile(profile);
         setShowMatch(true);
