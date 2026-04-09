@@ -1,4 +1,4 @@
-// API base URL - uses proxy in dev, env var in production
+// API base URL - uses env var, then proxy in dev, then Render backend
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const BASE_URL = (import.meta as any).env?.VITE_API_URL || "/api";
 
