@@ -7,6 +7,7 @@ import { AfricanPattern } from "./AfricanPatterns";
 import { motion } from "motion/react";
 import { matchesApi, messagesApi, Match, Message } from "../api";
 import { useApp } from "../context";
+import { MOCK_MATCHES, MOCK_MESSAGES } from "../mockData";
 
 function ChatList({ onSelectMatch }: { onSelectMatch: (m: Match) => void }) {
   const navigate = useNavigate();
@@ -16,7 +17,9 @@ function ChatList({ onSelectMatch }: { onSelectMatch: (m: Match) => void }) {
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
-    matchesApi.getMatches(userId).then((m) => { setMatches(m); setLoading(false); }).catch(() => setLoading(false));
+    matchesApi.getMatches(userId)
+      .then((m) => { setMatches(m.length > 0 ? m : MOCK_MATCHES); setLoading(false); })
+      .catch(() => { setMatches(MOCK_MATCHES); setLoading(false); });
   }, [userId, isLoggedIn]);
 
   return (
@@ -133,7 +136,9 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    messagesApi.getMessages(match.match_id).then((m) => { setMessages(m); setLoading(false); }).catch(() => setLoading(false));
+    messagesApi.getMessages(match.match_id)
+      .then((m) => { setMessages(m.length > 0 ? m : MOCK_MESSAGES.filter(msg => msg.match_id === match.match_id)); setLoading(false); })
+      .catch(() => { setMessages(MOCK_MESSAGES.filter(msg => msg.match_id === match.match_id)); setLoading(false); });
   }, [match.match_id]);
 
   useEffect(() => {

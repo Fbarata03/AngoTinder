@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { authApi, User } from "./api";
+import { MOCK_USER } from "./mockData";
 
 interface AppContextType {
   currentUser: User | null;
@@ -11,14 +12,11 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | null>(null);
-
 const USER_ID_KEY = "angotinder_user_id";
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userId, setUserId] = useState<string>(() => {
-    return localStorage.getItem(USER_ID_KEY) || "";
-  });
+  const [userId, setUserId] = useState<string>(() => localStorage.getItem(USER_ID_KEY) || "");
 
   const isLoggedIn = !!userId && !!currentUser;
 
@@ -28,18 +26,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .getMe(userId)
         .then((user) => setCurrentUser(user))
         .catch(() => {
-          localStorage.removeItem(USER_ID_KEY);
-          setUserId("");
+          // Backend unavailable — use mock user so app still works
+          setCurrentUser({ ...MOCK_USER, id: userId });
         });
     }
   }, [userId]);
 
   const login = async (provider: string) => {
-    const res = await authApi.login(provider);
-    localStorage.setItem(USER_ID_KEY, res.user_id);
-    setUserId(res.user_id);
-    const user = await authApi.getMe(res.user_id);
-    setCurrentUser(user);
+    try {
+      const res = await authApi.login(provider);
+      localStorage.setItem(USER_ID_KEY, res.user_id);
+      setUserId(res.user_id);
+      const user = await authApi.getMe(res.user_id);
+      setCurrentUser(user);
+    } catch {
+      // Backend unavailable — use mock data
+      const uid = "user_me";
+      localStorage.setItem(USER_ID_KEY, uid);
+      setUserId(uid);
+      setCurrentUser(MOCK_USER);
+    }
   };
 
   const logout = () => {
@@ -48,9 +54,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUser(null);
   };
 
-  const updateUser = (user: User) => {
-    setCurrentUser(user);
-  };
+  const updateUser = (user: User) => setCurrentUser(user);
 
   return (
     <AppContext.Provider value={{ currentUser, userId, isLoggedIn, login, logout, updateUser }}>

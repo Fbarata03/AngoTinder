@@ -5,6 +5,7 @@ import { AfricanPattern } from "./AfricanPatterns";
 import { motion } from "motion/react";
 import { profilesApi, User as UserType } from "../api";
 import { useApp } from "../context";
+import { MOCK_PROFILES } from "../mockData";
 
 type TopPick = UserType & { reason: string };
 
@@ -17,7 +18,9 @@ export function TelaTopPicks() {
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
-    profilesApi.getTopPicks(userId).then((p) => { setPicks(p); setLoading(false); }).catch(() => setLoading(false));
+    profilesApi.getTopPicks(userId)
+      .then((p) => { setPicks(p.length > 0 ? p : MOCK_PROFILES.map((u, i) => ({ ...u, reason: ["Compartilha seus interesses","Mora perto de você","Perfil muito ativo","Match em potencial","Curtiu suas fotos","Perfil verificado"][i % 6] }))); setLoading(false); })
+      .catch(() => { setPicks(MOCK_PROFILES.map((u, i) => ({ ...u, reason: ["Compartilha seus interesses","Mora perto de você","Perfil muito ativo","Match em potencial","Curtiu suas fotos","Perfil verificado"][i % 6] }))); setLoading(false); });
   }, [userId, isLoggedIn]);
 
   const visiblePicks = isPremiumUser ? picks : picks.slice(0, 3);

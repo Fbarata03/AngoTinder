@@ -8,6 +8,7 @@ import { MatchModal } from "./MatchModal";
 import { FiltersModal, Filters } from "./FiltersModal";
 import { profilesApi, matchesApi, User as UserType } from "../api";
 import { useApp } from "../context";
+import { MOCK_PROFILES } from "../mockData";
 
 function SwipeCard({ profile, onSwipe }: { profile: UserType; onSwipe: (dir: "left" | "right") => void }) {
   const [currentPhoto, setCurrentPhoto] = useState(0);
@@ -114,7 +115,9 @@ export function TelaDescoberta() {
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
-    profilesApi.discover(userId).then((p) => { setProfiles(p); setLoading(false); }).catch(() => setLoading(false));
+    profilesApi.discover(userId)
+      .then((p) => { setProfiles(p.length > 0 ? p : MOCK_PROFILES); setLoading(false); })
+      .catch(() => { setProfiles(MOCK_PROFILES); setLoading(false); });
   }, [userId, isLoggedIn]);
 
   const handleSwipe = async (dir: "left" | "right" | "super") => {
