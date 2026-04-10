@@ -99,18 +99,18 @@ export function TelaInicial() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-[#000000]">
-      <div className="absolute inset-0 opacity-20">
+    <div className="h-screen relative overflow-hidden bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-[#000000] flex flex-col">
+      <div className="absolute inset-0 opacity-20 pointer-events-none">
         <AfricanPattern className="absolute top-0 left-0 w-96 h-96 text-secondary animate-pulse" />
         <AfricanPattern className="absolute bottom-0 right-0 w-96 h-96 text-secondary animate-pulse" style={{ animationDelay: "1s" }} />
       </div>
-      <div className="absolute top-8 right-8 opacity-30">
-        <AngolanFlag className="w-24 h-16" />
+      <div className="absolute top-4 right-4 opacity-30 pointer-events-none">
+        <AngolanFlag className="w-16 h-11" />
       </div>
 
-      <div className="relative min-h-screen flex flex-col">
+      <div className="relative flex flex-col h-full overflow-y-auto">
         {/* Logo */}
-        <div className="flex flex-col items-center pt-16 px-6">
+        <div className="flex flex-col items-center pt-10 px-6 flex-shrink-0">
           <motion.div
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
@@ -119,35 +119,35 @@ export function TelaInicial() {
           >
             <div className="absolute inset-0 bg-secondary rounded-full blur-3xl animate-pulse"></div>
             <div className="relative bg-gradient-to-br from-secondary via-[#FFD700] to-[#FFA500] p-1 rounded-full">
-              <div className="bg-[#000000] p-6 rounded-full">
-                <Heart className="w-16 h-16 text-secondary fill-secondary drop-shadow-[0_0_15px_rgba(255,205,0,0.8)]" />
+              <div className="bg-[#000000] p-5 rounded-full">
+                <Heart className="w-12 h-12 text-secondary fill-secondary drop-shadow-[0_0_15px_rgba(255,205,0,0.8)]" />
               </div>
             </div>
-            <Sparkles className="absolute -top-2 -right-2 w-7 h-7 text-secondary animate-pulse" />
+            <Sparkles className="absolute -top-2 -right-2 w-6 h-6 text-secondary animate-pulse" />
           </motion.div>
           <motion.h1
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-            className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-secondary via-[#FFD700] to-secondary mt-6 tracking-tight"
+            className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-secondary via-[#FFD700] to-secondary mt-4 tracking-tight"
           >
             AngoTinder
           </motion.h1>
           <motion.p
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-            className="text-white/80 mt-2 text-center text-base"
+            className="text-white/80 mt-1 text-center text-sm"
           >
             O aplicativo de encontros mais quente de Angola 🔥
           </motion.p>
         </div>
 
         {/* Form */}
-        <div className="flex-1 flex flex-col justify-center px-6 pb-12 pt-8">
+        <div className="flex-1 flex flex-col justify-center px-6 pb-6 pt-5">
           <motion.div
             initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
             className="max-w-md mx-auto w-full"
           >
             <div className="bg-gradient-to-br from-[#FFCD00] via-[#FFD700] to-[#FFA500] rounded-3xl p-1 shadow-2xl">
-              <div className="bg-[#000000] rounded-3xl p-8">
-                <h2 className="text-2xl font-black text-secondary text-center mb-6">Entrar na conta</h2>
+              <div className="bg-[#000000] rounded-3xl p-6">
+                <h2 className="text-xl font-black text-secondary text-center mb-5">Entrar na conta</h2>
 
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="relative">
@@ -243,7 +243,7 @@ export function TelaInicial() {
                   </button>
                 )}
 
-                <div className="mt-6 text-center">
+                <div className="mt-4 text-center">
                   <p className="text-white/60 text-sm">
                     Não tem conta?{" "}
                     <button onClick={() => navigate("/register")} className="text-secondary font-black hover:underline">
@@ -256,7 +256,7 @@ export function TelaInicial() {
           </motion.div>
         </div>
 
-        <div className="pb-6 text-center">
+        <div className="pb-4 text-center flex-shrink-0">
           <div className="inline-flex items-center gap-2 text-secondary/60 text-xs">
             <Heart className="w-3 h-3 fill-current" />
             <span>Feito com amor em Angola</span>

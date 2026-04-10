@@ -6,6 +6,9 @@ from auth_utils import get_current_user_id, decode_token
 
 router = APIRouter()
 
+# Signaling message types (not stored in DB — just forwarded)
+SIGNAL_TYPES = {"call-offer", "call-answer", "ice-candidate", "call-end", "call-reject", "call-busy"}
+
 
 class ConnectionManager:
     def __init__(self):
@@ -22,6 +25,7 @@ class ConnectionManager:
             self.rooms[match_id] = [(w, u) for w, u in self.rooms[match_id] if w != ws]
 
     async def broadcast(self, match_id: str, message: dict):
+        """Send to ALL users in the room."""
         if match_id in self.rooms:
             dead = []
             for ws, _ in self.rooms[match_id]:
@@ -29,6 +33,19 @@ class ConnectionManager:
                     await ws.send_json(message)
                 except Exception:
                     dead.append(ws)
+            for ws in dead:
+                self.disconnect(ws, match_id)
+
+    async def forward_to_others(self, match_id: str, sender_id: str, message: dict):
+        """Forward signaling message to everyone except the sender."""
+        if match_id in self.rooms:
+            dead = []
+            for ws, uid in self.rooms[match_id]:
+                if uid != sender_id:
+                    try:
+                        await ws.send_json(message)
+                    except Exception:
+                        dead.append(ws)
             for ws in dead:
                 self.disconnect(ws, match_id)
 
@@ -130,6 +147,15 @@ async def websocket_chat(
     try:
         while True:
             data = await ws.receive_json()
+            msg_type = data.get("type", "text")
+
+            # ── Call signaling: forward to the other user, do NOT store ──
+            if msg_type in SIGNAL_TYPES:
+                data["from"] = user_id
+                await manager.forward_to_others(match_id, user_id, data)
+                continue
+
+            # ── Regular text message ──
             text = data.get("text", "").strip()
             if not text:
                 continue
