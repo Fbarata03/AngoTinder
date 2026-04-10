@@ -102,6 +102,12 @@ export const authApi = {
     }),
 
   getMe: () => request<User>("/auth/me"),
+
+  changePassword: (current_password: string, new_password: string) =>
+    request<{ success: boolean }>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password, new_password }),
+    }),
 };
 
 // ---------- Profiles ----------

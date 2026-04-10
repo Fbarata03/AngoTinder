@@ -1,20 +1,71 @@
-import { useState } from "react";
-import { Settings, User, Bell, Shield, CreditCard, HelpCircle, LogOut, ChevronRight, Heart, MessageCircle, Crown, Eye, EyeOff, MapPin, Smartphone, Mail, Lock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings, User, Bell, Shield, CreditCard, HelpCircle, LogOut, ChevronRight, Heart, MessageCircle, Crown, Eye, EyeOff, MapPin, Mail, Lock, X, Check } from "lucide-react";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { Switch } from "./ui/switch";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { useApp } from "../context";
+import { authApi } from "../api";
+
+const SETTINGS_KEY = "angotinder_settings";
+
+function loadSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
 
 export function TelaConfiguracoes() {
   const navigate = useNavigate();
-  const { logout } = useApp();
+  const { logout, currentUser, isLoggedIn } = useApp();
+
+  const saved = loadSettings();
   const [settings, setSettings] = useState({
-    notifications: { newMatches: true, messages: true, likes: true, superLikes: true },
-    privacy: { showDistance: true, showOnline: true, incognito: false, showOnlyVerified: false },
-    discovery: { showMe: true, globalMode: false },
+    notifications: { newMatches: true, messages: true, likes: true, ...saved.notifications },
+    privacy: { showDistance: true, showOnline: true, incognito: false, showOnlyVerified: false, ...saved.privacy },
+    discovery: { showMe: true, globalMode: false, ...saved.discovery },
   });
+
+  const [showChangePw, setShowChangePw] = useState(false);
+  const [pw, setPw] = useState({ current: "", new: "", confirm: "" });
+  const [showPw, setShowPw] = useState(false);
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError] = useState("");
+  const [pwSuccess, setPwSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!isLoggedIn) navigate("/");
+  }, [isLoggedIn]);
+
+  // Persist settings to localStorage whenever they change
+  const updateSettings = (next: typeof settings) => {
+    setSettings(next);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  };
+
+  const handleChangePw = async () => {
+    setPwError("");
+    if (!pw.current || !pw.new || !pw.confirm) return setPwError("Preencha todos os campos");
+    if (pw.new !== pw.confirm) return setPwError("As novas senhas não coincidem");
+    if (pw.new.length < 6) return setPwError("A nova senha deve ter pelo menos 6 caracteres");
+    setPwLoading(true);
+    try {
+      await authApi.changePassword(pw.current, pw.new);
+      setPwSuccess(true);
+      setPw({ current: "", new: "", confirm: "" });
+      setTimeout(() => { setPwSuccess(false); setShowChangePw(false); }, 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      try { setPwError(JSON.parse(msg).detail || "Senha atual incorreta"); }
+      catch { setPwError("Senha atual incorreta"); }
+    } finally {
+      setPwLoading(false);
+    }
+  };
 
   const Section = ({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) => (
     <div className="mb-6">
@@ -26,8 +77,8 @@ export function TelaConfiguracoes() {
     </div>
   );
 
-  const Item = ({ icon: Icon, label, description, action, value, onChange }: {
-    icon: React.ElementType; label: string; description?: string; action: "switch" | "navigate"; value?: boolean; onChange?: (v: boolean) => void;
+  const SwitchItem = ({ icon: Icon, label, description, value, onChange }: {
+    icon: React.ElementType; label: string; description?: string; value: boolean; onChange: (v: boolean) => void;
   }) => (
     <div className="flex items-center gap-4 p-5 border-b border-primary/10 last:border-0 hover:bg-secondary/5 transition-colors">
       <div className="bg-gradient-to-br from-primary/10 to-secondary/10 p-3 rounded-xl">
@@ -37,9 +88,23 @@ export function TelaConfiguracoes() {
         <p className="font-black">{label}</p>
         {description && <p className="text-sm text-muted-foreground font-medium">{description}</p>}
       </div>
-      {action === "switch" && <Switch checked={value} onCheckedChange={onChange} />}
-      {action === "navigate" && <ChevronRight className="w-5 h-5 text-muted-foreground" />}
+      <Switch checked={value} onCheckedChange={onChange} />
     </div>
+  );
+
+  const NavItem = ({ icon: Icon, label, description, onClick }: {
+    icon: React.ElementType; label: string; description?: string; onClick?: () => void;
+  }) => (
+    <button onClick={onClick} className="w-full flex items-center gap-4 p-5 border-b border-primary/10 last:border-0 hover:bg-secondary/5 transition-colors text-left">
+      <div className="bg-gradient-to-br from-primary/10 to-secondary/10 p-3 rounded-xl">
+        <Icon className="w-5 h-5 text-primary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-black">{label}</p>
+        {description && <p className="text-sm text-muted-foreground font-medium truncate">{description}</p>}
+      </div>
+      <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+    </button>
   );
 
   return (
@@ -65,70 +130,168 @@ export function TelaConfiguracoes() {
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-8 pb-32 relative z-10">
+        {/* Gold banner */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <div className="bg-gradient-to-r from-secondary via-[#FFD700] to-[#FFA500] p-1 rounded-2xl">
-            <div className="bg-gradient-to-br from-black via-[#1a0000] to-black p-6 rounded-2xl">
-              <div className="flex items-center gap-4">
-                <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-3 rounded-2xl">
-                  <Crown className="w-10 h-10 text-black" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-black text-xl text-white mb-1">AngoTinder Gold</h3>
-                  <p className="text-white/80 text-sm font-medium">Likes ilimitados, Rewind, Super Likes e muito mais!</p>
-                </div>
-                <Button className="bg-gradient-to-r from-secondary to-[#FFD700] text-black hover:opacity-90 font-black rounded-xl px-6">Assinar</Button>
+            <div className="bg-gradient-to-br from-black via-[#1a0000] to-black p-6 rounded-2xl flex items-center gap-4">
+              <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-3 rounded-2xl">
+                <Crown className="w-10 h-10 text-black" />
               </div>
+              <div className="flex-1">
+                <h3 className="font-black text-xl text-white mb-1">AngoTinder Gold</h3>
+                <p className="text-white/80 text-sm font-medium">Likes ilimitados, Rewind, Super Likes e muito mais!</p>
+              </div>
+              <Button className="bg-gradient-to-r from-secondary to-[#FFD700] text-black hover:opacity-90 font-black rounded-xl px-6">Assinar</Button>
             </div>
           </div>
         </motion.div>
 
+        {/* Account section with real data */}
         <Section icon={User} title="Conta">
-          <Item icon={Smartphone} label="Telefone" description="+244 912 345 678" action="navigate" />
-          <Item icon={Mail} label="Email" description="utilizador@exemplo.com" action="navigate" />
-          <Item icon={Lock} label="Alterar Senha" action="navigate" />
+          <NavItem
+            icon={Mail}
+            label="Email"
+            description={currentUser?.email || "—"}
+            onClick={() => {}}
+          />
+          <NavItem
+            icon={Lock}
+            label="Alterar Senha"
+            description="Mude a sua senha de acesso"
+            onClick={() => { setShowChangePw(true); setPwError(""); }}
+          />
         </Section>
 
+        {/* Change password modal */}
+        <AnimatePresence>
+          {showChangePw && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6"
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-black">Alterar Senha</h3>
+                  <button onClick={() => setShowChangePw(false)} className="p-2 hover:bg-gray-100 rounded-xl">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {pwSuccess ? (
+                  <div className="text-center py-4">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <Check className="w-8 h-8 text-green-600" />
+                    </div>
+                    <p className="font-black text-green-600">Senha alterada com sucesso!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        type={showPw ? "text" : "password"}
+                        placeholder="Senha atual"
+                        value={pw.current}
+                        onChange={(e) => setPw({ ...pw, current: e.target.value })}
+                        className="pl-10 h-12 rounded-2xl border-2"
+                      />
+                    </div>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        type={showPw ? "text" : "password"}
+                        placeholder="Nova senha"
+                        value={pw.new}
+                        onChange={(e) => setPw({ ...pw, new: e.target.value })}
+                        className="pl-10 h-12 rounded-2xl border-2"
+                      />
+                    </div>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input
+                        type={showPw ? "text" : "password"}
+                        placeholder="Confirmar nova senha"
+                        value={pw.confirm}
+                        onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
+                        className="pl-10 h-12 rounded-2xl border-2"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPw(!showPw)}
+                      className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showPw ? "Ocultar senhas" : "Mostrar senhas"}
+                    </button>
+
+                    {pwError && <p className="text-red-500 text-sm font-medium">{pwError}</p>}
+
+                    <Button
+                      onClick={handleChangePw}
+                      disabled={pwLoading}
+                      className="w-full h-12 bg-gradient-to-r from-[#CE1126] to-[#8B0000] text-white font-black rounded-2xl"
+                    >
+                      {pwLoading ? "A alterar..." : "Alterar Senha"}
+                    </Button>
+                  </div>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <Section icon={Bell} title="Notificações">
-          <Item icon={Heart} label="Novos Matches" description="Receber notificações de novos matches" action="switch"
+          <SwitchItem icon={Heart} label="Novos Matches" description="Receber notificações de novos matches"
             value={settings.notifications.newMatches}
-            onChange={(v) => setSettings({ ...settings, notifications: { ...settings.notifications, newMatches: v } })} />
-          <Item icon={MessageCircle} label="Mensagens" description="Receber notificações de novas mensagens" action="switch"
+            onChange={(v) => updateSettings({ ...settings, notifications: { ...settings.notifications, newMatches: v } })} />
+          <SwitchItem icon={MessageCircle} label="Mensagens" description="Receber notificações de novas mensagens"
             value={settings.notifications.messages}
-            onChange={(v) => setSettings({ ...settings, notifications: { ...settings.notifications, messages: v } })} />
-          <Item icon={Heart} label="Likes" description="Receber notificações quando alguém curtir você" action="switch"
+            onChange={(v) => updateSettings({ ...settings, notifications: { ...settings.notifications, messages: v } })} />
+          <SwitchItem icon={Heart} label="Likes" description="Receber notificações quando alguém curtir você"
             value={settings.notifications.likes}
-            onChange={(v) => setSettings({ ...settings, notifications: { ...settings.notifications, likes: v } })} />
+            onChange={(v) => updateSettings({ ...settings, notifications: { ...settings.notifications, likes: v } })} />
         </Section>
 
         <Section icon={Shield} title="Privacidade">
-          <Item icon={MapPin} label="Mostrar Distância" description="Exibir distância no seu perfil" action="switch"
+          <SwitchItem icon={MapPin} label="Mostrar Distância" description="Exibir distância no seu perfil"
             value={settings.privacy.showDistance}
-            onChange={(v) => setSettings({ ...settings, privacy: { ...settings.privacy, showDistance: v } })} />
-          <Item icon={Eye} label="Mostrar Status Online" description="Permitir que outros vejam quando você está online" action="switch"
+            onChange={(v) => updateSettings({ ...settings, privacy: { ...settings.privacy, showDistance: v } })} />
+          <SwitchItem icon={Eye} label="Mostrar Status Online" description="Permitir que outros vejam quando você está online"
             value={settings.privacy.showOnline}
-            onChange={(v) => setSettings({ ...settings, privacy: { ...settings.privacy, showOnline: v } })} />
-          <Item icon={EyeOff} label="Modo Incógnito" description="Apenas pessoas que você curtir verão seu perfil" action="switch"
+            onChange={(v) => updateSettings({ ...settings, privacy: { ...settings.privacy, showOnline: v } })} />
+          <SwitchItem icon={EyeOff} label="Modo Incógnito" description="Apenas pessoas que você curtir verão seu perfil"
             value={settings.privacy.incognito}
-            onChange={(v) => setSettings({ ...settings, privacy: { ...settings.privacy, incognito: v } })} />
+            onChange={(v) => updateSettings({ ...settings, privacy: { ...settings.privacy, incognito: v } })} />
         </Section>
 
         <Section icon={Heart} title="Descoberta">
-          <Item icon={Eye} label="Mostrar-me no AngoTinder" description="Desative para pausar sua conta" action="switch"
+          <SwitchItem icon={Eye} label="Mostrar-me no AngoTinder" description="Desative para pausar sua conta"
             value={settings.discovery.showMe}
-            onChange={(v) => setSettings({ ...settings, discovery: { ...settings.discovery, showMe: v } })} />
-          <Item icon={MapPin} label="Modo Global" description="Veja pessoas de qualquer lugar (Premium)" action="switch"
+            onChange={(v) => updateSettings({ ...settings, discovery: { ...settings.discovery, showMe: v } })} />
+          <SwitchItem icon={MapPin} label="Modo Global" description="Veja pessoas de qualquer lugar"
             value={settings.discovery.globalMode}
-            onChange={(v) => setSettings({ ...settings, discovery: { ...settings.discovery, globalMode: v } })} />
+            onChange={(v) => updateSettings({ ...settings, discovery: { ...settings.discovery, globalMode: v } })} />
         </Section>
 
         <Section icon={Settings} title="Outros">
-          <Item icon={CreditCard} label="Gerenciar Assinatura" action="navigate" />
-          <Item icon={HelpCircle} label="Central de Ajuda" action="navigate" />
-          <Item icon={Shield} label="Segurança e Privacidade" action="navigate" />
+          <NavItem icon={CreditCard} label="Gerenciar Assinatura" onClick={() => {}} />
+          <NavItem icon={HelpCircle} label="Central de Ajuda" onClick={() => {}} />
+          <NavItem icon={Shield} label="Segurança e Privacidade" onClick={() => {}} />
         </Section>
 
-        <Button onClick={() => { logout(); navigate("/"); }} variant="outline"
-          className="w-full h-14 border-4 border-primary/30 hover:border-primary hover:bg-primary/10 rounded-2xl font-black text-primary text-lg flex items-center justify-center gap-2">
+        <Button
+          onClick={() => { logout(); navigate("/"); }}
+          variant="outline"
+          className="w-full h-14 border-4 border-primary/30 hover:border-primary hover:bg-primary/10 rounded-2xl font-black text-primary text-lg flex items-center justify-center gap-2"
+        >
           <LogOut className="w-5 h-5" />
           Sair da Conta
         </Button>

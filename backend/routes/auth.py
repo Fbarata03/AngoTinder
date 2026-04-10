@@ -117,3 +117,31 @@ async def get_me(user_id: str = Depends(get_current_user_id), db: aiosqlite.Conn
     if not user:
         raise HTTPException(status_code=404, detail="Utilizador não encontrado")
     return parse_user(user)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v):
+        if len(v) < 6:
+            raise ValueError("A nova senha deve ter pelo menos 6 caracteres")
+        return v
+
+
+@router.post("/change-password")
+async def change_password(
+    req: ChangePasswordRequest,
+    user_id: str = Depends(get_current_user_id),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    async with db.execute("SELECT password_hash FROM users WHERE id = ?", (user_id,)) as cur:
+        row = await cur.fetchone()
+    if not row or not verify_password(req.current_password, row["password_hash"]):
+        raise HTTPException(status_code=400, detail="Senha atual incorreta")
+    new_hash = hash_password(req.new_password)
+    await db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, user_id))
+    await db.commit()
+    return {"success": True}
