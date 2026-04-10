@@ -2,11 +2,21 @@
 <html lang="pt">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#CE1126" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AngoTinder" />
+    <meta name="application-name" content="AngoTinder" />
+    <meta name="msapplication-TileColor" content="#CE1126" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Ícones -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="shortcut icon" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#CE1126" />
+    <link rel="manifest" href="/manifest.json" />
 
     <!-- SEO Principal -->
     <title>AngoTinder - App de Encontros em Angola | Conhece Angolanos Perto de Ti</title>
@@ -29,7 +39,6 @@
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://angotinder.bafly.net/" />
     <meta name="twitter:title" content="AngoTinder - App de Encontros em Angola" />
     <meta name="twitter:description" content="O app de encontros mais popular de Angola. Conhece pessoas de Luanda, Benguela, Huambo e todo o país. Grátis!" />
     <meta name="twitter:image" content="https://angotinder.bafly.net/og-image.png" />
@@ -44,26 +53,22 @@
       "description": "O principal app de encontros de Angola. Conhece pessoas de Luanda, Benguela, Huambo e de todo o país.",
       "applicationCategory": "SocialNetworkingApplication",
       "operatingSystem": "Web",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "AOA"
-      },
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "AOA" },
       "inLanguage": "pt-AO",
-      "areaServed": {
-        "@type": "Country",
-        "name": "Angola"
-      },
-      "publisher": {
-        "@type": "Organization",
-        "name": "AngoTinder",
-        "url": "https://angotinder.bafly.net"
-      }
+      "areaServed": { "@type": "Country", "name": "Angola" },
+      "publisher": { "@type": "Organization", "name": "AngoTinder", "url": "https://angotinder.bafly.net" }
     }
     </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js");
+        });
+      }
+    </script>
   </body>
 </html>

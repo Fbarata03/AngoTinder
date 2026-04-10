@@ -1,2 +1,31 @@
 @import "tailwindcss";
 @import './theme.css';
+
+/* PWA / Mobile Global */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+html, body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Impede zoom no double-tap em iOS */
+button, input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* Safe area para iPhone com notch */
+.safe-top    { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Barra de navegação inferior — respeita área segura do iPhone */
+.nav-safe {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+
+/* Scrollbar invisível em mobile */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
