@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { authApi, User, setToken, getToken, clearToken, RegisterData } from "./api";
 
 interface AppContextType {
@@ -38,6 +38,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } else {
       setLoading(false);
     }
+  }, []);
+
+  // Keep-alive: ping backend every 10 min to prevent Render from sleeping
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const base = (import.meta as any).env?.VITE_API_URL || "/api";
+    const ping = () => fetch(`${base}/health`).catch(() => {});
+    ping(); // ping imediato ao carregar
+    const interval = setInterval(ping, 10 * 60 * 1000); // a cada 10 minutos
+    return () => clearInterval(interval);
   }, []);
 
   const login = async (email: string, password: string) => {
