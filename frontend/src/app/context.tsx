@@ -9,6 +9,7 @@ interface AppContextType {
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   updateUser: (user: User) => void;
+  loginWithToken: (token: string, user: User) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -63,6 +64,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCurrentUser(user);
   };
 
+  const loginWithToken = (token: string, user: User) => {
+    setToken(token);
+    setCurrentUser(user);
+    setUserId(user.id);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#CE1126] flex items-center justify-center">
@@ -72,7 +79,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AppContext.Provider value={{ currentUser, userId, isLoggedIn, login, register, logout, updateUser }}>
+    <AppContext.Provider value={{ currentUser, userId, isLoggedIn, login, register, logout, updateUser, loginWithToken }}>
       {children}
     </AppContext.Provider>
   );

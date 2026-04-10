@@ -47,28 +47,40 @@ def parse_user(row) -> dict:
 async def discover(
     user_id: str = Depends(get_current_user_id),
     db: asyncpg.Connection = Depends(get_db),
+    min_age: int = 18,
+    max_age: int = 80,
+    gender: str = "",
+    verified_only: bool = False,
 ):
-    me = await db.fetchrow("SELECT looking_for, gender FROM users WHERE id = $1", user_id)
+    me = await db.fetchrow("SELECT looking_for FROM users WHERE id = $1", user_id)
 
-    gender_filter = ""
-    params: list = [user_id, user_id]
-
-    if me and me["looking_for"] not in ("all", None, ""):
+    # Resolve gender filter: query param overrides profile preference
+    target_gender = ""
+    if gender and gender != "all":
+        gender_map = {"women": "female", "men": "male", "female": "female", "male": "male"}
+        target_gender = gender_map.get(gender, "")
+    elif me and me["looking_for"] not in ("all", None, ""):
         gender_map = {"women": "female", "men": "male"}
-        target_gender = gender_map.get(me["looking_for"])
-        if target_gender:
-            gender_filter = "AND u.gender = $3"
-            params.append(target_gender)
+        target_gender = gender_map.get(me["looking_for"], "")
 
+    conditions = [
+        "u.id != $1",
+        "u.id NOT IN (SELECT swiped_id FROM swipes WHERE swiper_id = $2)",
+        "u.age >= $3",
+        "u.age <= $4",
+    ]
+    params: list = [user_id, user_id, min_age, max_age]
+
+    if target_gender:
+        params.append(target_gender)
+        conditions.append(f"u.gender = ${len(params)}")
+
+    if verified_only:
+        conditions.append("u.is_verified = 1")
+
+    where = " AND ".join(conditions)
     rows = await db.fetch(
-        f"""
-        SELECT u.* FROM users u
-        WHERE u.id != $1
-          AND u.id NOT IN (SELECT swiped_id FROM swipes WHERE swiper_id = $2)
-          {gender_filter}
-        ORDER BY RANDOM()
-        LIMIT 50
-        """,
+        f"SELECT u.* FROM users u WHERE {where} ORDER BY RANDOM() LIMIT 50",
         *params,
     )
     return [parse_user(r) for r in rows]

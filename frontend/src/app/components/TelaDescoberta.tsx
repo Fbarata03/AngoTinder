@@ -112,11 +112,21 @@ export function TelaDescoberta() {
   const [boostActive, setBoostActive] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const loadProfiles = (f: Filters) => {
+    setLoading(true);
+    profilesApi.discover({
+      min_age: f.ageRange[0],
+      max_age: f.ageRange[1],
+      gender: f.gender,
+      verified_only: f.showVerifiedOnly,
+    })
+      .then((p) => { setProfiles(p); setCurrentIndex(0); setHistory([]); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
+
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
-    profilesApi.discover()
-      .then((p) => { setProfiles(p); setLoading(false); })
-      .catch(() => setLoading(false));
+    loadProfiles(filters);
   }, [isLoggedIn]);
 
   const handleSwipe = async (dir: "left" | "right" | "super") => {
@@ -282,7 +292,7 @@ export function TelaDescoberta() {
         matchedProfile={{ name: matchedProfile?.name || "", photo: matchedProfile?.photos[0] || "" }}
         userPhoto={currentUser?.photos[0] || "https://images.unsplash.com/photo-1557296387-5358ad7997bb?w=400"}
       />
-      <FiltersModal isOpen={showFilters} onClose={() => setShowFilters(false)} onApply={setFilters} initial={filters} />
+      <FiltersModal isOpen={showFilters} onClose={() => setShowFilters(false)} onApply={(f) => { setFilters(f); loadProfiles(f); }} initial={filters} />
     </div>
   );
 }

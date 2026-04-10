@@ -108,11 +108,37 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ current_password, new_password }),
     }),
+
+  googleAuth: (access_token: string) =>
+    request<AuthResponse>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ access_token }),
+    }),
+
+  sendPhoneCode: (phone: string) =>
+    request<{ success: boolean }>("/auth/phone/send", {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    }),
+
+  verifyPhoneCode: (phone: string, code: string) =>
+    request<AuthResponse>("/auth/phone/verify", {
+      method: "POST",
+      body: JSON.stringify({ phone, code }),
+    }),
 };
 
 // ---------- Profiles ----------
 export const profilesApi = {
-  discover: () => request<User[]>("/profiles/discover"),
+  discover: (params?: { min_age?: number; max_age?: number; gender?: string; verified_only?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.min_age) q.set("min_age", String(params.min_age));
+    if (params?.max_age) q.set("max_age", String(params.max_age));
+    if (params?.gender && params.gender !== "all") q.set("gender", params.gender);
+    if (params?.verified_only) q.set("verified_only", "true");
+    const qs = q.toString();
+    return request<User[]>(`/profiles/discover${qs ? "?" + qs : ""}`);
+  },
 
   getProfile: (profileId: string) => request<User>(`/profiles/${profileId}`),
 

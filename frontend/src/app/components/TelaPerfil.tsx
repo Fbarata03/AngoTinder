@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Camera, User, Heart, MessageCircle, LogOut, Sparkles, MapPin, Star, Settings, Trash2 } from "lucide-react";
+import { Camera, User, Heart, MessageCircle, LogOut, Sparkles, MapPin, Star, Settings, Trash2, ChevronDown } from "lucide-react";
+import { ANGOLA_PROVINCES } from "./TelaRegisto";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -170,9 +171,18 @@ export function TelaPerfil() {
           <label className="block mb-3 font-black text-lg flex items-center gap-2">
             <MapPin className="w-5 h-5 text-primary" /> Localização
           </label>
-          <Input value={profile.location} onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-            className="bg-white border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
-            placeholder="Sua cidade" />
+          <div className="relative">
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/50 pointer-events-none" />
+            <select
+              value={profile.location}
+              onChange={(e) => setProfile({ ...profile, location: e.target.value })}
+              className="w-full bg-white border-4 border-primary/20 h-16 rounded-2xl text-lg font-bold pl-5 pr-10 appearance-none cursor-pointer"
+            >
+              {ANGOLA_PROVINCES.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="mb-6">

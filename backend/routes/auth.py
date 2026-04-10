@@ -1,13 +1,22 @@
 import json
 import uuid
 import re
+import random
+import string
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 import asyncpg
+import httpx
 from database import get_db
 from auth_utils import hash_password, verify_password, create_token, get_current_user_id
 
 router = APIRouter()
+
+ANGOLA_PROVINCES = [
+    "Luanda", "Benguela", "Huambo", "Bié", "Malanje", "Huíla", "Cunene",
+    "Cuando Cubango", "Moxico", "Lunda Norte", "Lunda Sul", "Uíge",
+    "Cuanza Norte", "Cuanza Sul", "Bengo", "Zaire", "Cabinda", "Namibe"
+]
 
 
 class RegisterRequest(BaseModel):
@@ -135,3 +144,98 @@ async def change_password(
     new_hash = hash_password(req.new_password)
     await db.execute("UPDATE users SET password_hash = $1 WHERE id = $2", new_hash, user_id)
     return {"success": True}
+
+
+# ---------- Google OAuth ----------
+class GoogleAuthRequest(BaseModel):
+    access_token: str
+
+
+@router.post("/google", response_model=AuthResponse)
+async def google_auth(req: GoogleAuthRequest, db: asyncpg.Connection = Depends(get_db)):
+    # Fetch user info from Google
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {req.access_token}"},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Token Google inválido")
+
+    info = resp.json()
+    email = info.get("email", "").lower()
+    name = info.get("name", "Utilizador")
+    if not email:
+        raise HTTPException(status_code=400, detail="Não foi possível obter o email do Google")
+
+    # Check if user exists
+    user = await db.fetchrow("SELECT * FROM users WHERE email = $1", email)
+    if not user:
+        # Auto-register with Google info
+        user_id = str(uuid.uuid4())
+        picture = info.get("picture", "")
+        photos = json.dumps([picture] if picture else [])
+        await db.execute(
+            """INSERT INTO users (id, email, password_hash, name, age, location, gender, looking_for, bio, work, photos, is_verified)
+               VALUES ($1, $2, $3, $4, 18, 'Luanda', 'other', 'all', '', '', $5, 1)""",
+            user_id, email, hash_password(uuid.uuid4().hex), name, photos,
+        )
+        user = await db.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+
+    token = create_token(user["id"])
+    return AuthResponse(token=token, user=parse_user(user))
+
+
+# ---------- Phone OTP ----------
+# In-memory OTP store (resets on server restart — acceptable for demo)
+_otp_store: dict[str, str] = {}
+
+
+class PhoneSendRequest(BaseModel):
+    phone: str
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v):
+        digits = re.sub(r"\D", "", v)
+        if len(digits) < 9:
+            raise ValueError("Número inválido")
+        return digits
+
+
+class PhoneVerifyRequest(BaseModel):
+    phone: str
+    code: str
+
+
+@router.post("/phone/send")
+async def phone_send(req: PhoneSendRequest):
+    code = "".join(random.choices(string.digits, k=6))
+    _otp_store[req.phone] = code
+    # In production: send via Twilio/Africa's Talking
+    # For demo: code is returned in response (remove in production!)
+    return {"success": True, "demo_code": code}
+
+
+@router.post("/phone/verify", response_model=AuthResponse)
+async def phone_verify(req: PhoneVerifyRequest, db: asyncpg.Connection = Depends(get_db)):
+    stored = _otp_store.get(req.phone)
+    if not stored or stored != req.code:
+        raise HTTPException(status_code=400, detail="Código inválido ou expirado")
+
+    del _otp_store[req.phone]
+
+    # Use phone as fake email identifier
+    fake_email = f"+244{req.phone}@angotinder.phone"
+    user = await db.fetchrow("SELECT * FROM users WHERE email = $1", fake_email)
+    if not user:
+        user_id = str(uuid.uuid4())
+        await db.execute(
+            """INSERT INTO users (id, email, password_hash, name, age, location, gender, looking_for, bio, work, photos, is_verified)
+               VALUES ($1, $2, $3, $4, 18, 'Luanda', 'other', 'all', '', '', '[]', 0)""",
+            user_id, fake_email, hash_password(uuid.uuid4().hex), f"+244{req.phone}",
+        )
+        user = await db.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+
+    token = create_token(user["id"])
+    return AuthResponse(token=token, user=parse_user(user))

@@ -1,4 +1,10 @@
-import { Heart, Sparkles, Mail, Lock, User, MapPin, Briefcase, Eye, EyeOff } from "lucide-react";
+import { Heart, Sparkles, Mail, Lock, User, MapPin, Briefcase, Eye, EyeOff, ChevronDown } from "lucide-react";
+
+export const ANGOLA_PROVINCES = [
+  "Luanda", "Benguela", "Huambo", "Bié", "Malanje", "Huíla", "Cunene",
+  "Cuando Cubango", "Moxico", "Lunda Norte", "Lunda Sul", "Uíge",
+  "Cuanza Norte", "Cuanza Sul", "Bengo", "Zaire", "Cabinda", "Namibe",
+];
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -178,13 +184,17 @@ export function TelaRegisto() {
                 />
 
                 <div className="relative">
-                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-secondary/60" />
-                  <Input
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-secondary/60 z-10" />
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-secondary/60 z-10 pointer-events-none" />
+                  <select
                     value={form.location}
                     onChange={(e) => set("location", e.target.value)}
-                    placeholder="Localização (ex: Luanda)"
-                    className="pl-12 h-14 bg-white/10 border-2 border-secondary/30 focus:border-secondary text-white placeholder:text-white/40 rounded-2xl text-base"
-                  />
+                    className="w-full pl-12 pr-10 h-14 bg-white/10 border-2 border-secondary/30 focus:border-secondary text-white rounded-2xl text-base appearance-none cursor-pointer"
+                  >
+                    {ANGOLA_PROVINCES.map((p) => (
+                      <option key={p} value={p} className="bg-black text-white">{p}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="relative">
