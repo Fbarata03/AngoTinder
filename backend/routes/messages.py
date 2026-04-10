@@ -1,16 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
 from pydantic import BaseModel
-import aiosqlite
-import json
-from database import get_db, DB_PATH
+import asyncpg
+from database import get_db, get_pool
 from auth_utils import get_current_user_id, decode_token
 
 router = APIRouter()
 
-# In-memory WebSocket manager
+
 class ConnectionManager:
     def __init__(self):
-        # match_id -> list of (websocket, user_id)
         self.rooms: dict[str, list[tuple[WebSocket, str]]] = {}
 
     async def connect(self, ws: WebSocket, match_id: str, user_id: str):
@@ -42,30 +40,35 @@ class SendMessageRequest(BaseModel):
     text: str
 
 
+def serialize_msg(row) -> dict:
+    d = dict(row)
+    if d.get("created_at") and not isinstance(d["created_at"], str):
+        d["created_at"] = d["created_at"].isoformat()
+    return d
+
+
 @router.get("/{match_id}")
 async def get_messages(
     match_id: str,
     user_id: str = Depends(get_current_user_id),
-    db: aiosqlite.Connection = Depends(get_db),
+    db: asyncpg.Connection = Depends(get_db),
 ):
-    # Verify user is in this match
-    async with db.execute(
-        "SELECT id FROM matches WHERE id=? AND (user1_id=? OR user2_id=?)",
-        (match_id, user_id, user_id),
-    ) as cur:
-        if not await cur.fetchone():
-            raise HTTPException(status_code=403, detail="Sem permissão")
+    row = await db.fetchrow(
+        "SELECT id FROM matches WHERE id=$1 AND (user1_id=$2 OR user2_id=$3)",
+        match_id, user_id, user_id,
+    )
+    if not row:
+        raise HTTPException(status_code=403, detail="Sem permissão")
 
-    async with db.execute(
+    rows = await db.fetch(
         """SELECT m.*, u.name as sender_name
            FROM messages m
            JOIN users u ON u.id = m.sender_id
-           WHERE m.match_id=?
+           WHERE m.match_id=$1
            ORDER BY m.created_at ASC""",
-        (match_id,),
-    ) as cur:
-        rows = await cur.fetchall()
-    return [dict(r) for r in rows]
+        match_id,
+    )
+    return [serialize_msg(r) for r in rows]
 
 
 @router.post("/{match_id}")
@@ -73,36 +76,31 @@ async def send_message(
     match_id: str,
     req: SendMessageRequest,
     user_id: str = Depends(get_current_user_id),
-    db: aiosqlite.Connection = Depends(get_db),
+    db: asyncpg.Connection = Depends(get_db),
 ):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Mensagem vazia")
 
-    # Verify user is in this match
-    async with db.execute(
-        "SELECT id FROM matches WHERE id=? AND (user1_id=? OR user2_id=?)",
-        (match_id, user_id, user_id),
-    ) as cur:
-        if not await cur.fetchone():
-            raise HTTPException(status_code=403, detail="Sem permissão")
+    row = await db.fetchrow(
+        "SELECT id FROM matches WHERE id=$1 AND (user1_id=$2 OR user2_id=$3)",
+        match_id, user_id, user_id,
+    )
+    if not row:
+        raise HTTPException(status_code=403, detail="Sem permissão")
 
     await db.execute(
-        "INSERT INTO messages (match_id, sender_id, text) VALUES (?, ?, ?)",
-        (match_id, user_id, req.text.strip()),
+        "INSERT INTO messages (match_id, sender_id, text) VALUES ($1, $2, $3)",
+        match_id, user_id, req.text.strip(),
     )
-    await db.commit()
 
-    async with db.execute(
-        "SELECT m.*, u.name as sender_name FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.match_id=? ORDER BY m.created_at DESC LIMIT 1",
-        (match_id,),
-    ) as cur:
-        msg = await cur.fetchone()
-
-    msg_dict = dict(msg)
-
-    # Broadcast via WebSocket
+    msg = await db.fetchrow(
+        """SELECT m.*, u.name as sender_name FROM messages m
+           JOIN users u ON u.id=m.sender_id
+           WHERE m.match_id=$1 ORDER BY m.created_at DESC LIMIT 1""",
+        match_id,
+    )
+    msg_dict = serialize_msg(msg)
     await manager.broadcast(match_id, {"type": "message", "data": msg_dict})
-
     return msg_dict
 
 
@@ -111,21 +109,20 @@ async def websocket_chat(
     ws: WebSocket,
     match_id: str,
     token: str = Query(...),
-    db: aiosqlite.Connection = Depends(get_db),
 ):
-    # Verify token
     try:
         user_id = decode_token(token)
     except Exception:
         await ws.close(code=4001)
         return
 
-    # Verify user is in this match
-    async with db.execute(
-        "SELECT id FROM matches WHERE id=? AND (user1_id=? OR user2_id=?)",
-        (match_id, user_id, user_id),
-    ) as cur:
-        if not await cur.fetchone():
+    pool = await get_pool()
+    async with pool.acquire() as db:
+        row = await db.fetchrow(
+            "SELECT id FROM matches WHERE id=$1 AND (user1_id=$2 OR user2_id=$3)",
+            match_id, user_id, user_id,
+        )
+        if not row:
             await ws.close(code=4003)
             return
 
@@ -137,21 +134,19 @@ async def websocket_chat(
             if not text:
                 continue
 
-            # Save message to DB
-            async with aiosqlite.connect(DB_PATH) as save_db:
-                save_db.row_factory = aiosqlite.Row
-                await save_db.execute(
-                    "INSERT INTO messages (match_id, sender_id, text) VALUES (?, ?, ?)",
-                    (match_id, user_id, text),
+            async with pool.acquire() as db:
+                await db.execute(
+                    "INSERT INTO messages (match_id, sender_id, text) VALUES ($1, $2, $3)",
+                    match_id, user_id, text,
                 )
-                await save_db.commit()
-                async with save_db.execute(
-                    "SELECT m.*, u.name as sender_name FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.match_id=? ORDER BY m.created_at DESC LIMIT 1",
-                    (match_id,),
-                ) as cur:
-                    msg = await cur.fetchone()
+                msg = await db.fetchrow(
+                    """SELECT m.*, u.name as sender_name FROM messages m
+                       JOIN users u ON u.id=m.sender_id
+                       WHERE m.match_id=$1 ORDER BY m.created_at DESC LIMIT 1""",
+                    match_id,
+                )
 
-            await manager.broadcast(match_id, {"type": "message", "data": dict(msg)})
+            await manager.broadcast(match_id, {"type": "message", "data": serialize_msg(msg)})
 
     except WebSocketDisconnect:
         manager.disconnect(ws, match_id)

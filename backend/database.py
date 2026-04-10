@@ -1,29 +1,28 @@
-import aiosqlite
-import json
+import asyncpg
 import os
-import uuid
 
-DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "angotinder.db"))
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+_pool: asyncpg.Pool | None = None
+
+
+async def get_pool() -> asyncpg.Pool:
+    global _pool
+    if _pool is None:
+        _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5)
+    return _pool
 
 
 async def get_db():
-    db = await aiosqlite.connect(DB_PATH)
-    db.row_factory = aiosqlite.Row
-    try:
-        yield db
-    finally:
-        await db.close()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        yield conn
 
 
 async def init_db():
-    os.makedirs(os.path.dirname(DB_PATH) if os.path.dirname(DB_PATH) else ".", exist_ok=True)
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-
-        # Enable WAL mode for better concurrent access
-        await db.execute("PRAGMA journal_mode=WAL")
-
-        await db.execute("""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
@@ -40,44 +39,36 @@ async def init_db():
                 interests TEXT DEFAULT '[]',
                 gender TEXT DEFAULT 'other',
                 looking_for TEXT DEFAULT 'all',
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT NOW()
             )
         """)
 
-        await db.execute("""
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS swipes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                swiper_id TEXT NOT NULL,
-                swiped_id TEXT NOT NULL,
+                id SERIAL PRIMARY KEY,
+                swiper_id TEXT NOT NULL REFERENCES users(id),
+                swiped_id TEXT NOT NULL REFERENCES users(id),
                 direction TEXT NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(swiper_id, swiped_id),
-                FOREIGN KEY (swiper_id) REFERENCES users(id),
-                FOREIGN KEY (swiped_id) REFERENCES users(id)
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(swiper_id, swiped_id)
             )
         """)
 
-        await db.execute("""
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS matches (
                 id TEXT PRIMARY KEY,
-                user1_id TEXT NOT NULL,
-                user2_id TEXT NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user1_id) REFERENCES users(id),
-                FOREIGN KEY (user2_id) REFERENCES users(id)
+                user1_id TEXT NOT NULL REFERENCES users(id),
+                user2_id TEXT NOT NULL REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT NOW()
             )
         """)
 
-        await db.execute("""
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                match_id TEXT NOT NULL,
-                sender_id TEXT NOT NULL,
+                id SERIAL PRIMARY KEY,
+                match_id TEXT NOT NULL REFERENCES matches(id),
+                sender_id TEXT NOT NULL REFERENCES users(id),
                 text TEXT NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (match_id) REFERENCES matches(id),
-                FOREIGN KEY (sender_id) REFERENCES users(id)
+                created_at TIMESTAMP DEFAULT NOW()
             )
         """)
-
-        await db.commit()
