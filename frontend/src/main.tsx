@@ -6,7 +6,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import "./styles/index.css";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || "";
+const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || "not-configured";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
