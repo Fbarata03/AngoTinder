@@ -208,13 +208,50 @@ class PhoneVerifyRequest(BaseModel):
     code: str
 
 
+AT_USERNAME = os.getenv("AT_USERNAME", "")
+AT_API_KEY = os.getenv("AT_API_KEY", "")
+
+
+async def _send_sms(phone: str, message: str) -> bool:
+    """Send SMS via Africa's Talking. Returns True on success."""
+    if not AT_USERNAME or not AT_API_KEY:
+        return False  # Not configured — demo mode
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://api.africastalking.com/version1/messaging",
+                headers={
+                    "apiKey": AT_API_KEY,
+                    "Accept": "application/json",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                data={
+                    "username": AT_USERNAME,
+                    "to": f"+244{phone}",
+                    "message": message,
+                },
+                timeout=10,
+            )
+        return resp.status_code == 201
+    except Exception:
+        return False
+
+
 @router.post("/phone/send")
 async def phone_send(req: PhoneSendRequest):
     code = "".join(random.choices(string.digits, k=6))
     _otp_store[req.phone] = code
-    # In production: send via Twilio/Africa's Talking
-    # For demo: code is returned in response (remove in production!)
-    return {"success": True, "demo_code": code}
+
+    sms_sent = await _send_sms(
+        req.phone,
+        f"O seu código AngoTinder é: {code}\nVálido por 10 minutos.",
+    )
+
+    if sms_sent:
+        return {"success": True}
+    else:
+        # Demo mode: return code so user can test without SMS configured
+        return {"success": True, "demo_code": code}
 
 
 @router.post("/phone/verify", response_model=AuthResponse)
