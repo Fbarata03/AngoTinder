@@ -184,7 +184,14 @@ export const messagesApi = {
 // ---------- WebSocket ----------
 export function createChatSocket(matchId: string): WebSocket {
   const token = getToken() || "";
-  const wsBase = BASE_URL.replace(/^http/, "ws").replace(/^\/api$/, "");
-  const url = `${wsBase}/api/messages/ws/${matchId}?token=${token}`;
-  return new WebSocket(url);
+  let wsBase: string;
+  if (BASE_URL.startsWith("http")) {
+    // Production: https://angotinder.onrender.com/api → wss://angotinder.onrender.com
+    wsBase = BASE_URL.replace(/^http/, "ws").replace(/\/api\/?$/, "");
+  } else {
+    // Local dev: use current host with ws/wss
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    wsBase = `${proto}://${window.location.host}`;
+  }
+  return new WebSocket(`${wsBase}/api/messages/ws/${matchId}?token=${token}`);
 }

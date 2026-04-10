@@ -2,7 +2,6 @@ import json
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional
 import aiosqlite
@@ -57,7 +56,6 @@ async def discover(
     params = [user_id, user_id]
 
     if me and me["looking_for"] not in ("all", None, ""):
-        # Map looking_for to gender filter
         gender_map = {"women": "female", "men": "male"}
         target_gender = gender_map.get(me["looking_for"])
         if target_gender:
@@ -137,7 +135,6 @@ async def upload_photo(
         )
         photo_url = result["secure_url"]
     else:
-        # Save locally under /static/photos/
         upload_dir = os.path.join(os.path.dirname(__file__), "..", "static", "photos")
         os.makedirs(upload_dir, exist_ok=True)
         ext = file.filename.split(".")[-1] if file.filename else "jpg"
@@ -147,7 +144,6 @@ async def upload_photo(
             f.write(contents)
         photo_url = f"/static/photos/{filename}"
 
-    # Add to user's photos list
     async with db.execute("SELECT photos FROM users WHERE id = ?", (user_id,)) as cur:
         row = await cur.fetchone()
     photos = json.loads(row["photos"]) if row and row["photos"] else []
@@ -172,18 +168,8 @@ async def delete_photo(
     return {"photos": photos}
 
 
-@router.get("/{profile_id}")
-async def get_profile(
-    profile_id: str,
-    user_id: str = Depends(get_current_user_id),
-    db: aiosqlite.Connection = Depends(get_db),
-):
-    async with db.execute("SELECT * FROM users WHERE id = ?", (profile_id,)) as cur:
-        row = await cur.fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="Perfil não encontrado")
-    return parse_user(row)
-
+# IMPORTANT: /likes/received and /top-picks/today MUST come before /{profile_id}
+# otherwise FastAPI will match them as profile_id="likes" / profile_id="top-picks"
 
 @router.get("/likes/received")
 async def get_likes(
@@ -219,3 +205,17 @@ async def get_top_picks(
     reasons = ["Compartilha seus interesses", "Mora perto de você", "Perfil muito ativo",
                "Match em potencial", "Curtiu suas fotos", "Perfil verificado"]
     return [{**parse_user(r), "reason": reasons[i % len(reasons)]} for i, r in enumerate(rows)]
+
+
+# This MUST be last — catches any /{profile_id}
+@router.get("/{profile_id}")
+async def get_profile(
+    profile_id: str,
+    user_id: str = Depends(get_current_user_id),
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    async with db.execute("SELECT * FROM users WHERE id = ?", (profile_id,)) as cur:
+        row = await cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Perfil não encontrado")
+    return parse_user(row)

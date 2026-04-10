@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from pydantic import BaseModel
 import aiosqlite
 import json
-from database import get_db
+from database import get_db, DB_PATH
 from auth_utils import get_current_user_id, decode_token
 
 router = APIRouter()
@@ -138,7 +138,7 @@ async def websocket_chat(
                 continue
 
             # Save message to DB
-            async with aiosqlite.connect(__import__("os").getenv("DB_PATH", "angotinder.db")) as save_db:
+            async with aiosqlite.connect(DB_PATH) as save_db:
                 save_db.row_factory = aiosqlite.Row
                 await save_db.execute(
                     "INSERT INTO messages (match_id, sender_id, text) VALUES (?, ?, ?)",
