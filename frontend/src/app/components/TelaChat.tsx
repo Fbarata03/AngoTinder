@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { motion, AnimatePresence } from "motion/react";
 import { matchesApi, messagesApi, createChatSocket, Match, Message } from "../api";
@@ -22,7 +22,7 @@ const RTC_CONFIG: RTCConfiguration = {
 type CallState = "idle" | "calling" | "incoming" | "connected";
 
 // ─── Chat List ────────────────────────────────────────────────────────────
-function ChatList({ onSelectMatch }: { onSelectMatch: (m: Match) => void }) {
+function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match) => void; autoOpenMatchId?: string }) {
   const navigate = useNavigate();
   const { isLoggedIn } = useApp();
   const [matches, setMatches] = useState<Match[]>([]);
@@ -31,7 +31,15 @@ function ChatList({ onSelectMatch }: { onSelectMatch: (m: Match) => void }) {
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
     matchesApi.getMatches()
-      .then((m) => { setMatches(m); setLoading(false); })
+      .then((m) => {
+        setMatches(m);
+        setLoading(false);
+        // Auto-abrir conversa se veio de um match
+        if (autoOpenMatchId) {
+          const found = m.find((x) => x.match_id === autoOpenMatchId);
+          if (found) onSelectMatch(found);
+        }
+      })
       .catch(() => setLoading(false));
   }, [isLoggedIn]);
 
@@ -546,7 +554,10 @@ function NavBtn({ icon, label, onClick, active }: { icon: React.ReactNode; label
 }
 
 export function TelaChat() {
+  const location = useLocation();
+  const navState = location.state as { matchId?: string; matchedProfile?: { id: string; name: string; photos: string[] } } | null;
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+
   if (selectedMatch) return <ChatConversation match={selectedMatch} onBack={() => setSelectedMatch(null)} />;
-  return <ChatList onSelectMatch={setSelectedMatch} />;
+  return <ChatList onSelectMatch={setSelectedMatch} autoOpenMatchId={navState?.matchId} />;
 }

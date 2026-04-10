@@ -106,6 +106,7 @@ export function TelaDescoberta() {
   const [history, setHistory] = useState<UserType[]>([]);
   const [showMatch, setShowMatch] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<UserType | null>(null);
+  const [matchId, setMatchId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<Filters>({ ageRange: [18, 35], distance: 50, showVerifiedOnly: false, gender: "all" });
   const [superLikesLeft, setSuperLikesLeft] = useState(1);
@@ -139,6 +140,7 @@ export function TelaDescoberta() {
       const res = await matchesApi.swipe(profile.id, dir === "super" ? "super" : dir);
       if (res.is_match) {
         setMatchedProfile(profile);
+        setMatchId(res.match_id);
         setShowMatch(true);
       }
     } catch { /* offline */ }
@@ -288,7 +290,7 @@ export function TelaDescoberta() {
       <MatchModal
         isOpen={showMatch}
         onClose={() => setShowMatch(false)}
-        onSendMessage={() => { setShowMatch(false); navigate("/chat"); }}
+        onSendMessage={() => { setShowMatch(false); navigate("/chat", { state: { matchId, matchedProfile } }); }}
         matchedProfile={{ name: matchedProfile?.name || "", photo: matchedProfile?.photos[0] || "" }}
         userPhoto={currentUser?.photos[0] || "https://images.unsplash.com/photo-1557296387-5358ad7997bb?w=400"}
       />
