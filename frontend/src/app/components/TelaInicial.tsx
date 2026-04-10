@@ -79,8 +79,6 @@ export function TelaInicial() {
   };
 
   // Phone login
-  const [demoCode, setDemoCode] = useState("");
-
   const handlePhoneSend = async () => {
     if (!phone.trim() || phone.length < 9) {
       setPhoneError("Número inválido");
@@ -89,14 +87,7 @@ export function TelaInicial() {
     setPhoneLoading(true);
     setPhoneError("");
     try {
-      const res = await authApi.sendPhoneCode(phone.trim()) as { success: boolean; demo_code?: string };
-      if (res.demo_code) {
-        // SMS not configured — show code on screen for testing
-        setDemoCode(res.demo_code);
-        setPhoneCode(res.demo_code);
-      } else {
-        setDemoCode("");
-      }
+      await authApi.sendPhoneCode(phone.trim());
       setPhoneStep("code");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
@@ -339,13 +330,7 @@ export function TelaInicial() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-white/60 text-sm">Introduza o código de 6 dígitos enviado para +244 {phone}</p>
-                  {demoCode && (
-                    <div className="bg-secondary/20 border border-secondary/40 rounded-2xl p-3 text-center">
-                      <p className="text-secondary/70 text-xs font-bold mb-1">MODO DEMO (SMS não configurado)</p>
-                      <p className="text-secondary font-black text-2xl tracking-widest">{demoCode}</p>
-                    </div>
-                  )}
+                  <p className="text-white/60 text-sm">Introduza o código de 6 dígitos enviado por SMS para +244 {phone}</p>
                   <Input
                     type="text"
                     value={phoneCode}

@@ -187,35 +187,12 @@ async def google_auth(req: GoogleAuthRequest, db: asyncpg.Connection = Depends(g
 
 
 # ---------- Phone OTP ----------
-# In-memory OTP store (resets on server restart — acceptable for demo)
-_otp_store: dict[str, str] = {}
-
-
-class PhoneSendRequest(BaseModel):
-    phone: str
-
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, v):
-        digits = re.sub(r"\D", "", v)
-        if len(digits) < 9:
-            raise ValueError("Número inválido")
-        return digits
-
-
-class PhoneVerifyRequest(BaseModel):
-    phone: str
-    code: str
-
-
 AT_USERNAME = os.getenv("AT_USERNAME", "")
 AT_API_KEY = os.getenv("AT_API_KEY", "")
 
 
 async def _send_sms(phone: str, message: str) -> bool:
-    """Send SMS via Africa's Talking. Returns True on success."""
-    if not AT_USERNAME or not AT_API_KEY:
-        return False  # Not configured — demo mode
+    """Send SMS via Africa's Talking."""
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
@@ -237,32 +214,59 @@ async def _send_sms(phone: str, message: str) -> bool:
         return False
 
 
-@router.post("/phone/send")
-async def phone_send(req: PhoneSendRequest):
-    code = "".join(random.choices(string.digits, k=6))
-    _otp_store[req.phone] = code
+class PhoneSendRequest(BaseModel):
+    phone: str
 
-    sms_sent = await _send_sms(
-        req.phone,
-        f"O seu código AngoTinder é: {code}\nVálido por 10 minutos.",
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v):
+        digits = re.sub(r"\D", "", v)
+        if len(digits) < 9:
+            raise ValueError("Número inválido")
+        return digits
+
+
+class PhoneVerifyRequest(BaseModel):
+    phone: str
+    code: str
+
+
+@router.post("/phone/send")
+async def phone_send(req: PhoneSendRequest, db: asyncpg.Connection = Depends(get_db)):
+    from datetime import datetime, timedelta
+    if not AT_USERNAME or not AT_API_KEY:
+        raise HTTPException(status_code=503, detail="Serviço SMS não disponível. Use email e senha para entrar.")
+
+    code = "".join(random.choices(string.digits, k=6))
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    await db.execute(
+        """INSERT INTO phone_otps (phone, code, expires_at) VALUES ($1, $2, $3)
+           ON CONFLICT (phone) DO UPDATE SET code=$2, expires_at=$3""",
+        req.phone, code, expires_at,
     )
 
-    if sms_sent:
-        return {"success": True}
-    else:
-        # Demo mode: return code so user can test without SMS configured
-        return {"success": True, "demo_code": code}
+    sent = await _send_sms(req.phone, f"O seu código AngoTinder é: {code}\nVálido por 10 minutos.")
+    if not sent:
+        raise HTTPException(status_code=503, detail="Falha ao enviar SMS. Tente novamente.")
+
+    return {"success": True}
 
 
 @router.post("/phone/verify", response_model=AuthResponse)
 async def phone_verify(req: PhoneVerifyRequest, db: asyncpg.Connection = Depends(get_db)):
-    stored = _otp_store.get(req.phone)
-    if not stored or stored != req.code:
+    from datetime import datetime
+    row = await db.fetchrow("SELECT code, expires_at FROM phone_otps WHERE phone = $1", req.phone)
+    if not row:
         raise HTTPException(status_code=400, detail="Código inválido ou expirado")
+    if row["code"] != req.code:
+        raise HTTPException(status_code=400, detail="Código incorreto")
+    if row["expires_at"] < datetime.utcnow():
+        await db.execute("DELETE FROM phone_otps WHERE phone = $1", req.phone)
+        raise HTTPException(status_code=400, detail="Código expirado. Solicite um novo.")
 
-    del _otp_store[req.phone]
+    await db.execute("DELETE FROM phone_otps WHERE phone = $1", req.phone)
 
-    # Use phone as fake email identifier
     fake_email = f"+244{req.phone}@angotinder.phone"
     user = await db.fetchrow("SELECT * FROM users WHERE email = $1", fake_email)
     if not user:

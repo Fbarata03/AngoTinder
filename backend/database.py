@@ -72,3 +72,11 @@ async def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS phone_otps (
+                phone TEXT PRIMARY KEY,
+                code TEXT NOT NULL,
+                expires_at TIMESTAMP NOT NULL
+            )
+        """)

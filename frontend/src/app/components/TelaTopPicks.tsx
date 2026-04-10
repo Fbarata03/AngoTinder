@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { Heart, User, MessageCircle, Star, Crown, Sparkles, Info } from "lucide-react";
+import { Heart, User, MessageCircle, Star, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { motion } from "motion/react";
-import { profilesApi, User as UserType } from "../api";
+import { profilesApi, matchesApi, User as UserType } from "../api";
 import { useApp } from "../context";
 type TopPick = UserType & { reason: string };
 
@@ -12,7 +12,6 @@ export function TelaTopPicks() {
   const { isLoggedIn } = useApp();
   const [picks, setPicks] = useState<TopPick[]>([]);
   const [loading, setLoading] = useState(true);
-  const isPremiumUser = false;
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
@@ -21,7 +20,12 @@ export function TelaTopPicks() {
       .catch(() => setLoading(false));
   }, [isLoggedIn]);
 
-  const visiblePicks = isPremiumUser ? picks : picks.slice(0, 3);
+  const handleLike = async (userId: string) => {
+    try {
+      await matchesApi.swipe(userId, "right");
+      setPicks((prev) => prev.filter((p) => p.id !== userId));
+    } catch { /* ignore */ }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] flex flex-col relative overflow-hidden">
@@ -30,32 +34,15 @@ export function TelaTopPicks() {
 
       <div className="relative bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-black p-6 text-white shadow-xl">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-2 rounded-xl">
-                <Star className="w-6 h-6 text-black fill-black" />
-              </div>
-              <h1 className="text-2xl font-black">Top Picks</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-2 rounded-xl">
+              <Star className="w-6 h-6 text-black fill-black" />
             </div>
-            <button className="p-2 hover:bg-white/20 rounded-xl transition-colors"><Info className="w-6 h-6" /></button>
+            <h1 className="text-2xl font-black">Top Picks</h1>
           </div>
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-secondary animate-pulse" />
             <p className="text-secondary font-bold">Selecionados especialmente para você hoje</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-6 pb-0 max-w-4xl mx-auto w-full relative z-10">
-        <div className="bg-gradient-to-r from-secondary/20 to-[#FFD700]/20 border-4 border-secondary/30 rounded-2xl p-4 flex items-start gap-3">
-          <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-2 rounded-xl flex-shrink-0">
-            <Sparkles className="w-5 h-5 text-black" />
-          </div>
-          <div>
-            <h3 className="font-black text-base mb-1">Escolhas Diárias</h3>
-            <p className="text-sm text-muted-foreground font-medium">
-              {isPremiumUser ? "Você tem acesso ilimitado aos Top Picks!" : "3 picks gratuitos por dia. Assine o AngoTinder Gold para mais!"}
-            </p>
           </div>
         </div>
       </div>
@@ -66,13 +53,25 @@ export function TelaTopPicks() {
             <Star className="w-16 h-16 text-secondary fill-secondary animate-pulse mx-auto mb-4" />
             <p className="text-muted-foreground font-medium">A carregar top picks...</p>
           </div>
+        ) : picks.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-24 h-24 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Star className="w-12 h-12 text-secondary" />
+            </div>
+            <h3 className="text-xl font-black mb-2">Sem picks hoje</h3>
+            <p className="text-muted-foreground font-medium">Volte amanhã para novos picks!</p>
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-4">
-            {visiblePicks.map((pick, i) => (
+            {picks.map((pick, i) => (
               <motion.div key={pick.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.08 }}
                 className="relative aspect-[3/4] rounded-3xl overflow-hidden group cursor-pointer">
-                <img src={pick.photos[0]} alt={pick.name} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                <img
+                  src={pick.photos[0] || "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400"}
+                  alt={pick.name}
+                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
                 {pick.is_verified === 1 && (
                   <div className="absolute top-3 right-3">
@@ -96,57 +95,19 @@ export function TelaTopPicks() {
                         <h3 className="text-white font-black text-xl">{pick.name}</h3>
                         <span className="text-white font-black text-xl">{pick.age}</span>
                       </div>
-                      <p className="text-white/80 text-sm font-medium flex items-center gap-1">
-                        <Star className="w-3 h-3 fill-secondary text-secondary" /> {pick.location}
-                      </p>
+                      <p className="text-white/80 text-sm font-medium">{pick.location}</p>
                     </div>
-                    <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-2.5 rounded-full shadow-lg">
-                      <Heart className="w-5 h-5 text-black" />
-                    </div>
+                    <button
+                      onClick={() => handleLike(pick.id)}
+                      className="bg-gradient-to-br from-secondary to-[#FFD700] p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform"
+                    >
+                      <Heart className="w-5 h-5 text-black fill-black" />
+                    </button>
                   </div>
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              </motion.div>
-            ))}
-
-            {!isPremiumUser && picks.slice(3).map((_, i) => (
-              <motion.div key={`locked-${i}`} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: (visiblePicks.length + i) * 0.08 }}
-                className="relative aspect-[3/4] rounded-3xl overflow-hidden cursor-pointer">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-secondary/20 to-black/40 backdrop-blur-xl" />
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
-                  <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-1 rounded-full mb-4">
-                    <div className="bg-black p-4 rounded-full">
-                      <Crown className="w-12 h-12 text-secondary" />
-                    </div>
-                  </div>
-                  <p className="text-white font-black text-center text-base mb-2">Mais {picks.length - visiblePicks.length} Picks</p>
-                  <p className="text-white/80 text-sm text-center font-medium">Assine o Gold para desbloquear</p>
                 </div>
               </motion.div>
             ))}
           </div>
-        )}
-
-        {!isPremiumUser && picks.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="mt-8">
-            <div className="bg-gradient-to-r from-secondary via-[#FFD700] to-[#FFA500] p-1 rounded-2xl">
-              <div className="bg-gradient-to-br from-black via-[#1a0000] to-black p-6 rounded-2xl">
-                <div className="flex items-center gap-4">
-                  <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-3 rounded-2xl flex-shrink-0">
-                    <Crown className="w-8 h-8 text-black" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-black text-lg text-white mb-1">Desbloqueie Todos os Top Picks!</h3>
-                    <p className="text-white/80 text-sm font-medium">Veja perfis ilimitados selecionados para você</p>
-                  </div>
-                </div>
-                <button className="mt-4 w-full bg-gradient-to-r from-secondary to-[#FFD700] text-black hover:opacity-90 font-black text-base py-3 rounded-xl transition-opacity">
-                  Assinar AngoTinder Gold
-                </button>
-              </div>
-            </div>
-          </motion.div>
         )}
       </div>
 

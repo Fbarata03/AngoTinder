@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
-import { Heart, User, MessageCircle, Crown, Star, Sparkles } from "lucide-react";
-import { Button } from "./ui/button";
+import { Heart, User, MessageCircle, Star, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { motion } from "motion/react";
-import { profilesApi, User as UserType } from "../api";
+import { profilesApi, matchesApi, User as UserType } from "../api";
 import { useApp } from "../context";
 
 export function TelaLikes() {
@@ -12,14 +11,18 @@ export function TelaLikes() {
   const { isLoggedIn } = useApp();
   const [likes, setLikes] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
-  const isPremiumUser = false;
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
     profilesApi.getLikes().then((l) => { setLikes(l); setLoading(false); }).catch(() => setLoading(false));
   }, [isLoggedIn]);
 
-  const displayLikes = likes;
+  const handleLikeBack = async (userId: string) => {
+    try {
+      await matchesApi.swipe(userId, "right");
+      setLikes((prev) => prev.filter((u) => u.id !== userId));
+    } catch { /* ignore */ }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] flex flex-col relative overflow-hidden">
@@ -36,79 +39,67 @@ export function TelaLikes() {
           </div>
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-secondary animate-pulse" />
-            <p className="text-secondary font-bold">{displayLikes.length} pessoas curtiram você</p>
+            <p className="text-secondary font-bold">{likes.length} {likes.length === 1 ? "pessoa curtiu você" : "pessoas curtiram você"}</p>
           </div>
         </div>
       </div>
 
-      {!isPremiumUser && (
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative z-20 mx-6 mt-6">
-          <div className="bg-gradient-to-r from-secondary via-[#FFD700] to-[#FFA500] p-1 rounded-2xl shadow-2xl">
-            <div className="bg-gradient-to-br from-black via-[#1a0000] to-black p-6 rounded-2xl">
-              <div className="flex items-start gap-4">
-                <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-3 rounded-2xl">
-                  <Crown className="w-8 h-8 text-black" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-black text-xl text-white mb-2">Seja Premium!</h3>
-                  <p className="text-white/80 text-sm font-medium mb-4">Veja quem curtiu você e dê match instantâneo!</p>
-                  <Button className="bg-gradient-to-r from-secondary to-[#FFD700] text-black hover:opacity-90 font-black rounded-xl h-12 px-6">
-                    Assinar AngoTinder Gold
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
       <div className="flex-1 p-6 pt-8 max-w-4xl mx-auto w-full relative z-10 pb-32">
-        <div className="grid grid-cols-2 gap-4">
-          {displayLikes.map((like, i) => (
-            <motion.div key={like.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.05 }} className="relative aspect-[3/4] rounded-3xl overflow-hidden group cursor-pointer">
-              <img src={like.photos[0]} alt="Like"
-                className={`w-full h-full object-cover transition-all ${!isPremiumUser ? "blur-xl scale-110" : "group-hover:scale-105"}`} />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
-              {like.is_verified === 1 && (
-                <div className="absolute top-3 right-3">
-                  <div className="bg-gradient-to-r from-secondary to-[#FFD700] p-0.5 rounded-full">
-                    <div className="bg-black/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1">
-                      <Star className="w-3 h-3 text-secondary fill-secondary" />
-                      <span className="text-xs font-black text-secondary">VIP</span>
+        {loading ? (
+          <div className="text-center py-16">
+            <Heart className="w-16 h-16 text-primary fill-primary animate-pulse mx-auto mb-4" />
+            <p className="text-muted-foreground font-medium">A carregar likes...</p>
+          </div>
+        ) : likes.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Heart className="w-12 h-12 text-primary" />
+            </div>
+            <h3 className="text-xl font-black mb-2">Ainda sem likes</h3>
+            <p className="text-muted-foreground font-medium">Continue a deslizar para ganhar mais likes!</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            {likes.map((like, i) => (
+              <motion.div key={like.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.05 }} className="relative aspect-[3/4] rounded-3xl overflow-hidden group cursor-pointer">
+                <img
+                  src={like.photos[0] || "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400"}
+                  alt={like.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+                {like.is_verified === 1 && (
+                  <div className="absolute top-3 right-3">
+                    <div className="bg-gradient-to-r from-secondary to-[#FFD700] p-0.5 rounded-full">
+                      <div className="bg-black/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1">
+                        <Star className="w-3 h-3 text-secondary fill-secondary" />
+                        <span className="text-xs font-black text-secondary">VIP</span>
+                      </div>
                     </div>
                   </div>
+                )}
+                <div className="absolute bottom-0 left-0 right-0 p-3">
+                  <p className="text-white font-black text-base">{like.name}, {like.age}</p>
+                  <p className="text-white/70 text-xs font-medium">{like.location}</p>
                 </div>
-              )}
-              {!isPremiumUser && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-1 rounded-full mb-3">
-                    <div className="bg-black p-4 rounded-full">
-                      <Crown className="w-10 h-10 text-secondary" />
-                    </div>
-                  </div>
-                  <p className="text-white font-black text-sm text-center px-4">Seja Premium<br />para ver</p>
-                </div>
-              )}
-              {isPremiumUser && (
-                <div className="absolute bottom-3 left-3 right-3">
-                  <p className="text-white font-black text-lg">{like.name}, {like.age}</p>
-                </div>
-              )}
-              <div className="absolute bottom-3 left-3">
-                <div className="bg-gradient-to-br from-primary to-[#8B0000] p-2 rounded-full shadow-lg">
-                  <Heart className="w-6 h-6 text-white fill-white" />
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+                {/* Like back button */}
+                <button
+                  onClick={() => handleLikeBack(like.id)}
+                  className="absolute bottom-3 right-3 bg-gradient-to-br from-secondary to-[#FFD700] p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform"
+                >
+                  <Heart className="w-5 h-5 text-black fill-black" />
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
           <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={false} />
-          <NavBtn icon={<Heart className="w-6 h-6 fill-current" />} label="Likes" onClick={() => navigate("/likes")} active={true} badge={String(displayLikes.length)} />
+          <NavBtn icon={<Heart className="w-6 h-6 fill-current" />} label="Likes" onClick={() => navigate("/likes")} active={true} badge={likes.length > 0 ? String(likes.length) : undefined} />
           <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={false} />
           <NavBtn icon={<User className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} active={false} />
         </div>
