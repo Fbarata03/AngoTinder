@@ -211,7 +211,7 @@ export function TelaInicial() {
                   <FacebookLogin
                     appId={FACEBOOK_APP_ID}
                     autoLoad={false}
-                    fields="name,email,picture"
+                    fields="name,picture"
                     callback={handleFacebookResponse}
                     render={(renderProps: { onClick: () => void; isDisabled?: boolean }) => (
                       <button
