@@ -186,6 +186,46 @@ async def google_auth(req: GoogleAuthRequest, db: asyncpg.Connection = Depends(g
     return AuthResponse(token=token, user=parse_user(user))
 
 
+# ---------- Facebook OAuth ----------
+class FacebookAuthRequest(BaseModel):
+    access_token: str
+
+
+@router.post("/facebook", response_model=AuthResponse)
+async def facebook_auth(req: FacebookAuthRequest, db: asyncpg.Connection = Depends(get_db)):
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://graph.facebook.com/me",
+            params={"fields": "id,name,email,picture.width(400)", "access_token": req.access_token},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Token Facebook inválido")
+
+    info = resp.json()
+    email = info.get("email", "").lower()
+    name = info.get("name", "Utilizador")
+    fb_id = info.get("id", "")
+
+    # Use Facebook ID as email if no email provided (some FB accounts hide email)
+    if not email:
+        email = f"fb_{fb_id}@angotinder.facebook"
+
+    user = await db.fetchrow("SELECT * FROM users WHERE email = $1", email)
+    if not user:
+        user_id = str(uuid.uuid4())
+        picture = info.get("picture", {}).get("data", {}).get("url", "")
+        photos = json.dumps([picture] if picture else [])
+        await db.execute(
+            """INSERT INTO users (id, email, password_hash, name, age, location, gender, looking_for, bio, work, photos, is_verified)
+               VALUES ($1, $2, $3, $4, 18, 'Luanda', 'other', 'all', '', '', $5, 1)""",
+            user_id, email, hash_password(uuid.uuid4().hex), name, photos,
+        )
+        user = await db.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+
+    token = create_token(user["id"])
+    return AuthResponse(token=token, user=parse_user(user))
+
+
 # ---------- Phone OTP ----------
 AT_USERNAME = os.getenv("AT_USERNAME", "")
 AT_API_KEY = os.getenv("AT_API_KEY", "")

@@ -1,13 +1,19 @@
-import { Heart, Sparkles, Mail, Lock, Eye, EyeOff, Phone, X } from "lucide-react";
+import { Heart, Sparkles, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { useNavigate } from "react-router";
 import { AfricanPattern, AngolanFlag } from "./AfricanPatterns";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { useApp } from "../context";
 import { useState } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
+import FacebookLogin from "react-facebook-login/dist/facebook-login-render-props";
 import { authApi } from "../api";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || "";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const FACEBOOK_APP_ID = (import.meta as any).env?.VITE_FACEBOOK_APP_ID || "";
 
 export function TelaInicial() {
   const navigate = useNavigate();
@@ -18,20 +24,9 @@ export function TelaInicial() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Phone modal state
-  const [showPhone, setShowPhone] = useState(false);
-  const [phone, setPhone] = useState("");
-  const [phoneCode, setPhoneCode] = useState("");
-  const [phoneStep, setPhoneStep] = useState<"number" | "code">("number");
-  const [phoneLoading, setPhoneLoading] = useState(false);
-  const [phoneError, setPhoneError] = useState("");
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) {
-      setError("Preencha todos os campos");
-      return;
-    }
+    if (!email.trim() || !password.trim()) return setError("Preencha todos os campos");
     setLoading(true);
     setError("");
     try {
@@ -39,20 +34,14 @@ export function TelaInicial() {
       navigate("/discover");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
-      try {
-        const parsed = JSON.parse(msg);
-        setError(parsed.detail || "Email ou senha incorretos");
-      } catch {
-        setError("Email ou senha incorretos");
-      }
+      try { setError(JSON.parse(msg).detail || "Email ou senha incorretos"); }
+      catch { setError("Email ou senha incorretos"); }
     } finally {
       setLoading(false);
     }
   };
 
   // Google OAuth
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || "";
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       setLoading(true);
@@ -72,49 +61,27 @@ export function TelaInicial() {
 
   const handleGoogleLogin = () => {
     if (!GOOGLE_CLIENT_ID) {
-      setError("Google Login não configurado. Configure VITE_GOOGLE_CLIENT_ID.");
+      setError("Configure VITE_GOOGLE_CLIENT_ID no Render para ativar Google Login.");
       return;
     }
+    setError("");
     googleLogin();
   };
 
-  // Phone login
-  const handlePhoneSend = async () => {
-    if (!phone.trim() || phone.length < 9) {
-      setPhoneError("Número inválido");
-      return;
-    }
-    setPhoneLoading(true);
-    setPhoneError("");
+  // Facebook OAuth
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleFacebookResponse = async (res: any) => {
+    if (!res?.accessToken) return;
+    setLoading(true);
+    setError("");
     try {
-      await authApi.sendPhoneCode(phone.trim());
-      setPhoneStep("code");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "";
-      try { setPhoneError(JSON.parse(msg).detail || "Erro ao enviar código"); }
-      catch { setPhoneError("Erro ao enviar código"); }
-    } finally {
-      setPhoneLoading(false);
-    }
-  };
-
-  const handlePhoneVerify = async () => {
-    if (!phoneCode.trim() || phoneCode.length !== 6) {
-      setPhoneError("Código deve ter 6 dígitos");
-      return;
-    }
-    setPhoneLoading(true);
-    setPhoneError("");
-    try {
-      const res = await authApi.verifyPhoneCode(phone.trim(), phoneCode.trim());
-      loginWithToken(res.token, res.user);
+      const auth = await authApi.facebookAuth(res.accessToken);
+      loginWithToken(auth.token, auth.user);
       navigate("/discover");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "";
-      try { setPhoneError(JSON.parse(msg).detail || "Código inválido"); }
-      catch { setPhoneError("Código inválido"); }
+    } catch {
+      setError("Erro ao entrar com Facebook. Tente novamente.");
     } finally {
-      setPhoneLoading(false);
+      setLoading(false);
     }
   };
 
@@ -124,12 +91,12 @@ export function TelaInicial() {
         <AfricanPattern className="absolute top-0 left-0 w-96 h-96 text-secondary animate-pulse" />
         <AfricanPattern className="absolute bottom-0 right-0 w-96 h-96 text-secondary animate-pulse" style={{ animationDelay: "1s" }} />
       </div>
-
       <div className="absolute top-8 right-8 opacity-30">
         <AngolanFlag className="w-24 h-16" />
       </div>
 
       <div className="relative min-h-screen flex flex-col">
+        {/* Logo */}
         <div className="flex flex-col items-center pt-16 px-6">
           <motion.div
             initial={{ scale: 0, rotate: -180 }}
@@ -145,31 +112,24 @@ export function TelaInicial() {
             </div>
             <Sparkles className="absolute -top-2 -right-2 w-7 h-7 text-secondary animate-pulse" />
           </motion.div>
-
           <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
             className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-secondary via-[#FFD700] to-secondary mt-6 tracking-tight"
           >
             AngoTinder
           </motion.h1>
-
           <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
             className="text-white/80 mt-2 text-center text-base"
           >
             O aplicativo de encontros mais quente de Angola 🔥
           </motion.p>
         </div>
 
+        {/* Form */}
         <div className="flex-1 flex flex-col justify-center px-6 pb-12 pt-8">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
+            initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
             className="max-w-md mx-auto w-full"
           >
             <div className="bg-gradient-to-br from-[#FFCD00] via-[#FFD700] to-[#FFA500] rounded-3xl p-1 shadow-2xl">
@@ -180,41 +140,28 @@ export function TelaInicial() {
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-secondary/60" />
                     <Input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                       placeholder="Email"
                       className="pl-12 h-14 bg-white/10 border-2 border-secondary/30 focus:border-secondary text-white placeholder:text-white/40 rounded-2xl text-base"
                     />
                   </div>
-
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-secondary/60" />
                     <Input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Senha"
+                      type={showPassword ? "text" : "password"} value={password}
+                      onChange={(e) => setPassword(e.target.value)} placeholder="Senha"
                       className="pl-12 pr-12 h-14 bg-white/10 border-2 border-secondary/30 focus:border-secondary text-white placeholder:text-white/40 rounded-2xl text-base"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-secondary/60 hover:text-secondary"
-                    >
+                    <button type="button" onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-secondary/60 hover:text-secondary">
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
 
-                  {error && (
-                    <p className="text-red-400 text-sm text-center font-medium">{error}</p>
-                  )}
+                  {error && <p className="text-red-400 text-sm text-center font-medium">{error}</p>}
 
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full h-14 bg-gradient-to-r from-[#CE1126] to-[#8B0000] hover:opacity-90 text-white text-lg rounded-2xl font-black shadow-xl mt-2"
-                  >
+                  <Button type="submit" disabled={loading}
+                    className="w-full h-14 bg-gradient-to-r from-[#CE1126] to-[#8B0000] hover:opacity-90 text-white text-lg rounded-2xl font-black shadow-xl mt-2">
                     {loading ? "A entrar..." : "Entrar"}
                   </Button>
                 </form>
@@ -230,7 +177,7 @@ export function TelaInicial() {
                 <button
                   onClick={handleGoogleLogin}
                   disabled={loading}
-                  className="w-full h-14 bg-[#4285F4] hover:bg-[#3367D6] text-white rounded-2xl font-black text-base flex items-center gap-3 px-5 transition-colors shadow-lg mb-3"
+                  className="w-full h-14 bg-[#4285F4] hover:bg-[#3367D6] text-white rounded-2xl font-black text-base flex items-center gap-3 px-5 transition-colors shadow-lg mb-3 disabled:opacity-60"
                 >
                   <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center flex-shrink-0">
                     <svg viewBox="0 0 24 24" className="w-5 h-5">
@@ -243,22 +190,46 @@ export function TelaInicial() {
                   <span className="flex-1 text-center">Continuar com a Google</span>
                 </button>
 
-                {/* Phone Button */}
-                <button
-                  onClick={() => { setShowPhone(true); setPhoneStep("number"); setPhone(""); setPhoneCode(""); setPhoneError(""); }}
-                  className="w-full h-14 bg-white/10 hover:bg-white/20 border-2 border-white/20 hover:border-white/40 text-white rounded-2xl font-black text-base flex items-center gap-3 px-5 transition-colors"
-                >
-                  <Phone className="w-5 h-5 flex-shrink-0" />
-                  <span className="flex-1 text-center">Entrar com número de telefone</span>
-                </button>
+                {/* Facebook Button */}
+                {FACEBOOK_APP_ID ? (
+                  <FacebookLogin
+                    appId={FACEBOOK_APP_ID}
+                    autoLoad={false}
+                    fields="name,email,picture"
+                    callback={handleFacebookResponse}
+                    render={(renderProps: { onClick: () => void; isDisabled?: boolean }) => (
+                      <button
+                        onClick={renderProps.onClick}
+                        disabled={loading || renderProps.isDisabled}
+                        className="w-full h-14 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-2xl font-black text-base flex items-center gap-3 px-5 transition-colors shadow-lg disabled:opacity-60"
+                      >
+                        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center flex-shrink-0">
+                          <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#1877F2">
+                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                          </svg>
+                        </div>
+                        <span className="flex-1 text-center">Continuar com o Facebook</span>
+                      </button>
+                    )}
+                  />
+                ) : (
+                  <button
+                    onClick={() => setError("Configure VITE_FACEBOOK_APP_ID no Render para ativar Facebook Login.")}
+                    className="w-full h-14 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-2xl font-black text-base flex items-center gap-3 px-5 transition-colors shadow-lg"
+                  >
+                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#1877F2">
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                      </svg>
+                    </div>
+                    <span className="flex-1 text-center">Continuar com o Facebook</span>
+                  </button>
+                )}
 
                 <div className="mt-6 text-center">
                   <p className="text-white/60 text-sm">
                     Não tem conta?{" "}
-                    <button
-                      onClick={() => navigate("/register")}
-                      className="text-secondary font-black hover:underline"
-                    >
+                    <button onClick={() => navigate("/register")} className="text-secondary font-black hover:underline">
                       Criar conta
                     </button>
                   </p>
@@ -276,89 +247,6 @@ export function TelaInicial() {
           </div>
         </div>
       </div>
-
-      {/* Phone Login Modal */}
-      <AnimatePresence>
-        {showPhone && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-[#111] border-2 border-secondary/30 rounded-3xl p-8 w-full max-w-sm shadow-2xl"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-2 rounded-xl">
-                    <Phone className="w-5 h-5 text-black" />
-                  </div>
-                  <h3 className="text-xl font-black text-white">
-                    {phoneStep === "number" ? "Número de Telefone" : "Verificar Código"}
-                  </h3>
-                </div>
-                <button onClick={() => setShowPhone(false)} className="p-2 hover:bg-white/10 rounded-xl text-white/60 hover:text-white">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {phoneStep === "number" ? (
-                <div className="space-y-4">
-                  <p className="text-white/60 text-sm">Introduza o seu número de telefone angolano</p>
-                  <div className="relative">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary font-black text-sm">+244</div>
-                    <Input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 9))}
-                      placeholder="9XX XXX XXX"
-                      className="pl-16 h-14 bg-white/10 border-2 border-secondary/30 focus:border-secondary text-white placeholder:text-white/40 rounded-2xl text-base"
-                    />
-                  </div>
-                  {phoneError && <p className="text-red-400 text-sm">{phoneError}</p>}
-                  <Button
-                    onClick={handlePhoneSend}
-                    disabled={phoneLoading}
-                    className="w-full h-12 bg-gradient-to-r from-secondary to-[#FFD700] text-black font-black rounded-2xl"
-                  >
-                    {phoneLoading ? "A enviar..." : "Enviar Código SMS"}
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <p className="text-white/60 text-sm">Introduza o código de 6 dígitos enviado por SMS para +244 {phone}</p>
-                  <Input
-                    type="text"
-                    value={phoneCode}
-                    onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="000000"
-                    maxLength={6}
-                    className="h-14 bg-white/10 border-2 border-secondary/30 focus:border-secondary text-white placeholder:text-white/40 rounded-2xl text-center text-2xl font-black tracking-widest"
-                  />
-                  {phoneError && <p className="text-red-400 text-sm">{phoneError}</p>}
-                  <Button
-                    onClick={handlePhoneVerify}
-                    disabled={phoneLoading}
-                    className="w-full h-12 bg-gradient-to-r from-secondary to-[#FFD700] text-black font-black rounded-2xl"
-                  >
-                    {phoneLoading ? "A verificar..." : "Verificar Código"}
-                  </Button>
-                  <button
-                    onClick={() => { setPhoneStep("number"); setPhoneError(""); }}
-                    className="w-full text-white/40 text-sm hover:text-white/70 transition-colors"
-                  >
-                    Reenviar código
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

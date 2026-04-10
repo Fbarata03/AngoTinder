@@ -115,6 +115,12 @@ export const authApi = {
       body: JSON.stringify({ access_token }),
     }),
 
+  facebookAuth: (access_token: string) =>
+    request<AuthResponse>("/auth/facebook", {
+      method: "POST",
+      body: JSON.stringify({ access_token }),
+    }),
+
   sendPhoneCode: (phone: string) =>
     request<{ success: boolean }>("/auth/phone/send", {
       method: "POST",
