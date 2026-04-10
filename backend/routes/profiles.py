@@ -133,7 +133,16 @@ async def upload_photo(
     user_id: str = Depends(get_current_user_id),
     db: asyncpg.Connection = Depends(get_db),
 ):
+    # Limit file size to 10MB
     contents = await file.read()
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Foto demasiado grande. Máximo 10MB.")
+
+    # Limit to 6 photos per user
+    row_check = await db.fetchrow("SELECT photos FROM users WHERE id = $1", user_id)
+    existing = json.loads(row_check["photos"]) if row_check and row_check["photos"] else []
+    if len(existing) >= 6:
+        raise HTTPException(status_code=400, detail="Máximo de 6 fotos por perfil.")
 
     if CLOUDINARY_ENABLED:
         result = cloudinary.uploader.upload(

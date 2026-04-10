@@ -64,6 +64,7 @@ export function TelaAdmin() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "users">("dashboard");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState("");
+  const [cleanupLoading, setCleanupLoading] = useState(false);
 
   const loadStats = useCallback(async () => {
     try {
@@ -144,6 +145,20 @@ export function TelaAdmin() {
       alert("Erro ao eliminar");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleCleanup = async () => {
+    setCleanupLoading(true);
+    try {
+      await adminRequest("/cleanup", { method: "POST" });
+      setSuccessMsg("Limpeza concluída! Base de dados otimizada.");
+      setTimeout(() => setSuccessMsg(""), 4000);
+      loadStats();
+    } catch {
+      alert("Erro na limpeza");
+    } finally {
+      setCleanupLoading(false);
     }
   };
 
@@ -269,6 +284,16 @@ export function TelaAdmin() {
                   <span className="text-white/60">Domínio</span>
                   <span className="text-green-400 font-bold">angotinder.bafly.net ✓</span>
                 </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <p className="text-white/40 text-xs mb-3">Limpeza manual: remove OTPs expirados, swipes antigos (+60 dias) e mensagens excedentes. Nunca apaga utilizadores.</p>
+                <button
+                  onClick={handleCleanup}
+                  disabled={cleanupLoading}
+                  className="w-full h-10 bg-[#FFCD00]/10 hover:bg-[#FFCD00]/20 border border-[#FFCD00]/30 text-[#FFCD00] rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
+                >
+                  {cleanupLoading ? "A limpar..." : "🧹 Limpar Base de Dados Agora"}
+                </button>
               </div>
             </div>
           </div>

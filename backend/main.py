@@ -1,10 +1,11 @@
 import os
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-from database import init_db
+from database import init_db, cleanup_old_data
 from routes import auth, profiles, matches, messages, admin
 
 app = FastAPI(title="AngoTinder API", version="1.0.0")
@@ -40,9 +41,28 @@ os.makedirs(_static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=_static_dir), name="static")
 
 
+async def daily_cleanup_task():
+    """Limpeza automática a cada 24 horas — nunca apaga utilizadores."""
+    while True:
+        await asyncio.sleep(24 * 60 * 60)  # 24 horas
+        try:
+            await cleanup_old_data()
+            print("[cleanup] Limpeza automática concluída")
+        except Exception as e:
+            print(f"[cleanup] Erro na limpeza: {e}")
+
+
 @app.on_event("startup")
 async def startup():
     await init_db()
+    # Limpeza inicial ao arrancar
+    try:
+        await cleanup_old_data()
+        print("[cleanup] Limpeza inicial concluída")
+    except Exception as e:
+        print(f"[cleanup] Erro na limpeza inicial: {e}")
+    # Inicia tarefa de limpeza periódica
+    asyncio.create_task(daily_cleanup_task())
 
 
 @app.get("/api/health")

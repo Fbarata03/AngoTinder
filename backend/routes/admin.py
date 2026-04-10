@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 import asyncpg
 from jose import jwt, JWTError
-from database import get_db
+from database import get_db, cleanup_old_data
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 router = APIRouter()
@@ -184,3 +184,10 @@ async def get_all_matches(
             d["created_at"] = d["created_at"].isoformat()
         result.append(d)
     return result
+
+
+@router.post("/cleanup")
+async def manual_cleanup(_admin=Depends(get_admin_user)):
+    """Limpeza manual — remove OTPs expirados, swipes antigos e mensagens excedentes."""
+    result = await cleanup_old_data()
+    return {"success": True, "result": result}
