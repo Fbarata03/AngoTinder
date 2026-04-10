@@ -7,6 +7,7 @@ import { TelaChat } from "./components/TelaChat";
 import { TelaLikes } from "./components/TelaLikes";
 import { TelaTopPicks } from "./components/TelaTopPicks";
 import { TelaConfiguracoes } from "./components/TelaConfiguracoes";
+import { TelaAdmin } from "./components/TelaAdmin";
 
 export const router = createBrowserRouter([
   { path: "/", Component: TelaInicial },
@@ -17,4 +18,5 @@ export const router = createBrowserRouter([
   { path: "/likes", Component: TelaLikes },
   { path: "/top-picks", Component: TelaTopPicks },
   { path: "/settings", Component: TelaConfiguracoes },
+  { path: "/admin", Component: TelaAdmin },
 ]);
