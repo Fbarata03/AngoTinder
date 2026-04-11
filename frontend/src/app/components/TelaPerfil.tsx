@@ -6,7 +6,7 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
-import { profilesApi, User as UserType } from "../api";
+import { profilesApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
 
 export function TelaPerfil() {
@@ -124,7 +124,7 @@ export function TelaPerfil() {
           <div className="grid grid-cols-3 gap-4">
             {profile.photos.map((photo, i) => (
               <div key={i} className="aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-primary/10 to-secondary/10 relative group border-4 border-secondary/30 hover:border-secondary transition-all">
-                <img src={photo} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                <img src={resolveMediaUrl(photo)} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
                 <button
                   onClick={() => handleDeletePhoto(photo)}
                   className="absolute top-2 right-2 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"

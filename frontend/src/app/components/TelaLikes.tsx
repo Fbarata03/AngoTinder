@@ -3,7 +3,7 @@ import { Heart, User, MessageCircle, Star, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { motion } from "motion/react";
-import { profilesApi, matchesApi, User as UserType } from "../api";
+import { profilesApi, matchesApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
 
 export function TelaLikes() {
@@ -77,7 +77,7 @@ export function TelaLikes() {
               <motion.div key={like.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.05 }} className="relative aspect-[3/4] rounded-3xl overflow-hidden group cursor-pointer">
                 {like.photos[0] ? (
-                  <img src={like.photos[0]} alt={like.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  <img src={resolveMediaUrl(like.photos[0])} alt={like.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-5xl font-black text-white"
                     style={{ backgroundColor: ["#CE1126","#8B0000","#D4A017","#006400"][like.name.charCodeAt(0) % 4] }}>

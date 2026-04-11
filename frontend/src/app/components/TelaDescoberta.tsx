@@ -6,7 +6,7 @@ import { motion, useMotionValue, useTransform } from "motion/react";
 import { AfricanPattern } from "./AfricanPatterns";
 import { MatchModal } from "./MatchModal";
 import { FiltersModal, Filters } from "./FiltersModal";
-import { profilesApi, matchesApi, notificationsApi, User as UserType } from "../api";
+import { profilesApi, matchesApi, notificationsApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
 
 // Placeholder colorido com iniciais quando não há foto
@@ -48,7 +48,7 @@ function SwipeCard({ profile, onSwipe }: { profile: UserType; onSwipe: (dir: "le
       <div className="relative w-full h-full rounded-3xl overflow-hidden shadow-2xl border-4 border-secondary/30">
         <div className="relative h-[65%]">
           {hasPhotos ? (
-            <img src={profile.photos[safeIndex]} alt={profile.name} className="w-full h-full object-cover" />
+            <img src={resolveMediaUrl(profile.photos[safeIndex])} alt={profile.name} className="w-full h-full object-cover" />
           ) : (
             <PhotoPlaceholder name={profile.name} className="w-full h-full" />
           )}
@@ -352,8 +352,8 @@ export function TelaDescoberta() {
             },
           });
         }}
-        matchedProfile={{ name: matchedProfile?.name || "", photo: matchedProfile?.photos[0] || "" }}
-        userPhoto={currentUser?.photos[0] || ""}
+        matchedProfile={{ name: matchedProfile?.name || "", photo: resolveMediaUrl(matchedProfile?.photos[0] || "") }}
+        userPhoto={resolveMediaUrl(currentUser?.photos[0] || "")}
       />
       <FiltersModal isOpen={showFilters} onClose={() => setShowFilters(false)} onApply={(f) => { setFilters(f); loadProfiles(f); }} initial={filters} />
     </div>

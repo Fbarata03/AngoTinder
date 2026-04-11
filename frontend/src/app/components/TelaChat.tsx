@@ -61,7 +61,7 @@ function Avatar({ photo, name }: { photo?: string; name: string }) {
     .toUpperCase();
 
   if (photo) {
-    return <img src={photo} alt={name} className="w-full h-full object-cover" />;
+    return <img src={resolveMediaUrl(photo)} alt={name} className="w-full h-full object-cover" />;
   }
 
   return (
@@ -606,7 +606,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       <AfricanPattern className="absolute inset-0 text-primary opacity-5 pointer-events-none" />
 
       {/* Header */}
-      <div className="relative bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-black px-4 py-3 text-white shadow-2xl z-10 flex-shrink-0">
+      <div className="relative bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-[#1a0000] px-4 py-3 text-white shadow-2xl z-10 flex-shrink-0 border-b-2 border-secondary/30">
         <div className="max-w-4xl mx-auto flex items-center gap-3">
           <button onClick={onBack} className="p-2 hover:bg-white/20 rounded-xl transition-colors">
             <ArrowLeft className="w-6 h-6" />
@@ -665,9 +665,18 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                   : "bg-card border-2 border-secondary/20 rounded-bl-sm"
               }`}>
                 {isImg ? (
-                  <img src={content} alt="imagem" className="max-w-full rounded-xl" />
+                  <img src={content} alt="imagem" className="max-w-full rounded-xl"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                 ) : isAud ? (
-                  <audio src={content} controls className="w-64" />
+                  <audio src={content} controls className="w-64"
+                    onError={(e) => {
+                      const el = e.target as HTMLAudioElement;
+                      el.style.display = "none";
+                      const p = document.createElement("p");
+                      p.textContent = "🎵 Áudio expirado";
+                      p.className = "text-xs opacity-60 italic";
+                      el.parentNode?.appendChild(p);
+                    }} />
                 ) : (
                   <p className="font-medium leading-relaxed text-sm">{msg.text}</p>
                 )}

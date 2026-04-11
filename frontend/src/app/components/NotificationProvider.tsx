@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Heart, MessageCircle, X } from "lucide-react";
-import { createNotificationSocket } from "../api";
+import { createNotificationSocket, resolveMediaUrl } from "../api";
 import { useApp } from "../context";
 
 interface MatchNotif {
@@ -105,7 +105,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                   {/* Avatar */}
                   <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-secondary flex-shrink-0">
                     {notif.user.photos[0] ? (
-                      <img src={notif.user.photos[0]} alt={notif.user.name} className="w-full h-full object-cover" />
+                      <img src={resolveMediaUrl(notif.user.photos[0])} alt={notif.user.name} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full bg-[#CE1126] flex items-center justify-center text-white font-black text-lg">
                         {notif.user.name[0].toUpperCase()}
