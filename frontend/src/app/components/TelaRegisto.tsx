@@ -1,4 +1,4 @@
-import { Heart, Sparkles, Mail, Lock, User, MapPin, Briefcase, Eye, EyeOff, ChevronDown } from "lucide-react";
+import { Heart, Sparkles, Mail, Lock, User, MapPin, Briefcase, Eye, EyeOff, ChevronDown, Camera, X } from "lucide-react";
 
 export const ANGOLA_PROVINCES = [
   "Luanda", "Benguela", "Huambo", "Bié", "Malanje", "Huíla", "Cunene",
@@ -12,7 +12,8 @@ import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { motion } from "motion/react";
 import { useApp } from "../context";
-import { useState } from "react";
+import { profilesApi } from "../api";
+import { useState, useRef } from "react";
 
 export function TelaRegisto() {
   const navigate = useNavigate();
@@ -21,6 +22,11 @@ export function TelaRegisto() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
     email: "",
@@ -36,6 +42,23 @@ export function TelaRegisto() {
 
   const set = (field: string, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setPhotoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadAndFinish = async () => {
+    if (!photoFile) { navigate("/discover"); return; }
+    setUploadingPhoto(true);
+    try { await profilesApi.uploadPhoto(photoFile); } catch { /* ignore */ }
+    setUploadingPhoto(false);
+    navigate("/discover");
+  };
 
   const handleNext = () => {
     setError("");
@@ -68,7 +91,8 @@ export function TelaRegisto() {
         bio: form.bio.trim(),
         work: form.work.trim(),
       });
-      navigate("/discover");
+      setAccountCreated(true);
+      setStep(4);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
       try {
@@ -92,13 +116,13 @@ export function TelaRegisto() {
       <div className="relative min-h-screen flex flex-col px-6 py-12">
         <div className="flex items-center gap-4 mb-8">
           <button
-            onClick={() => (step === 1 ? navigate("/") : setStep((s) => s - 1))}
-            className="text-white/70 hover:text-white font-bold"
+            onClick={() => (step === 1 ? navigate("/") : step === 4 ? null : setStep((s) => s - 1))}
+            className={`text-white/70 hover:text-white font-bold ${step === 4 ? "invisible" : ""}`}
           >
             ← Voltar
           </button>
           <div className="flex-1 flex gap-2">
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
                 className={`flex-1 h-1.5 rounded-full transition-all ${i <= step ? "bg-secondary" : "bg-white/20"}`}
@@ -279,28 +303,68 @@ export function TelaRegisto() {
             </>
           )}
 
+          {/* ── Passo 4: Foto ── */}
+          {step === 4 && accountCreated && (
+            <>
+              <div className="text-center mb-8">
+                <Camera className="w-12 h-12 text-secondary mx-auto mb-4" />
+                <h1 className="text-3xl font-black text-white">Adiciona a tua foto</h1>
+                <p className="text-white/60 mt-2">Perfis com foto têm 10x mais matches!</p>
+              </div>
+              <div className="flex flex-col items-center gap-6">
+                <button onClick={() => fileRef.current?.click()}
+                  className="relative w-52 h-52 rounded-3xl overflow-hidden border-4 border-secondary/50 hover:border-secondary transition-all bg-white/10 flex items-center justify-center">
+                  {photoPreview ? (
+                    <>
+                      <img src={photoPreview} alt="foto" className="w-full h-full object-cover" />
+                      <button onClick={(e) => { e.stopPropagation(); setPhotoPreview(null); setPhotoFile(null); }}
+                        className="absolute top-2 right-2 w-8 h-8 bg-black/70 rounded-full flex items-center justify-center">
+                        <X className="w-4 h-4 text-white" />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="text-center">
+                      <Camera className="w-12 h-12 text-secondary/60 mx-auto mb-2" />
+                      <p className="text-white/60 text-sm font-bold">Toca para escolher</p>
+                    </div>
+                  )}
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} />
+                <Button onClick={handleUploadAndFinish} disabled={uploadingPhoto}
+                  className="w-full h-14 bg-gradient-to-r from-secondary to-[#FFD700] text-black text-lg rounded-2xl font-black shadow-xl">
+                  {uploadingPhoto ? "A carregar..." : photoFile ? "Guardar e entrar" : "Entrar sem foto →"}
+                </Button>
+                {!photoFile && (
+                  <p className="text-white/40 text-xs text-center">Podes adicionar fotos mais tarde no perfil</p>
+                )}
+              </div>
+            </>
+          )}
+
           {error && (
             <p className="text-red-400 text-sm text-center font-medium mt-4">{error}</p>
           )}
 
-          <div className="mt-8">
-            {step < 3 ? (
-              <Button
-                onClick={handleNext}
-                className="w-full h-14 bg-gradient-to-r from-secondary to-[#FFD700] text-black text-lg rounded-2xl font-black shadow-xl"
-              >
-                Continuar →
-              </Button>
-            ) : (
-              <Button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="w-full h-14 bg-gradient-to-r from-secondary to-[#FFD700] text-black text-lg rounded-2xl font-black shadow-xl"
-              >
-                {loading ? "A criar conta..." : "Criar conta 🎉"}
-              </Button>
-            )}
-          </div>
+          {step < 4 && (
+            <div className="mt-8">
+              {step < 3 ? (
+                <Button
+                  onClick={handleNext}
+                  className="w-full h-14 bg-gradient-to-r from-secondary to-[#FFD700] text-black text-lg rounded-2xl font-black shadow-xl"
+                >
+                  Continuar →
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="w-full h-14 bg-gradient-to-r from-secondary to-[#FFD700] text-black text-lg rounded-2xl font-black shadow-xl"
+                >
+                  {loading ? "A criar conta..." : "Criar conta"}
+                </Button>
+              )}
+            </div>
+          )}
 
           {step === 1 && (
             <p className="text-center text-white/50 text-sm mt-4">
