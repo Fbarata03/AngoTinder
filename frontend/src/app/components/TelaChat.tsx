@@ -71,11 +71,14 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
     document.addEventListener("visibilitychange", onVisible);
     // Listen for new_match events from NotificationProvider
     const onNewMatch = () => loadMatches();
+    const onNewMessage = () => loadMatches();
     window.addEventListener("angotinder:new_match", onNewMatch);
+    window.addEventListener("angotinder:new_message", onNewMessage);
     return () => {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("angotinder:new_match", onNewMatch);
+      window.removeEventListener("angotinder:new_message", onNewMessage);
     };
   }, [isLoggedIn, loadMatches]);
 
@@ -193,6 +196,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const bottomRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   // Call state
   const [callState, setCallState] = useState<CallState>("idle");
@@ -410,6 +417,63 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await messagesApi.uploadMedia(file, "image", 24);
+      setNewMessage("");
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: "text", text: res.text }));
+      } else {
+        const msg = await messagesApi.sendMessage(match.match_id, res.text);
+        setMessages((m) => [...m, msg]);
+      }
+    } catch {
+    } finally {
+      setUploading(false);
+      e.currentTarget.value = "";
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      recorderRef.current = rec;
+      chunksRef.current = [];
+      rec.ondataavailable = (ev) => { if (ev.data.size > 0) chunksRef.current.push(ev.data); };
+      rec.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const file = new File([blob], "voice.webm", { type: "audio/webm" });
+        setUploading(true);
+        try {
+          const res = await messagesApi.uploadMedia(file, "audio", 24);
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: "text", text: res.text }));
+          } else {
+            const msg = await messagesApi.sendMessage(match.match_id, res.text);
+            setMessages((m) => [...m, msg]);
+          }
+        } catch {
+        } finally {
+          setUploading(false);
+          stream.getTracks().forEach((t) => t.stop());
+        }
+      };
+      rec.start();
+    } catch {
+      alert("Permita acesso ao microfone para gravar áudio.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      recorderRef.current.stop();
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
       <AfricanPattern className="absolute inset-0 text-primary opacity-5 pointer-events-none" />
@@ -420,7 +484,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           <button onClick={onBack} className="p-2 hover:bg-white/20 rounded-xl transition-colors">
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-secondary shadow-lg flex-shrink-0">
+          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-secondary shadow-lg flex-shrink-0 cursor-pointer" onClick={() => setShowProfile(true)}>
             <Avatar photo={match.photos[0]} name={match.name} />
           </div>
           <div className="flex-1 min-w-0">
@@ -459,7 +523,12 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
           {loading && <p className="text-center text-muted-foreground font-medium text-sm">A carregar mensagens...</p>}
 
-          {messages.map((msg, i) => (
+          {messages.map((msg, i) => {
+            const t = msg.text || "";
+            const isImg = t.startsWith("img:");
+            const isAud = t.startsWith("aud:");
+            const content = isImg || isAud ? t.slice(4) : t;
+            return (
             <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}
               className={`flex ${msg.sender_id === userId ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[78%] rounded-3xl px-4 py-2.5 shadow-md ${
@@ -467,13 +536,20 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                   ? "bg-gradient-to-r from-primary via-[#8B0000] to-black text-white rounded-br-sm"
                   : "bg-card border-2 border-secondary/20 rounded-bl-sm"
               }`}>
-                <p className="font-medium leading-relaxed text-sm">{msg.text}</p>
+                {isImg ? (
+                  <img src={content} alt="imagem" className="max-w-full rounded-xl" />
+                ) : isAud ? (
+                  <audio src={content} controls className="w-64" />
+                ) : (
+                  <p className="font-medium leading-relaxed text-sm">{msg.text}</p>
+                )}
                 <p className={`text-xs mt-1 font-bold ${msg.sender_id === userId ? "text-secondary/70" : "text-muted-foreground"}`}>
                   {new Date(msg.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
                 </p>
               </div>
             </motion.div>
-          ))}
+            );
+          })}
           <div ref={bottomRef} />
         </div>
       </div>
@@ -485,6 +561,17 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
             placeholder="Escreva uma mensagem..."
             className="flex-1 bg-input-background border-2 border-primary/20 focus:border-secondary rounded-2xl h-12 px-4 font-medium text-sm" />
+          <input id="photoInput" type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
+          <Button onMouseDown={startRecording} onMouseUp={stopRecording} onMouseLeave={stopRecording}
+            className="w-12 h-12 rounded-2xl bg-black/60 hover:bg-black/80 flex items-center justify-center p-0 shadow-xl flex-shrink-0"
+            title="Gravar áudio">
+            <Mic className="w-5 h-5" />
+          </Button>
+          <Button onClick={() => document.getElementById("photoInput")?.click()}
+            className="w-12 h-12 rounded-2xl bg-black/60 hover:bg-black/80 flex items-center justify-center p-0 shadow-xl flex-shrink-0"
+            title="Enviar foto temporária">
+            <VideoOff className="w-5 h-5" />
+          </Button>
           <Button onClick={handleSend}
             className="w-12 h-12 rounded-2xl bg-gradient-to-r from-primary via-[#8B0000] to-black hover:opacity-90 flex items-center justify-center p-0 shadow-xl flex-shrink-0">
             <Send className="w-5 h-5" />
@@ -610,6 +697,25 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   );
 }
 
+function ProfileModal({ open, onClose, match }: { open: boolean; onClose: () => void; match: Match }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+      <div className="bg-card rounded-3xl max-w-md w-full overflow-hidden">
+        <div className="relative h-72">
+          {match.photos[0] ? <img src={match.photos[0]} alt={match.name} className="w-full h-full object-cover" /> : null}
+        </div>
+        <div className="p-5">
+          <h3 className="font-black text-xl">{match.name}{match.age ? `, ${match.age}` : ""}</h3>
+          <p className="text-sm text-muted-foreground">{match.location}</p>
+          <div className="mt-4 flex justify-end">
+            <Button onClick={onClose} className="rounded-2xl">Fechar</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 function NavBtn({ icon, label, onClick, active }: { icon: React.ReactNode; label: string; onClick: () => void; active: boolean }) {
   return (
     <button onClick={onClick} className={`flex flex-col items-center gap-1.5 transition-colors ${active ? "text-primary" : "text-muted-foreground hover:text-primary"}`}>

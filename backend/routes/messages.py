@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, UploadFile, File
 from pydantic import BaseModel
 import asyncpg
 from database import get_db, get_pool
 from auth_utils import get_current_user_id, decode_token
+from notif_manager import notif_manager
+import os
+import uuid
+import time
 
 router = APIRouter()
 
@@ -64,6 +68,41 @@ def serialize_msg(row) -> dict:
     return d
 
 
+def chat_media_dir() -> str:
+    base = os.path.join(os.path.dirname(__file__), "..", "static", "chat")
+    os.makedirs(base, exist_ok=True)
+    return base
+
+
+@router.post("/upload")
+async def upload_chat_media(
+    file: UploadFile = File(...),
+    type: str = "image",
+    ttl_hours: int = 24,
+    user_id: str = Depends(get_current_user_id),
+):
+    contents = await file.read()
+    if type not in ("image", "audio"):
+        raise HTTPException(status_code=400, detail="Tipo inválido")
+    if type == "image" and len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Imagem muito grande")
+    if type == "audio" and len(contents) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Áudio muito grande")
+    ext = (file.filename.split(".")[-1] if file.filename else "").lower()
+    if type == "image" and ext not in {"jpg", "jpeg", "png", "webp"}:
+        ext = "jpg"
+    if type == "audio" and ext not in {"webm", "ogg", "mp3", "m4a"}:
+        ext = "webm"
+    exp = int(time.time()) + max(1, ttl_hours) * 3600
+    filename = f"{uuid.uuid4()}__exp{exp}.{ext}"
+    path = os.path.join(chat_media_dir(), filename)
+    with open(path, "wb") as f:
+        f.write(contents)
+    url = f"/static/chat/{filename}"
+    token = "img:" if type == "image" else "aud:"
+    return {"url": url, "text": f"{token}{url}"}
+
+
 @router.get("/{match_id}")
 async def get_messages(
     match_id: str,
@@ -118,6 +157,12 @@ async def send_message(
     )
     msg_dict = serialize_msg(msg)
     await manager.broadcast(match_id, {"type": "message", "data": msg_dict})
+    other = await db.fetchrow(
+        "SELECT CASE WHEN user1_id=$1 THEN user2_id ELSE user1_id END AS other_id FROM matches WHERE id=$2",
+        user_id, match_id,
+    )
+    if other:
+        await notif_manager.notify(other["other_id"], {"type": "new_message", "match_id": match_id, "preview": msg_dict.get("text", "")})
     return msg_dict
 
 
@@ -173,6 +218,12 @@ async def websocket_chat(
                 )
 
             await manager.broadcast(match_id, {"type": "message", "data": serialize_msg(msg)})
+            other = await db.fetchrow(
+                "SELECT CASE WHEN user1_id=$1 THEN user2_id ELSE user1_id END AS other_id FROM matches WHERE id=$2",
+                user_id, match_id,
+            )
+            if other:
+                await notif_manager.notify(other["other_id"], {"type": "new_message", "match_id": match_id, "preview": text})
 
     except WebSocketDisconnect:
         manager.disconnect(ws, match_id)

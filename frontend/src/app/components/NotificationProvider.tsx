@@ -48,6 +48,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
               // Dispatch event so ChatList can refresh instantly
               window.dispatchEvent(new Event("angotinder:new_match"));
             }
+            if (payload.type === "new_message") {
+              window.dispatchEvent(new Event("angotinder:new_message"));
+            }
           } catch { /* ignore */ }
         };
 

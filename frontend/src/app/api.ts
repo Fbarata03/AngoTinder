@@ -218,6 +218,9 @@ export const messagesApi = {
       method: "POST",
       body: JSON.stringify({ text }),
     }),
+
+  uploadMedia: (file: File, type: "image" | "audio", ttlHours = 24) =>
+    upload<{ url: string; text: string }>(`/messages/upload?type=${type}&ttl_hours=${ttlHours}`, file),
 };
 
 // ---------- WebSocket ----------

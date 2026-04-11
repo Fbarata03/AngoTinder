@@ -100,6 +100,25 @@ async def cleanup_old_data():
                 except OSError:
                     continue
 
+        static_chat_dir = os.path.join(os.path.dirname(__file__), "static", "chat")
+        if os.path.isdir(static_chat_dir):
+            now = time.time()
+            for entry in os.scandir(static_chat_dir):
+                if not entry.is_file():
+                    continue
+                name = entry.name
+                exp = None
+                if "__exp" in name:
+                    try:
+                        exp = int(name.split("__exp", 1)[1].split(".", 1)[0])
+                    except Exception:
+                        exp = None
+                if exp and now > exp:
+                    try:
+                        os.remove(entry.path)
+                    except Exception:
+                        pass
+
     return {"otps": deleted_otps, "swipes": deleted_swipes}
 
 
