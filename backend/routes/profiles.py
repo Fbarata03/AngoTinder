@@ -21,6 +21,49 @@ if CLOUDINARY_ENABLED:
         api_secret=os.getenv("CLOUDINARY_API_SECRET"),
     )
 
+LOCAL_PHOTOS_MAX_MB = int(os.getenv("LOCAL_PHOTOS_MAX_MB", "900") or "900")
+
+
+def get_local_photos_dir() -> str:
+    return os.path.join(os.path.dirname(__file__), "..", "static", "photos")
+
+
+def is_local_photo_url(photo_url: str) -> bool:
+    return photo_url.startswith("/static/photos/")
+
+
+def local_photos_dir_size_bytes(upload_dir: str) -> int:
+    total = 0
+    if not os.path.isdir(upload_dir):
+        return 0
+    for entry in os.scandir(upload_dir):
+        try:
+            if entry.is_file():
+                total += entry.stat().st_size
+        except FileNotFoundError:
+            continue
+    return total
+
+
+def try_delete_local_photo(photo_url: str) -> bool:
+    if not is_local_photo_url(photo_url):
+        return False
+    rel = photo_url.split("?", 1)[0].replace("/static/photos/", "", 1)
+    filename = os.path.basename(rel)
+    if not filename:
+        return False
+    upload_dir = os.path.realpath(get_local_photos_dir())
+    path = os.path.realpath(os.path.join(upload_dir, filename))
+    if not path.startswith(upload_dir + os.sep):
+        return False
+    if not os.path.exists(path):
+        return True
+    try:
+        os.remove(path)
+        return True
+    except OSError:
+        return False
+
 
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
@@ -177,9 +220,17 @@ async def upload_photo(
         )
         photo_url = result["secure_url"]
     else:
-        upload_dir = os.path.join(os.path.dirname(__file__), "..", "static", "photos")
+        upload_dir = get_local_photos_dir()
         os.makedirs(upload_dir, exist_ok=True)
+        max_bytes = max(0, LOCAL_PHOTOS_MAX_MB) * 1024 * 1024
+        if max_bytes and (local_photos_dir_size_bytes(upload_dir) + len(contents)) > max_bytes:
+            raise HTTPException(
+                status_code=507,
+                detail="Armazenamento de fotos cheio no servidor. Ativa Cloudinary ou aumenta LOCAL_PHOTOS_MAX_MB.",
+            )
         ext = file.filename.split(".")[-1] if file.filename else "jpg"
+        if not ext or ext.lower() not in {"jpg", "jpeg", "png", "webp"}:
+            ext = "jpg"
         filename = f"{uuid.uuid4()}.{ext}"
         filepath = os.path.join(upload_dir, filename)
         with open(filepath, "wb") as f:
@@ -203,6 +254,7 @@ async def delete_photo(
     photos = json.loads(row["photos"]) if row and row["photos"] else []
     photos = [p for p in photos if p != photo_url]
     await db.execute("UPDATE users SET photos = $1 WHERE id = $2", json.dumps(photos), user_id)
+    try_delete_local_photo(photo_url)
     return {"photos": photos}
 
 

@@ -1,5 +1,7 @@
 import asyncpg
 import os
+import json
+import time
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
@@ -25,6 +27,7 @@ async def cleanup_old_data():
     - OTPs expirados
     - Swipes LEFT com mais de 60 dias (apenas para reduzir tabela, utilizadores não são afetados)
     - Mensagens com mais de 1 ano (mantém as recentes)
+    - Fotos locais órfãs (ficheiros que já não estão referenciados por nenhum user)
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -52,6 +55,50 @@ async def cleanup_old_data():
                 WHERE rn > 500
             )
         """)
+
+        static_photos_dir = os.path.join(os.path.dirname(__file__), "static", "photos")
+        referenced: set[str] = set()
+        try:
+            rows = await conn.fetch("SELECT photos FROM users")
+            for r in rows:
+                raw = r.get("photos")
+                if not raw:
+                    continue
+                try:
+                    arr = json.loads(raw)
+                except Exception:
+                    continue
+                if not isinstance(arr, list):
+                    continue
+                for url in arr:
+                    if isinstance(url, str) and url.startswith("/static/photos/"):
+                        rel = url.split("?", 1)[0].replace("/static/photos/", "", 1)
+                        name = os.path.basename(rel)
+                        if name:
+                            referenced.add(name)
+        except Exception:
+            referenced = set()
+
+        if os.path.isdir(static_photos_dir):
+            now = time.time()
+            for entry in os.scandir(static_photos_dir):
+                if not entry.is_file():
+                    continue
+                name = entry.name
+                if name in referenced:
+                    continue
+                lower = name.lower()
+                if not lower.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
+                    continue
+                try:
+                    st = entry.stat()
+                    if (now - st.st_mtime) < 60:
+                        continue
+                    os.remove(entry.path)
+                except FileNotFoundError:
+                    continue
+                except OSError:
+                    continue
 
     return {"otps": deleted_otps, "swipes": deleted_swipes}
 

@@ -14,11 +14,21 @@ interface MatchModalProps {
 function Avatar({ photo, name }: { photo: string; name: string }) {
   const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400"];
   const bg = colors[name.charCodeAt(0) % colors.length];
-  const initials = name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
-  if (photo) return <img src={photo} alt={name} className="w-full h-full object-cover" />;
+  const initials = name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+
+  if (photo) {
+    return <img src={photo} alt={name} className="w-full h-full object-cover" />;
+  }
+
   return (
     <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white" style={{ backgroundColor: bg }}>
-      {initials}
+      {initials || "?"}
     </div>
   );
 }
@@ -81,7 +91,6 @@ export function MatchModal({ isOpen, onClose, onSendMessage, matchedProfile, use
             </h1>
             <p className="text-white/90 font-bold text-lg">Vocês deram like um no outro 🔥</p>
           </motion.div>
-
           <div className="relative flex items-center justify-center mb-8 h-48">
             <motion.div
               initial={{ x: -100, opacity: 0, rotate: -20 }}

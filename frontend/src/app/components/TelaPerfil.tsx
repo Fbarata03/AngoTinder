@@ -73,7 +73,7 @@ export function TelaPerfil() {
   if (!profile) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
       <AfricanPattern className="absolute top-0 right-0 w-96 h-96 text-primary opacity-5" />
       <AfricanPattern className="absolute bottom-0 left-0 w-96 h-96 text-secondary opacity-5" />
 
@@ -101,7 +101,7 @@ export function TelaPerfil() {
 
       <div className="max-w-4xl mx-auto px-6 py-8 pb-32 relative z-10">
         <div className="mb-8 bg-gradient-to-r from-secondary via-[#FFD700] to-[#FFA500] p-1 rounded-2xl">
-          <div className="bg-white p-6 rounded-2xl flex items-center justify-between">
+          <div className="bg-card p-6 rounded-2xl flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="bg-gradient-to-br from-primary to-[#8B0000] p-4 rounded-2xl">
                 <Star className="w-8 h-8 text-secondary fill-secondary" />
@@ -156,14 +156,14 @@ export function TelaPerfil() {
         <div className="mb-6">
           <label className="block mb-3 font-black text-lg">Nome</label>
           <Input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-            className="bg-white border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
+            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
             placeholder="Seu nome" />
         </div>
 
         <div className="mb-6">
           <label className="block mb-3 font-black text-lg">Idade</label>
           <Input type="number" value={profile.age} onChange={(e) => setProfile({ ...profile, age: parseInt(e.target.value) || profile.age })}
-            className="bg-white border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
+            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
             placeholder="Sua idade" />
         </div>
 
@@ -176,7 +176,7 @@ export function TelaPerfil() {
             <select
               value={profile.location}
               onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-              className="w-full bg-white border-4 border-primary/20 h-16 rounded-2xl text-lg font-bold pl-5 pr-10 appearance-none cursor-pointer"
+              className="w-full bg-input-background border-4 border-primary/20 h-16 rounded-2xl text-lg font-bold pl-5 pr-10 appearance-none cursor-pointer"
             >
               {ANGOLA_PROVINCES.map((p) => (
                 <option key={p} value={p}>{p}</option>
@@ -188,14 +188,14 @@ export function TelaPerfil() {
         <div className="mb-6">
           <label className="block mb-3 font-black text-lg">Profissão</label>
           <Input value={profile.work || ""} onChange={(e) => setProfile({ ...profile, work: e.target.value })}
-            className="bg-white border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
+            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
             placeholder="Sua profissão" />
         </div>
 
         <div className="mb-8">
           <label className="block mb-3 font-black text-lg">Sobre Mim</label>
           <Textarea value={profile.bio || ""} onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-            className="bg-white border-4 border-primary/20 focus:border-secondary rounded-2xl min-h-40 resize-none text-base p-5 font-medium"
+            className="bg-input-background border-4 border-primary/20 focus:border-secondary rounded-2xl min-h-40 resize-none text-base p-5 font-medium"
             placeholder="Conte um pouco sobre você..." />
           <div className="flex items-center justify-between mt-3">
             <p className="text-sm text-muted-foreground font-bold">{(profile.bio || "").length}/500 caracteres</p>
@@ -209,7 +209,7 @@ export function TelaPerfil() {
         </Button>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
+      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
           <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={false} />
           <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={false} />

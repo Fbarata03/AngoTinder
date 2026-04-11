@@ -237,7 +237,7 @@ export function TelaConfiguracoes() {
         <Icon className="w-5 h-5 text-primary" />
         <h3 className="font-black text-lg">{title}</h3>
       </div>
-      <div className="bg-white rounded-2xl border-4 border-primary/20 overflow-hidden">{children}</div>
+      <div className="bg-card rounded-2xl border-4 border-primary/20 overflow-hidden">{children}</div>
     </div>
   );
 
@@ -272,7 +272,7 @@ export function TelaConfiguracoes() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
       <AfricanPattern className="absolute top-0 right-0 w-96 h-96 text-primary opacity-5" />
       <AfricanPattern className="absolute bottom-0 left-0 w-96 h-96 text-secondary opacity-5" />
 
@@ -347,7 +347,7 @@ export function TelaConfiguracoes() {
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl"
+                className="bg-card rounded-3xl p-8 w-full max-w-sm shadow-2xl"
               >
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-black">Alterar Senha</h3>
@@ -504,7 +504,7 @@ export function TelaConfiguracoes() {
             className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
+              className="bg-card rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
               <div className="bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-black p-6 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Shield className="w-6 h-6 text-secondary" />
@@ -559,7 +559,7 @@ export function TelaConfiguracoes() {
         )}
       </AnimatePresence>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
+      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
           <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={false} />
           <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={false} />

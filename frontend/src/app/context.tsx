@@ -21,6 +21,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const isLoggedIn = !!userId && !!currentUser;
 
+  useEffect(() => {
+    const dark = localStorage.getItem("angotinder_dark") === "true";
+    if (dark) document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
+  }, []);
+
   // Restore session from stored token
   useEffect(() => {
     const token = getToken();

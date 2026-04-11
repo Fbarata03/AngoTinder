@@ -46,7 +46,7 @@ export function FiltersModal({ isOpen, onClose, onApply, initial }: FiltersModal
         transition={{ type: "spring", duration: 0.5 }}
         className="relative max-w-lg w-full max-h-[90vh] overflow-y-auto"
       >
-        <div className="bg-gradient-to-br from-[#FFFBF0] to-[#FFE4B5] rounded-3xl shadow-2xl overflow-hidden">
+        <div className="bg-gradient-to-br from-[#FFFBF0] to-[#FFE4B5] dark:from-[#0b0b10] dark:to-[#1a1406] rounded-3xl shadow-2xl overflow-hidden">
           <AfricanPattern className="absolute top-0 right-0 w-64 h-64 text-primary opacity-5" />
 
           <div className="relative bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-black p-6 text-white">
@@ -105,7 +105,7 @@ export function FiltersModal({ isOpen, onClose, onApply, initial }: FiltersModal
                     className={`p-4 rounded-2xl font-black text-base transition-all border-4 ${
                       filters.gender === opt.value
                         ? "bg-gradient-to-br from-primary to-[#8B0000] text-white border-secondary shadow-lg scale-105"
-                        : "bg-white border-primary/20 text-foreground hover:border-secondary"
+                        : "bg-card border-primary/20 text-foreground hover:border-secondary"
                     }`}
                   >
                     {opt.label}
@@ -114,7 +114,7 @@ export function FiltersModal({ isOpen, onClose, onApply, initial }: FiltersModal
               </div>
             </div>
 
-            <div className="flex items-center justify-between p-5 bg-white rounded-2xl border-4 border-secondary/30">
+            <div className="flex items-center justify-between p-5 bg-card rounded-2xl border-4 border-secondary/30">
               <div>
                 <p className="font-black text-lg">Apenas Verificados</p>
                 <p className="text-sm text-muted-foreground font-medium">Mostrar apenas perfis verificados</p>

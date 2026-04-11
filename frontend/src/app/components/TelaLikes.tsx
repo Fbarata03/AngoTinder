@@ -20,14 +20,16 @@ export function TelaLikes() {
   const handleLikeBack = async (likedUser: UserType) => {
     try {
       const res = await matchesApi.swipe(likedUser.id, "right");
-      setLikes((prev) => prev.filter((u) => u.id !== likedUser.id));
       if (res.is_match && res.match_id) {
         navigate("/chat", {
           state: {
             matchId: res.match_id,
             matchedProfile: {
-              id: likedUser.id, name: likedUser.name,
-              photos: likedUser.photos, age: likedUser.age, location: likedUser.location,
+              id: likedUser.id,
+              name: likedUser.name,
+              photos: likedUser.photos,
+              age: likedUser.age,
+              location: likedUser.location,
             },
           },
         });
@@ -36,7 +38,7 @@ export function TelaLikes() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] flex flex-col relative overflow-hidden">
       <AfricanPattern className="absolute top-0 right-0 w-96 h-96 text-primary opacity-5" />
       <AfricanPattern className="absolute bottom-0 left-0 w-96 h-96 text-secondary opacity-5" />
 
@@ -110,7 +112,7 @@ export function TelaLikes() {
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
+      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
           <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={false} />
           <NavBtn icon={<Heart className="w-6 h-6 fill-current" />} label="Likes" onClick={() => navigate("/likes")} active={true} badge={likes.length > 0 ? String(likes.length) : undefined} />

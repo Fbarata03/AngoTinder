@@ -52,13 +52,13 @@ function SwipeCard({ profile, onSwipe }: { profile: UserType; onSwipe: (dir: "le
           ) : (
             <PhotoPlaceholder name={profile.name} className="w-full h-full" />
           )}
-
-          {/* Badge verificado — só para utilizadores verificados */}
           {profile.is_verified === 1 && (
-            <div className="absolute top-6 right-6 bg-gradient-to-r from-secondary via-[#FFD700] to-secondary p-0.5 rounded-full">
-              <div className="bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1">
-                <Star className="w-3 h-3 text-secondary fill-secondary" />
-                <span className="text-xs font-bold text-secondary">VERIFICADO</span>
+            <div className="absolute bottom-4 left-4">
+              <div className="bg-gradient-to-r from-secondary to-[#FFD700] p-0.5 rounded-full">
+                <div className="bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1">
+                  <Star className="w-3 h-3 text-secondary fill-secondary" />
+                  <span className="text-xs font-bold text-secondary">VERIFICADO</span>
+                </div>
               </div>
             </div>
           )}
@@ -164,10 +164,22 @@ export function TelaDescoberta() {
 
     try {
       const res = await matchesApi.swipe(profile.id, dir === "super" ? "super" : dir);
-      if (res.is_match) {
+      if (res.is_match && res.match_id) {
         setMatchedProfile(profile);
         setMatchId(res.match_id);
-        setShowMatch(true);
+        window.dispatchEvent(new Event("angotinder:new_match"));
+        navigate("/chat", {
+          state: {
+            matchId: res.match_id,
+            matchedProfile: {
+              id: profile.id,
+              name: profile.name,
+              photos: profile.photos,
+              age: profile.age,
+              location: profile.location,
+            },
+          },
+        });
       }
     } catch { /* offline */ }
 
@@ -221,7 +233,7 @@ export function TelaDescoberta() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] flex flex-col relative overflow-hidden">
       <AfricanPattern className="absolute top-0 right-0 w-96 h-96 text-primary opacity-5" />
       <AfricanPattern className="absolute bottom-0 left-0 w-96 h-96 text-secondary opacity-5" />
 
@@ -341,7 +353,7 @@ export function TelaDescoberta() {
 
 function BottomNav({ navigate, active }: { navigate: (path: string) => void; active: string }) {
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
+    <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
       <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
         <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={active === "discover"} />
         <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={active === "chat"} />

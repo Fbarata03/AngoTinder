@@ -12,28 +12,32 @@ import { matchesApi, messagesApi, createChatSocket, Match, Message } from "../ap
 import { useApp } from "../context";
 
 const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun.cloudflare.com:3478" },
-  ],
+  iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
 };
 
-type CallState = "idle" | "calling" | "incoming" | "connected";
+type CallState = "idle" | "incoming" | "calling" | "connected";
 
-// Avatar com iniciais quando não há foto
-function Avatar({ photo, name, className = "" }: { photo?: string; name: string; className?: string }) {
-  const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400", "#00008B"];
+function Avatar({ photo, name }: { photo?: string; name: string }) {
+  const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400"];
   const bg = colors[name.charCodeAt(0) % colors.length];
-  const initials = name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
-  if (photo) return <img src={photo} alt={name} className={`w-full h-full object-cover ${className}`} />;
+  const initials = name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+
+  if (photo) {
+    return <img src={photo} alt={name} className="w-full h-full object-cover" />;
+  }
+
   return (
-    <div className={`w-full h-full flex items-center justify-center font-black text-white text-lg ${className}`} style={{ backgroundColor: bg }}>
-      {initials}
+    <div className="w-full h-full flex items-center justify-center text-2xl font-black text-white" style={{ backgroundColor: bg }}>
+      {initials || "?"}
     </div>
   );
 }
-
 // ─── Chat List ────────────────────────────────────────────────────────────
 function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match) => void; autoOpenMatchId?: string }) {
   const navigate = useNavigate();
@@ -76,7 +80,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
   }, [isLoggedIn, loadMatches]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] flex flex-col relative overflow-hidden">
       <AfricanPattern className="absolute top-0 left-0 w-96 h-96 text-primary opacity-5" />
       <AfricanPattern className="absolute bottom-0 right-0 w-96 h-96 text-secondary opacity-5" />
 
@@ -96,7 +100,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
       </div>
 
       {matches.length > 0 && (
-        <div className="p-6 border-b-4 border-secondary/30 bg-white/50 backdrop-blur-sm relative z-10">
+        <div className="p-6 border-b-4 border-secondary/30 bg-card/50 backdrop-blur-sm relative z-10">
           <div className="max-w-4xl mx-auto">
             <h2 className="font-black text-lg mb-4 flex items-center gap-2 text-primary">
               <Sparkles className="w-5 h-5 text-secondary" /> Novos Matches
@@ -145,7 +149,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
           {matches.map((m, i) => (
             <motion.button key={m.match_id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }} onClick={() => onSelectMatch(m)}
-              className="w-full p-6 border-b border-primary/10 hover:bg-white/70 transition-all flex items-center gap-4 text-left relative group">
+              className="w-full p-6 border-b border-primary/10 hover:bg-card/70 transition-all flex items-center gap-4 text-left relative group">
               <div className="relative flex-shrink-0">
                 <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-secondary/50 group-hover:border-secondary transition-all shadow-md">
                   <Avatar photo={m.photos[0]} name={m.name} />
@@ -168,7 +172,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
+      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
           <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={false} />
           <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={true} />
@@ -196,12 +200,17 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const callStateRef = useRef<CallState>("idle");
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
 
   useEffect(() => {
     messagesApi.getMessages(match.match_id)
@@ -281,6 +290,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           }
 
           if (type === "call-offer") {
+            if (callStateRef.current !== "idle") {
+              sendSignal({ type: "call-busy" });
+              return;
+            }
             setCallType((payload.callType as "audio" | "video") || "audio");
             pendingOfferRef.current = { type: "offer", sdp: payload.sdp as string };
             setCallState("incoming");
@@ -296,6 +309,11 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
           if (type === "call-end" || type === "call-reject") {
             endCall();
+          }
+
+          if (type === "call-busy") {
+            endCall();
+            alert("A outra pessoa já está em chamada.");
           }
         } catch { /* ignore */ }
       };
@@ -393,7 +411,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] relative overflow-hidden">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
       <AfricanPattern className="absolute inset-0 text-primary opacity-5 pointer-events-none" />
 
       {/* Header */}
@@ -447,7 +465,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
               <div className={`max-w-[78%] rounded-3xl px-4 py-2.5 shadow-md ${
                 msg.sender_id === userId
                   ? "bg-gradient-to-r from-primary via-[#8B0000] to-black text-white rounded-br-sm"
-                  : "bg-white border-2 border-secondary/20 rounded-bl-sm"
+                  : "bg-card border-2 border-secondary/20 rounded-bl-sm"
               }`}>
                 <p className="font-medium leading-relaxed text-sm">{msg.text}</p>
                 <p className={`text-xs mt-1 font-bold ${msg.sender_id === userId ? "text-secondary/70" : "text-muted-foreground"}`}>
@@ -461,7 +479,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       </div>
 
       {/* Message Input */}
-      <div className="relative border-t-4 border-secondary/30 p-3 bg-white/95 backdrop-blur-xl shadow-2xl z-10 flex-shrink-0">
+      <div className="relative border-t-4 border-secondary/30 p-3 bg-card/95 backdrop-blur-xl shadow-2xl z-10 flex-shrink-0">
         <div className="max-w-4xl mx-auto flex items-center gap-2">
           <Input ref={inputRef} value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
@@ -571,26 +589,23 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
               </button>
 
               {callType === "video" ? (
-                <button onClick={toggleVideo}
-                  className={`w-14 h-14 rounded-full flex flex-col items-center justify-center gap-1 transition-colors active:scale-95 ${videoOff ? "bg-white/30" : "bg-white/10 hover:bg-white/20"}`}>
+                <button
+                  onClick={toggleVideo}
+                  className={`w-14 h-14 rounded-full flex flex-col items-center justify-center gap-1 transition-colors active:scale-95 ${videoOff ? "bg-white/30" : "bg-white/10 hover:bg-white/20"}`}
+                >
                   {videoOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6 text-white" />}
                   <span className="text-white/60 text-xs">{videoOff ? "Ativar" : "Câmara"}</span>
                 </button>
               ) : (
-                <div className="w-14" />
+                <button disabled className="w-14 h-14 rounded-full flex flex-col items-center justify-center gap-1 bg-white/10 opacity-40">
+                  <VideoOff className="w-6 h-6 text-white" />
+                  <span className="text-white/60 text-xs">Vídeo</span>
+                </button>
               )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Hidden video elements for audio calls */}
-      {callType === "audio" && (
-        <>
-          <video ref={remoteVideoRef} autoPlay playsInline className="hidden" />
-          <video ref={localVideoRef} autoPlay playsInline muted className="hidden" />
-        </>
-      )}
     </div>
   );
 }
@@ -611,7 +626,6 @@ export function TelaChat() {
     matchedProfile?: { id: string; name: string; photos: string[]; age?: number; location?: string };
   } | null;
 
-  // Build a Match object directly from navigation state to open instantly without waiting for API
   const initialMatch: Match | null = navState?.matchId && navState?.matchedProfile
     ? {
         match_id: navState.matchId,

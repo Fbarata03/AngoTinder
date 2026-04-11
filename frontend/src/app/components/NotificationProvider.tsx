@@ -111,7 +111,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                     <button
                       onClick={() => {
                         dismiss(notif.id);
-                        navigate("/chat", { state: { matchId: notif.match_id } });
+                        navigate("/chat", {
+                          state: {
+                            matchId: notif.match_id,
+                            matchedProfile: { id: notif.user.id, name: notif.user.name, photos: notif.user.photos },
+                          },
+                        });
                       }}
                       className="w-9 h-9 bg-secondary rounded-xl flex items-center justify-center hover:bg-[#FFD700] transition-colors"
                       title="Ver conversa"
