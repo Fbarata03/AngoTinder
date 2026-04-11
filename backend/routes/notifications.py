@@ -8,6 +8,12 @@ from notif_manager import notif_manager  # shared singleton
 router = APIRouter()
 
 
+@router.get("/online-count")
+async def online_count():
+    """Número de utilizadores com WebSocket ativo (aproximação de online)."""
+    return {"count": notif_manager.online_count()}
+
+
 @router.websocket("/ws")
 async def notifications_ws(ws: WebSocket, token: str = Query(...)):
     try:

@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Heart, User, MessageCircle, Send, ArrowLeft, Sparkles, Star,
-  Phone, Video, PhoneOff, VideoOff, Mic, MicOff, PhoneCall,
+  Phone, Video, PhoneOff, VideoOff, Mic, MicOff, PhoneCall, Trash2,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { useNavigate, useLocation } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { motion, AnimatePresence } from "motion/react";
-import { matchesApi, messagesApi, createChatSocket, resolveMediaUrl, Match, Message } from "../api";
+import { matchesApi, messagesApi, notificationsApi, createChatSocket, resolveMediaUrl, Match, Message } from "../api";
 import { useApp } from "../context";
 
 const RTC_CONFIG: RTCConfiguration = {
@@ -78,6 +78,8 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
   const [loading, setLoading] = useState(true);
   const autoOpenedRef = useRef(false);
   const [lastSeen, setLastSeen] = useState<Record<string, string>>(() => loadLastSeen());
+  const [onlineCount, setOnlineCount] = useState(0);
+  const [unmatching, setUnmatching] = useState<string | null>(null);
 
   const setSeen = useCallback((matchId: string, iso: string) => {
     setLastSeen((prev) => {
@@ -116,6 +118,14 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
   }, [isLoggedIn, autoOpenMatchId, onSelectMatch, setSeen]);
 
   useEffect(() => {
+    notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => {});
+    const onlineInterval = setInterval(() => {
+      notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => {});
+    }, 30000);
+    return () => clearInterval(onlineInterval);
+  }, []);
+
+  useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
     loadMatches();
     // Refresh every 8 seconds (catches matches from other users)
@@ -149,12 +159,20 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
             </div>
             <h1 className="text-2xl font-black">Matches</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-secondary rounded-full animate-pulse"></div>
-            <p className="text-secondary font-bold">{matches.length} {matches.length === 1 ? "conversa" : "conversas"} 🔥</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 bg-secondary rounded-full animate-pulse"></div>
+              <p className="text-secondary font-bold">{matches.length} {matches.length === 1 ? "conversa" : "conversas"}</p>
+            </div>
+            {onlineCount > 0 && (
+              <div className="flex items-center gap-1.5 bg-green-500/20 px-2 py-0.5 rounded-full border border-green-400/40">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                <span className="text-green-300 text-xs font-black">{onlineCount} online</span>
+              </div>
+            )}
             {unreadCount > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-secondary text-black text-xs font-black animate-pulse">
-                {unreadCount}
+                {unreadCount} nova{unreadCount > 1 ? "s" : ""}
               </span>
             )}
           </div>
@@ -214,36 +232,53 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
             </div>
           )}
           {matches.map((m, i) => (
-            <motion.button key={m.match_id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+            <motion.div key={m.match_id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
-              onClick={() => { if (m.last_message_at) setSeen(m.match_id, m.last_message_at); onSelectMatch(m); }}
-              className="w-full p-6 border-b border-primary/10 hover:bg-card/70 transition-all flex items-center gap-4 text-left relative group">
-              <div className="relative flex-shrink-0">
-                <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-secondary/50 group-hover:border-secondary transition-all shadow-md">
-                  <Avatar photo={m.photos[0]} name={m.name} />
-                </div>
-                <Star className="absolute -top-1 -right-1 w-5 h-5 text-secondary fill-secondary drop-shadow-lg" />
-                {isUnread(m) && (
-                  <div className="absolute -bottom-1 -left-1 w-4 h-4 bg-secondary rounded-full border-2 border-white shadow-lg animate-pulse" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-black truncate text-lg flex items-center gap-2">
-                    {m.name}
-                    {isUnread(m) && <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />}
-                  </h3>
-                  {m.last_message_at && (
-                    <span className="text-xs text-muted-foreground font-bold">
-                      {new Date(m.last_message_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
+              className="border-b border-primary/10 flex items-center group">
+              <button
+                onClick={() => { if (m.last_message_at) setSeen(m.match_id, m.last_message_at); onSelectMatch(m); }}
+                className="flex-1 p-6 hover:bg-card/70 transition-all flex items-center gap-4 text-left">
+                <div className="relative flex-shrink-0">
+                  <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-secondary/50 group-hover:border-secondary transition-all shadow-md">
+                    <Avatar photo={m.photos[0]} name={m.name} />
+                  </div>
+                  <Star className="absolute -top-1 -right-1 w-5 h-5 text-secondary fill-secondary drop-shadow-lg" />
+                  {isUnread(m) && (
+                    <div className="absolute -bottom-1 -left-1 w-4 h-4 bg-secondary rounded-full border-2 border-white shadow-lg animate-pulse" />
                   )}
                 </div>
-                <p className={`text-sm truncate ${isUnread(m) ? "text-foreground font-bold" : "text-muted-foreground"}`}>
-                  {m.last_message || "Diga olá! 👋"}
-                </p>
-              </div>
-            </motion.button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="font-black truncate text-lg flex items-center gap-2">
+                      {m.name}
+                      {isUnread(m) && <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />}
+                    </h3>
+                    {m.last_message_at && (
+                      <span className="text-xs text-muted-foreground font-bold">
+                        {new Date(m.last_message_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-sm truncate ${isUnread(m) ? "text-foreground font-bold" : "text-muted-foreground"}`}>
+                    {m.last_message || "Diga olá! 👋"}
+                  </p>
+                </div>
+              </button>
+              <button
+                disabled={unmatching === m.match_id}
+                onClick={async () => {
+                  if (!confirm(`Eliminar conversa com ${m.name}?`)) return;
+                  setUnmatching(m.match_id);
+                  try {
+                    await matchesApi.unmatch(m.match_id);
+                    setMatches((prev) => prev.filter((x) => x.match_id !== m.match_id));
+                  } catch { /* ignore */ } finally { setUnmatching(null); }
+                }}
+                className="pr-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Eliminar conversa">
+                <Trash2 className={`w-5 h-5 ${unmatching === m.match_id ? "text-muted-foreground animate-pulse" : "text-red-400 hover:text-red-600"}`} />
+              </button>
+            </motion.div>
           ))}
         </div>
       </div>

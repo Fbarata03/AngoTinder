@@ -264,3 +264,7 @@ export function createNotificationSocket(): WebSocket {
   const token = getToken() || "";
   return new WebSocket(`${getWsBase()}/api/notifications/ws?token=${token}`);
 }
+
+export const notificationsApi = {
+  getOnlineCount: () => request<{ count: number }>("/notifications/online-count"),
+};

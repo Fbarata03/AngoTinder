@@ -6,7 +6,7 @@ import { motion, useMotionValue, useTransform } from "motion/react";
 import { AfricanPattern } from "./AfricanPatterns";
 import { MatchModal } from "./MatchModal";
 import { FiltersModal, Filters } from "./FiltersModal";
-import { profilesApi, matchesApi, User as UserType } from "../api";
+import { profilesApi, matchesApi, notificationsApi, User as UserType } from "../api";
 import { useApp } from "../context";
 
 // Placeholder colorido com iniciais quando não há foto
@@ -139,6 +139,11 @@ export function TelaDescoberta() {
   const [boostActive, setBoostActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
+  const [onlineCount, setOnlineCount] = useState(0);
+
+  useEffect(() => {
+    notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => {});
+  }, []);
 
   const loadProfiles = (f: Filters) => {
     setLoading(true);
@@ -267,8 +272,8 @@ export function TelaDescoberta() {
           <div>
             <span className="text-2xl font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">AngoTinder</span>
             <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-secondary rounded-full animate-pulse"></div>
-              <span className="text-xs text-muted-foreground font-bold">{boostActive ? "BOOST ATIVO 🔥" : "ONLINE"}</span>
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-xs text-muted-foreground font-bold">{boostActive ? "BOOST ATIVO 🔥" : onlineCount > 0 ? `${onlineCount} online` : "ONLINE"}</span>
             </div>
           </div>
         </div>

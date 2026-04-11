@@ -7,6 +7,16 @@ from notif_manager import notif_manager
 import os
 import uuid
 import time
+import cloudinary
+import cloudinary.uploader
+
+CLOUDINARY_ENABLED = bool(os.getenv("CLOUDINARY_CLOUD_NAME"))
+if CLOUDINARY_ENABLED:
+    cloudinary.config(
+        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+        api_key=os.getenv("CLOUDINARY_API_KEY"),
+        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    )
 
 router = APIRouter()
 
@@ -93,13 +103,24 @@ async def upload_chat_media(
         ext = "jpg"
     if type == "audio" and ext not in {"webm", "ogg", "mp3", "m4a"}:
         ext = "webm"
+    token = "img:" if type == "image" else "aud:"
+
+    if CLOUDINARY_ENABLED:
+        resource_type = "image" if type == "image" else "video"  # Cloudinary uses "video" for audio
+        result = cloudinary.uploader.upload(
+            contents,
+            folder="angotinder/chat",
+            resource_type=resource_type,
+        )
+        url = result["secure_url"]
+        return {"url": url, "text": f"{token}{url}"}
+
     exp = int(time.time()) + max(1, ttl_hours) * 3600
     filename = f"{uuid.uuid4()}__exp{exp}.{ext}"
     path = os.path.join(chat_media_dir(), filename)
     with open(path, "wb") as f:
         f.write(contents)
     url = f"/static/chat/{filename}"
-    token = "img:" if type == "image" else "aud:"
     return {"url": url, "text": f"{token}{url}"}
 
 

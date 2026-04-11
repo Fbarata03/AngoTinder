@@ -19,6 +19,12 @@ class NotificationManager:
         if user_id in self.connections:
             self.connections[user_id] = [w for w in self.connections[user_id] if w != ws]
 
+    def online_count(self) -> int:
+        return sum(1 for conns in self.connections.values() if conns)
+
+    def is_online(self, user_id: str) -> bool:
+        return bool(self.connections.get(user_id))
+
     async def notify(self, user_id: str, event: dict):
         if user_id not in self.connections:
             return
