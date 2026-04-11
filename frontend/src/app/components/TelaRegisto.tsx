@@ -1,9 +1,27 @@
 import { Heart, Sparkles, Mail, Lock, User, MapPin, Briefcase, Eye, EyeOff, ChevronDown, Camera, X } from "lucide-react";
 
 export const ANGOLA_PROVINCES = [
-  "Luanda", "Benguela", "Huambo", "Bié", "Malanje", "Huíla", "Cunene",
-  "Cuando Cubango", "Moxico", "Lunda Norte", "Lunda Sul", "Uíge",
-  "Cuanza Norte", "Cuanza Sul", "Bengo", "Zaire", "Cabinda", "Namibe",
+  "Cabinda",
+  "Zaire",
+  "Uíge",
+  "Bengo",
+  "Luanda",
+  "Icolo e Bengo",
+  "Cuanza Norte",
+  "Cuanza Sul",
+  "Malanje",
+  "Lunda Norte",
+  "Lunda Sul",
+  "Moxico",
+  "Moxico Leste",
+  "Bié",
+  "Huambo",
+  "Benguela",
+  "Namibe",
+  "Huíla",
+  "Cunene",
+  "Cubango",
+  "Cuando",
 ];
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";

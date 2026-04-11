@@ -80,6 +80,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
   const [lastSeen, setLastSeen] = useState<Record<string, string>>(() => loadLastSeen());
   const [onlineCount, setOnlineCount] = useState(0);
   const [unmatching, setUnmatching] = useState<string | null>(null);
+  const [viewProfileMatch, setViewProfileMatch] = useState<Match | null>(null);
 
   const setSeen = useCallback((matchId: string, iso: string) => {
     setLastSeen((prev) => {
@@ -179,30 +180,27 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
         </div>
       </div>
 
-      {matches.length > 0 && (
-        <div className="p-6 border-b-4 border-secondary/30 bg-card/50 backdrop-blur-sm relative z-10">
+      {matches.some((m) => !m.last_message) && (
+        <div className="p-4 border-b-4 border-secondary/30 bg-card/50 backdrop-blur-sm relative z-10 flex-shrink-0">
           <div className="max-w-4xl mx-auto">
-            <h2 className="font-black text-lg mb-4 flex items-center gap-2 text-primary">
-              <Sparkles className="w-5 h-5 text-secondary" /> Novos Matches
+            <h2 className="font-black text-sm mb-3 flex items-center gap-2 text-primary">
+              <Sparkles className="w-4 h-4 text-secondary" /> Novos Matches
             </h2>
-            <div className="flex gap-4 overflow-x-auto pb-2">
-              {matches.map((m, i) => (
+            <div className="flex gap-4 overflow-x-auto pb-1">
+              {matches.filter((m) => !m.last_message).map((m, i) => (
                 <motion.button key={m.match_id} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: i * 0.1 }}
-                  onClick={() => { if (m.last_message_at) setSeen(m.match_id, m.last_message_at); onSelectMatch(m); }}
+                  onClick={() => { onSelectMatch(m); }}
                   className="flex-shrink-0 text-center">
                   <div className="relative">
-                    <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-secondary shadow-lg">
+                    <div className={`w-16 h-16 rounded-full overflow-hidden border-4 ${selectedMatchId === m.match_id ? "border-secondary" : "border-secondary/60"} shadow-lg`}>
                       <Avatar photo={m.photos[0]} name={m.name} />
                     </div>
-                    {isUnread(m) && (
-                      <div className="absolute -bottom-1 -left-1 w-4 h-4 bg-secondary rounded-full border-2 border-black shadow-lg animate-pulse" />
-                    )}
-                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-primary to-[#8B0000] rounded-full border-2 border-white flex items-center justify-center shadow-lg">
-                      <Heart className="w-3 h-3 text-white fill-white" />
+                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-primary to-[#8B0000] rounded-full border-2 border-white flex items-center justify-center shadow-lg">
+                      <Heart className="w-2.5 h-2.5 text-white fill-white" />
                     </div>
                   </div>
-                  <p className="text-sm mt-2 max-w-[80px] truncate font-bold text-foreground">{m.name}</p>
+                  <p className="text-xs mt-1.5 max-w-[64px] truncate font-bold text-foreground">{m.name}</p>
                 </motion.button>
               ))}
             </div>
@@ -237,12 +235,13 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
               className={`border-b border-primary/10 flex items-center group ${selectedMatchId === m.match_id ? "bg-secondary/10 border-l-4 border-l-secondary" : ""}`}>
               <button
                 onClick={() => { if (m.last_message_at) setSeen(m.match_id, m.last_message_at); onSelectMatch(m); }}
-                className="flex-1 p-6 hover:bg-card/70 transition-all flex items-center gap-4 text-left">
-                <div className="relative flex-shrink-0">
-                  <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-secondary/50 group-hover:border-secondary transition-all shadow-md">
+                className="flex-1 p-4 hover:bg-card/70 transition-all flex items-center gap-4 text-left">
+                <div className="relative flex-shrink-0"
+                  onClick={(e) => { e.stopPropagation(); setViewProfileMatch(m); }}>
+                  <div className="w-14 h-14 rounded-full overflow-hidden border-4 border-secondary/50 group-hover:border-secondary transition-all shadow-md cursor-pointer hover:opacity-80">
                     <Avatar photo={m.photos[0]} name={m.name} />
                   </div>
-                  <Star className="absolute -top-1 -right-1 w-5 h-5 text-secondary fill-secondary drop-shadow-lg" />
+                  {m.is_verified === 1 && <Star className="absolute -top-1 -right-1 w-4 h-4 text-secondary fill-secondary drop-shadow-lg" />}
                   {isUnread(m) && (
                     <div className="absolute -bottom-1 -left-1 w-4 h-4 bg-secondary rounded-full border-2 border-white shadow-lg animate-pulse" />
                   )}
@@ -291,6 +290,9 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
             <NavBtn icon={<User className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} active={false} />
           </div>
         </div>
+      )}
+      {viewProfileMatch && (
+        <ProfileModal open={true} onClose={() => setViewProfileMatch(null)} match={viewProfileMatch} />
       )}
     </div>
   );
@@ -845,19 +847,84 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 }
 
 function ProfileModal({ open, onClose, match }: { open: boolean; onClose: () => void; match: Match }) {
+  const [photoIdx, setPhotoIdx] = useState(0);
   if (!open) return null;
+  const photos = match.photos || [];
   return (
-    <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4">
-      <div className="bg-card rounded-3xl max-w-md w-full overflow-hidden">
-        <div className="relative h-72">
-          {match.photos[0] ? <img src={resolveMediaUrl(match.photos[0])} alt={match.name} className="w-full h-full object-cover" /> : null}
-        </div>
-        <div className="p-5">
-          <h3 className="font-black text-xl">{match.name}{match.age ? `, ${match.age}` : ""}</h3>
-          <p className="text-sm text-muted-foreground">{match.location}</p>
-          <div className="mt-4 flex justify-end">
-            <Button onClick={onClose} className="rounded-2xl">Fechar</Button>
+    <div className="fixed inset-0 z-40 bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-card rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* Photos carousel */}
+        <div className="relative h-80 flex-shrink-0 bg-black">
+          {photos.length > 0 ? (
+            <img src={resolveMediaUrl(photos[photoIdx])} alt={match.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-6xl font-black text-white bg-primary">
+              {match.name[0]?.toUpperCase()}
+            </div>
+          )}
+          {/* Photo nav dots */}
+          {photos.length > 1 && (
+            <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+              {photos.map((_, i) => (
+                <button key={i} onClick={() => setPhotoIdx(i)}
+                  className={`w-2 h-2 rounded-full transition-all ${i === photoIdx ? "bg-secondary w-4" : "bg-white/50"}`} />
+              ))}
+            </div>
+          )}
+          {/* Left/right tap */}
+          {photos.length > 1 && (
+            <>
+              <button onClick={() => setPhotoIdx((i) => (i - 1 + photos.length) % photos.length)}
+                className="absolute left-0 top-0 h-full w-1/3" />
+              <button onClick={() => setPhotoIdx((i) => (i + 1) % photos.length)}
+                className="absolute right-0 top-0 h-full w-1/3" />
+            </>
+          )}
+          {/* Close */}
+          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white font-black text-lg">×</button>
+          {match.is_verified === 1 && (
+            <div className="absolute top-3 left-3 bg-gradient-to-r from-secondary to-[#FFD700] px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Star className="w-3 h-3 text-black fill-black" />
+              <span className="text-xs font-black text-black">VIP</span>
+            </div>
+          )}
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+            <h3 className="font-black text-2xl text-white">{match.name}{match.age ? `, ${match.age}` : ""}</h3>
+            {match.location && <p className="text-white/70 text-sm flex items-center gap-1">📍 {match.location}</p>}
           </div>
+        </div>
+        {/* Info */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-3">
+          {match.work && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-base">💼</span>
+              <span className="font-bold">{match.work}</span>
+            </div>
+          )}
+          {match.education && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-base">🎓</span>
+              <span className="font-bold">{match.education}</span>
+            </div>
+          )}
+          {match.hometown && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-base">🏠</span>
+              <span className="font-bold">De {match.hometown}</span>
+            </div>
+          )}
+          {match.bio && (
+            <p className="text-sm text-foreground leading-relaxed border-t border-border pt-3">{match.bio}</p>
+          )}
+          {match.interests && match.interests.length > 0 && (
+            <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+              {match.interests.map((interest) => (
+                <span key={interest} className="px-3 py-1 bg-secondary/20 text-secondary rounded-full text-xs font-bold border border-secondary/30">
+                  {interest}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

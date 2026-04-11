@@ -196,6 +196,12 @@ export interface Match {
   age: number;
   location: string;
   photos: string[];
+  bio?: string;
+  work?: string;
+  education?: string;
+  hometown?: string;
+  interests?: string[];
+  is_verified?: number;
   last_message?: string;
   last_message_at?: string;
 }
