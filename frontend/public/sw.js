@@ -1,5 +1,5 @@
-const CACHE = "angotinder-v1";
-const STATIC = ["/", "/index.html", "/favicon.svg", "/manifest.json"];
+const CACHE = "angotinder-v2";
+const STATIC = ["/favicon.svg", "/manifest.json"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
@@ -18,6 +18,8 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   // Nunca interceptar chamadas à API
   if (e.request.url.includes("/api/")) return;
+  // Nunca interceptar navegação (HTML) — evita servir app antigo em produção
+  if (e.request.mode === "navigate") return;
 
   e.respondWith(
     fetch(e.request)
