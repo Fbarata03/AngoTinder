@@ -96,8 +96,6 @@ async def discover(
     gender: str = "",
     verified_only: bool = False,
 ):
-    me = await db.fetchrow("SELECT looking_for, gender FROM users WHERE id = $1", user_id)
-
     # Only apply gender filter when explicitly requested (not "all")
     # If gender="all" is passed from frontend, show everyone regardless of looking_for
     target_gender = ""
@@ -106,7 +104,47 @@ async def discover(
         target_gender = gender_map.get(gender, "")
     # Do NOT auto-apply looking_for filter — let users see everyone by default
 
-    # Base conditions:
+    # Priority 1: show people who already liked you (higher chance of match)
+    liked_conditions = [
+        "u.id != $1",
+        "u.age >= $2",
+        "u.age <= $3",
+        """u.id NOT IN (
+            SELECT swiped_id FROM swipes
+            WHERE swiper_id = $4
+        )""",
+        """u.id NOT IN (
+            SELECT CASE WHEN user1_id = $5 THEN user2_id ELSE user1_id END
+            FROM matches WHERE user1_id = $6 OR user2_id = $7
+        )""",
+    ]
+    liked_params: list = [user_id, min_age, max_age, user_id, user_id, user_id, user_id]
+
+    if target_gender:
+        liked_params.append(target_gender)
+        liked_conditions.append(f"u.gender = ${len(liked_params)}")
+
+    if verified_only:
+        liked_conditions.append("u.is_verified = 1")
+
+    liked_where = " AND ".join(liked_conditions)
+    liked_rows = await db.fetch(
+        f"""
+        SELECT u.*
+        FROM swipes s
+        JOIN users u ON u.id = s.swiper_id
+        WHERE s.swiped_id = $1
+          AND s.direction IN ('right', 'super')
+          AND {liked_where}
+        ORDER BY s.created_at DESC
+        LIMIT 25
+        """,
+        *liked_params,
+    )
+
+    liked_ids = [r["id"] for r in liked_rows] if liked_rows else []
+
+    # Base conditions (random fill):
     # - Not yourself
     # - Not already right/super swiped (pending like — no point showing again)
     # - Not already matched
@@ -138,6 +176,11 @@ async def discover(
     if verified_only:
         base_conditions.append("u.is_verified = 1")
 
+    if liked_ids:
+        placeholders = ", ".join([f"${len(params) + i + 1}" for i in range(len(liked_ids))])
+        base_conditions.append(f"u.id NOT IN ({placeholders})")
+        params.extend(liked_ids)
+
     where = " AND ".join(base_conditions)
     rows = await db.fetch(
         f"SELECT u.* FROM users u WHERE {where} ORDER BY RANDOM() LIMIT 50",
@@ -145,7 +188,7 @@ async def discover(
     )
 
     # Fallback: if no results, keep the same anti-repeat rules (no matches, no recent left, no right/super)
-    if not rows:
+    if not rows and not liked_rows:
         rows = await db.fetch(
             f"""SELECT u.* FROM users u
                WHERE u.id != $1
@@ -166,7 +209,21 @@ async def discover(
             user_id, user_id, user_id, user_id,
         )
 
-    return [parse_user(r) for r in rows]
+    combined = []
+    seen = set()
+    for r in liked_rows:
+        rid = r["id"]
+        if rid in seen:
+            continue
+        seen.add(rid)
+        combined.append(r)
+    for r in rows:
+        rid = r["id"]
+        if rid in seen:
+            continue
+        seen.add(rid)
+        combined.append(r)
+    return [parse_user(r) for r in combined[:50]]
 
 
 @router.get("/me")
