@@ -138,6 +138,7 @@ export function TelaDescoberta() {
   const [superLikesLeft, setSuperLikesLeft] = useState(1);
   const [boostActive, setBoostActive] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
 
   const loadProfiles = (f: Filters) => {
     setLoading(true);
@@ -213,6 +214,20 @@ export function TelaDescoberta() {
             <Button onClick={() => loadProfiles(filters)}
               className="bg-gradient-to-r from-secondary to-[#FFD700] text-black hover:opacity-90 font-black text-lg px-8 py-6 rounded-2xl shadow-xl">
               Recarregar
+            </Button>
+            <Button
+              disabled={resetting}
+              onClick={async () => {
+                setResetting(true);
+                try {
+                  await profilesApi.resetSwipes();
+                  loadProfiles(filters);
+                } catch { /* ignore */ } finally {
+                  setResetting(false);
+                }
+              }}
+              className="mt-4 bg-white/10 text-white hover:bg-white/20 font-bold text-base px-8 py-4 rounded-2xl border border-white/20">
+              {resetting ? "A limpar..." : "Recomeçar do zero"}
             </Button>
           </div>
         </div>

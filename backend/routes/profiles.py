@@ -383,6 +383,24 @@ async def get_top_picks(
     return [{**parse_user(r), "reason": reasons[i % len(reasons)]} for i, r in enumerate(rows)]
 
 
+@router.delete("/me/swipes")
+async def reset_swipes(
+    user_id: str = Depends(get_current_user_id),
+    db: asyncpg.Connection = Depends(get_db),
+):
+    """Remove todos os swipes do utilizador exceto os que resultaram em match."""
+    await db.execute(
+        """DELETE FROM swipes
+           WHERE swiper_id = $1
+             AND swiped_id NOT IN (
+                 SELECT CASE WHEN user1_id = $2 THEN user2_id ELSE user1_id END
+                 FROM matches WHERE user1_id = $3 OR user2_id = $4
+             )""",
+        user_id, user_id, user_id, user_id,
+    )
+    return {"success": True}
+
+
 # This MUST be last — catches any /{profile_id}
 @router.get("/{profile_id}")
 async def get_profile(

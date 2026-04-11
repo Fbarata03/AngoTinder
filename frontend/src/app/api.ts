@@ -180,6 +180,8 @@ export const profilesApi = {
       method: "DELETE",
     }),
 
+  resetSwipes: () => request<{ success: boolean }>("/profiles/me/swipes", { method: "DELETE" }),
+
   getLikes: () => request<User[]>("/profiles/likes/received"),
 
   getTopPicks: () => request<(User & { reason: string })[]>("/profiles/top-picks/today"),
