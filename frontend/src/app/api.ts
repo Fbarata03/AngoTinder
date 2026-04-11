@@ -2,6 +2,15 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const BASE_URL = (import.meta as any).env?.VITE_API_URL || "/api";
 
+const HTTP_BASE = BASE_URL.startsWith("http") ? BASE_URL.replace(/\/api\/?$/, "") : "";
+
+export function resolveMediaUrl(url: string): string {
+  if (!url) return url;
+  if (url.startsWith("http")) return url;
+  if (HTTP_BASE && url.startsWith("/static/")) return `${HTTP_BASE}${url}`;
+  return url;
+}
+
 const TOKEN_KEY = "angotinder_token";
 
 export function getToken(): string | null {
@@ -220,7 +229,11 @@ export const messagesApi = {
     }),
 
   uploadMedia: (file: File, type: "image" | "audio", ttlHours = 24) =>
-    upload<{ url: string; text: string }>(`/messages/upload?type=${type}&ttl_hours=${ttlHours}`, file),
+    upload<{ url: string; text: string }>(`/messages/upload?type=${type}&ttl_hours=${ttlHours}`, file).then((r) => {
+      const fixedUrl = resolveMediaUrl(r.url);
+      const prefix = type === "image" ? "img:" : "aud:";
+      return { url: fixedUrl, text: `${prefix}${fixedUrl}` };
+    }),
 };
 
 // ---------- WebSocket ----------

@@ -16,6 +16,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const navigate = useNavigate();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [matchNotifs, setMatchNotifs] = useState<MatchNotif[]>([]);
 
   const dismiss = useCallback((id: string) => {
@@ -32,6 +33,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       try {
         const ws = createNotificationSocket();
         wsRef.current = ws;
+
+        if (pingRef.current) { clearInterval(pingRef.current); pingRef.current = null; }
+        ws.onopen = () => {
+          if (!active) return;
+          pingRef.current = setInterval(() => {
+            try {
+              if (ws.readyState === WebSocket.OPEN) ws.send("ping");
+            } catch { /* ignore */ }
+          }, 25000);
+        };
 
         ws.onmessage = (event) => {
           try {
@@ -56,6 +67,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
         ws.onclose = () => {
           if (!active) return;
+          if (pingRef.current) { clearInterval(pingRef.current); pingRef.current = null; }
           reconnectRef.current = setTimeout(() => { if (active) connect(); }, 4000);
         };
         ws.onerror = () => ws.close();
@@ -67,6 +79,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     return () => {
       active = false;
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      if (pingRef.current) { clearInterval(pingRef.current); pingRef.current = null; }
       wsRef.current?.close();
     };
   }, [isLoggedIn, userId, dismiss]);

@@ -8,7 +8,7 @@ import { Input } from "./ui/input";
 import { useNavigate, useLocation } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { motion, AnimatePresence } from "motion/react";
-import { matchesApi, messagesApi, createChatSocket, Match, Message } from "../api";
+import { matchesApi, messagesApi, createChatSocket, resolveMediaUrl, Match, Message } from "../api";
 import { useApp } from "../context";
 
 const RTC_CONFIG: RTCConfiguration = {
@@ -268,6 +268,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [connected, setConnected] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const wsPingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -354,10 +355,20 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       const ws = createChatSocket(match.match_id);
       wsRef.current = ws;
 
-      ws.onopen = () => { if (active) setConnected(true); };
+      if (wsPingRef.current) { clearInterval(wsPingRef.current); wsPingRef.current = null; }
+      ws.onopen = () => {
+        if (!active) return;
+        setConnected(true);
+        wsPingRef.current = setInterval(() => {
+          try {
+            if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }));
+          } catch { /* ignore */ }
+        }, 25000);
+      };
       ws.onclose = () => {
         if (!active) return;
         setConnected(false);
+        if (wsPingRef.current) { clearInterval(wsPingRef.current); wsPingRef.current = null; }
         // Auto-reconnect after 3 seconds
         reconnectTimer = setTimeout(() => { if (active) connect(); }, 3000);
       };
@@ -410,6 +421,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     return () => {
       active = false;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (wsPingRef.current) { clearInterval(wsPingRef.current); wsPingRef.current = null; }
       wsRef.current?.close();
       endCall();
     };
@@ -517,6 +529,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   };
 
   const startRecording = async () => {
+    if (recorderRef.current && recorderRef.current.state !== "inactive") return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream, { mimeType: "audio/webm" });
@@ -606,7 +619,8 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             const t = msg.text || "";
             const isImg = t.startsWith("img:");
             const isAud = t.startsWith("aud:");
-            const content = isImg || isAud ? t.slice(4) : t;
+            const raw = isImg || isAud ? t.slice(4) : t;
+            const content = resolveMediaUrl(raw);
             return (
             <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}
               className={`flex ${msg.sender_id === userId ? "justify-end" : "justify-start"}`}>
@@ -641,17 +655,23 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             placeholder="Escreva uma mensagem..."
             className="flex-1 bg-input-background border-2 border-primary/20 focus:border-secondary rounded-2xl h-12 px-4 font-medium text-sm" />
           <input id="photoInput" type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
-          <Button onMouseDown={startRecording} onMouseUp={stopRecording} onMouseLeave={stopRecording}
+          <Button
+            onPointerDown={() => { if (!uploading) startRecording(); }}
+            onPointerUp={stopRecording}
+            onPointerCancel={stopRecording}
+            onPointerLeave={stopRecording}
+            disabled={uploading}
             className="w-12 h-12 rounded-2xl bg-black/60 hover:bg-black/80 flex items-center justify-center p-0 shadow-xl flex-shrink-0"
             title="Gravar áudio">
             <Mic className="w-5 h-5" />
           </Button>
           <Button onClick={() => document.getElementById("photoInput")?.click()}
+            disabled={uploading}
             className="w-12 h-12 rounded-2xl bg-black/60 hover:bg-black/80 flex items-center justify-center p-0 shadow-xl flex-shrink-0"
             title="Enviar foto temporária">
             <VideoOff className="w-5 h-5" />
           </Button>
-          <Button onClick={handleSend}
+          <Button onClick={handleSend} disabled={uploading}
             className="w-12 h-12 rounded-2xl bg-gradient-to-r from-primary via-[#8B0000] to-black hover:opacity-90 flex items-center justify-center p-0 shadow-xl flex-shrink-0">
             <Send className="w-5 h-5" />
           </Button>
