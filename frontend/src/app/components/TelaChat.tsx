@@ -40,21 +40,40 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
   const { isLoggedIn } = useApp();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+  const autoOpenedRef = useRef(false);
 
-  useEffect(() => {
-    if (!isLoggedIn) { navigate("/"); return; }
+  const loadMatches = useCallback(() => {
+    if (!isLoggedIn) return;
     matchesApi.getMatches()
       .then((m) => {
         setMatches(m);
         setLoading(false);
-        // Auto-abrir conversa se veio de um match
-        if (autoOpenMatchId) {
+        // Auto-abrir conversa se veio de um match (só uma vez)
+        if (autoOpenMatchId && !autoOpenedRef.current) {
           const found = m.find((x) => x.match_id === autoOpenMatchId);
-          if (found) onSelectMatch(found);
+          if (found) { autoOpenedRef.current = true; onSelectMatch(found); }
         }
       })
       .catch(() => setLoading(false));
-  }, [isLoggedIn]);
+  }, [isLoggedIn, autoOpenMatchId, onSelectMatch]);
+
+  useEffect(() => {
+    if (!isLoggedIn) { navigate("/"); return; }
+    loadMatches();
+    // Refresh every 8 seconds (catches matches from other users)
+    const interval = setInterval(loadMatches, 8000);
+    // Also refresh when tab becomes visible again
+    const onVisible = () => { if (document.visibilityState === "visible") loadMatches(); };
+    document.addEventListener("visibilitychange", onVisible);
+    // Listen for new_match events from NotificationProvider
+    const onNewMatch = () => loadMatches();
+    window.addEventListener("angotinder:new_match", onNewMatch);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("angotinder:new_match", onNewMatch);
+    };
+  }, [isLoggedIn, loadMatches]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] flex flex-col relative overflow-hidden">

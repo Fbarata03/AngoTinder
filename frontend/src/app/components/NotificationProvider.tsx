@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { Heart, MessageCircle, Phone, X } from "lucide-react";
+import { Heart, MessageCircle, X } from "lucide-react";
 import { createNotificationSocket } from "../api";
 import { useApp } from "../context";
 
@@ -45,6 +45,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
               setMatchNotifs((n) => [notif, ...n].slice(0, 3));
               // Auto-dismiss after 8 seconds
               setTimeout(() => dismiss(notif.id), 8000);
+              // Dispatch event so ChatList can refresh instantly
+              window.dispatchEvent(new Event("angotinder:new_match"));
             }
           } catch { /* ignore */ }
         };

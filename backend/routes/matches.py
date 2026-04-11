@@ -5,7 +5,7 @@ from pydantic import BaseModel
 import asyncpg
 from database import get_db
 from auth_utils import get_current_user_id
-from routes.notifications import notif_manager
+from notif_manager import notif_manager
 
 router = APIRouter()
 

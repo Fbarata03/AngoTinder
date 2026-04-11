@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, User, Bell, Shield, CreditCard, HelpCircle, LogOut, ChevronRight, Heart, MessageCircle, Crown, Eye, EyeOff, MapPin, Mail, Lock, X, Check, ExternalLink } from "lucide-react";
+import { Settings, User, Bell, Shield, CreditCard, HelpCircle, LogOut, ChevronRight, Heart, MessageCircle, Crown, Eye, EyeOff, MapPin, Mail, Lock, X, Check, ExternalLink, Moon, Sun, Trash2, AlertTriangle } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Switch } from "./ui/switch";
@@ -182,6 +182,19 @@ export function TelaConfiguracoes() {
   const [showGold, setShowGold] = useState(false);
   const [isGold, setIsGold] = useState(isGoldActive());
   const [showChangePw, setShowChangePw] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("angotinder_dark") === "true");
+
+  // Apply dark mode
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("angotinder_dark", "true");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("angotinder_dark", "false");
+    }
+  }, [darkMode]);
   const [pw, setPw] = useState({ current: "", new: "", confirm: "" });
   const [showPw, setShowPw] = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
@@ -448,8 +461,21 @@ export function TelaConfiguracoes() {
             description="Suporte e perguntas frequentes"
             onClick={() => window.open("https://www.instagram.com/feliciano_barata", "_blank")} />
           <NavItem icon={Shield} label="Segurança e Privacidade"
-            description="Protege a tua conta"
-            onClick={() => {}} />
+            description="Gerir dados e conta"
+            onClick={() => setShowPrivacy(true)} />
+          <div className="flex items-center gap-4 p-5 border-b border-primary/10 last:border-0 hover:bg-secondary/5 transition-colors cursor-pointer"
+            onClick={() => setDarkMode(!darkMode)}>
+            <div className="bg-gradient-to-br from-primary/10 to-secondary/10 p-3 rounded-xl">
+              {darkMode ? <Sun className="w-5 h-5 text-primary" /> : <Moon className="w-5 h-5 text-primary" />}
+            </div>
+            <div className="flex-1">
+              <p className="font-black">{darkMode ? "Modo Claro" : "Modo Noturno"}</p>
+              <p className="text-sm text-muted-foreground font-medium">{darkMode ? "Mudar para tema claro" : "Mudar para tema escuro"}</p>
+            </div>
+            <div className={`w-12 h-6 rounded-full transition-colors flex items-center px-1 ${darkMode ? "bg-primary" : "bg-gray-300"}`}>
+              <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${darkMode ? "translate-x-6" : "translate-x-0"}`} />
+            </div>
+          </div>
         </Section>
 
         <Button
@@ -468,6 +494,68 @@ export function TelaConfiguracoes() {
       <AnimatePresence>
         {showGold && (
           <GoldModal onClose={() => { setShowGold(false); setIsGold(isGoldActive()); }} />
+        )}
+      </AnimatePresence>
+
+      {/* Security & Privacy Modal */}
+      <AnimatePresence>
+        {showPrivacy && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-black p-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Shield className="w-6 h-6 text-secondary" />
+                  <h3 className="text-xl font-black text-white">Segurança e Privacidade</h3>
+                </div>
+                <button onClick={() => setShowPrivacy(false)} className="text-white/70 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="bg-primary/5 rounded-2xl p-4 border-2 border-primary/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Lock className="w-4 h-4 text-primary" />
+                    <p className="font-black text-sm">A tua conta está protegida</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Os teus dados são encriptados e nunca partilhados com terceiros.</p>
+                </div>
+
+                <button onClick={() => { setShowPrivacy(false); setShowChangePw(true); }}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-primary/20 hover:bg-primary/5 transition-colors text-left">
+                  <Lock className="w-5 h-5 text-primary" />
+                  <div>
+                    <p className="font-black text-sm">Alterar Senha</p>
+                    <p className="text-xs text-muted-foreground">Muda a palavra-passe da conta</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
+                </button>
+
+                <div className="bg-yellow-50 rounded-2xl p-4 border-2 border-yellow-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                    <p className="font-black text-sm text-yellow-800">Dados pessoais</p>
+                  </div>
+                  <p className="text-xs text-yellow-700">O AngoTinder guarda apenas o que colocas no perfil. Não acedemos aos teus contactos, mensagens privadas ou câmara sem permissão.</p>
+                </div>
+
+                <div className="bg-red-50 rounded-2xl p-4 border-2 border-red-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Trash2 className="w-4 h-4 text-red-600" />
+                    <p className="font-black text-sm text-red-800">Eliminar conta</p>
+                  </div>
+                  <p className="text-xs text-red-700 mb-3">Para eliminar a tua conta, envia email para: <strong>suporte@angotinder.com</strong></p>
+                </div>
+
+                <Button onClick={() => setShowPrivacy(false)}
+                  className="w-full h-12 bg-gradient-to-r from-[#CE1126] to-[#8B0000] text-white font-black rounded-2xl">
+                  Fechar
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

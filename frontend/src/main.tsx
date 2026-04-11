@@ -1,5 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+
+// Apply dark mode before first render to avoid flash
+if (localStorage.getItem("angotinder_dark") === "true") {
+  document.documentElement.classList.add("dark");
+}
 import App from "./app/App";
 import { AppProvider } from "./app/context";
 import { GoogleOAuthProvider } from "@react-oauth/google";
