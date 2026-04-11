@@ -22,7 +22,7 @@ interface FiltersModalProps {
 
 export function FiltersModal({ isOpen, onClose, onApply, initial }: FiltersModalProps) {
   const [filters, setFilters] = useState<Filters>(
-    initial || { ageRange: [18, 35], distance: 50, showVerifiedOnly: false, gender: "all" }
+    initial || { ageRange: [18, 99], distance: 50, showVerifiedOnly: false, gender: "all" }
   );
 
   if (!isOpen) return null;
@@ -76,7 +76,7 @@ export function FiltersModal({ isOpen, onClose, onApply, initial }: FiltersModal
               <Slider
                 value={filters.ageRange}
                 onValueChange={(v) => setFilters({ ...filters, ageRange: v as [number, number] })}
-                min={18} max={80} step={1}
+                min={18} max={99} step={1}
               />
             </div>
 

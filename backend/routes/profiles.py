@@ -48,41 +48,66 @@ async def discover(
     user_id: str = Depends(get_current_user_id),
     db: asyncpg.Connection = Depends(get_db),
     min_age: int = 18,
-    max_age: int = 80,
+    max_age: int = 99,
     gender: str = "",
     verified_only: bool = False,
 ):
-    me = await db.fetchrow("SELECT looking_for FROM users WHERE id = $1", user_id)
+    me = await db.fetchrow("SELECT looking_for, gender FROM users WHERE id = $1", user_id)
 
-    # Resolve gender filter: query param overrides profile preference
+    # Only apply gender filter when explicitly requested (not "all")
+    # If gender="all" is passed from frontend, show everyone regardless of looking_for
     target_gender = ""
-    if gender and gender != "all":
+    if gender and gender not in ("all", ""):
         gender_map = {"women": "female", "men": "male", "female": "female", "male": "male"}
         target_gender = gender_map.get(gender, "")
-    elif me and me["looking_for"] not in ("all", None, ""):
-        gender_map = {"women": "female", "men": "male"}
-        target_gender = gender_map.get(me["looking_for"], "")
+    # Do NOT auto-apply looking_for filter — let users see everyone by default
 
-    conditions = [
+    # Base conditions:
+    # - Not yourself
+    # - Not already right/super swiped (pending like — no point showing again)
+    # - Not already matched
+    # Left swipes CAN reappear (user may change their mind, and for small user bases this is essential)
+    base_conditions = [
         "u.id != $1",
-        "u.id NOT IN (SELECT swiped_id FROM swipes WHERE swiper_id = $2)",
-        "u.age >= $3",
-        "u.age <= $4",
+        """u.id NOT IN (
+            SELECT swiped_id FROM swipes
+            WHERE swiper_id = $2 AND direction IN ('right', 'super')
+        )""",
+        """u.id NOT IN (
+            SELECT CASE WHEN user1_id = $3 THEN user2_id ELSE user1_id END
+            FROM matches WHERE user1_id = $4 OR user2_id = $5
+        )""",
+        "u.age >= $6",
+        "u.age <= $7",
     ]
-    params: list = [user_id, user_id, min_age, max_age]
+    params: list = [user_id, user_id, user_id, user_id, user_id, min_age, max_age]
 
     if target_gender:
         params.append(target_gender)
-        conditions.append(f"u.gender = ${len(params)}")
+        base_conditions.append(f"u.gender = ${len(params)}")
 
     if verified_only:
-        conditions.append("u.is_verified = 1")
+        base_conditions.append("u.is_verified = 1")
 
-    where = " AND ".join(conditions)
+    where = " AND ".join(base_conditions)
     rows = await db.fetch(
         f"SELECT u.* FROM users u WHERE {where} ORDER BY RANDOM() LIMIT 50",
         *params,
     )
+
+    # Fallback: if no results and filters were applied, return anyone except self and matches
+    if not rows:
+        rows = await db.fetch(
+            """SELECT u.* FROM users u
+               WHERE u.id != $1
+               AND u.id NOT IN (
+                   SELECT CASE WHEN user1_id = $2 THEN user2_id ELSE user1_id END
+                   FROM matches WHERE user1_id = $3 OR user2_id = $4
+               )
+               ORDER BY RANDOM() LIMIT 50""",
+            user_id, user_id, user_id, user_id,
+        )
+
     return [parse_user(r) for r in rows]
 
 

@@ -134,7 +134,7 @@ export function TelaDescoberta() {
   const [matchedProfile, setMatchedProfile] = useState<UserType | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState<Filters>({ ageRange: [18, 35], distance: 50, showVerifiedOnly: false, gender: "all" });
+  const [filters, setFilters] = useState<Filters>({ ageRange: [18, 99], distance: 50, showVerifiedOnly: false, gender: "all" });
   const [superLikesLeft, setSuperLikesLeft] = useState(1);
   const [boostActive, setBoostActive] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -194,7 +194,7 @@ export function TelaDescoberta() {
     );
   }
 
-  if (currentIndex >= profiles.length) {
+  if (currentIndex >= profiles.length && !loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-black flex flex-col relative overflow-hidden">
         <AfricanPattern className="absolute inset-0 text-secondary opacity-10" />
@@ -208,10 +208,10 @@ export function TelaDescoberta() {
               </div>
             </motion.div>
             <h2 className="text-4xl font-black text-white mb-4">Sem mais perfis!</h2>
-            <p className="text-white/70 mb-8 text-lg">Volte mais tarde para conhecer<br />novas pessoas incríveis 🔥</p>
-            <Button onClick={() => { setCurrentIndex(0); setHistory([]); }}
+            <p className="text-white/70 mb-8 text-lg">Recarrega para ver mais pessoas 🔥</p>
+            <Button onClick={() => loadProfiles(filters)}
               className="bg-gradient-to-r from-secondary to-[#FFD700] text-black hover:opacity-90 font-black text-lg px-8 py-6 rounded-2xl shadow-xl">
-              Ver Novamente
+              Recarregar
             </Button>
           </div>
         </div>

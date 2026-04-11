@@ -233,44 +233,63 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   }, [sendSignal, endCall]);
 
   useEffect(() => {
-    const ws = createChatSocket(match.match_id);
-    wsRef.current = ws;
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onerror = () => setConnected(false);
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let active = true;
 
-    ws.onmessage = async (event) => {
-      try {
-        const payload = JSON.parse(event.data) as Record<string, unknown>;
-        const type = payload.type as string;
+    const connect = () => {
+      if (!active) return;
+      const ws = createChatSocket(match.match_id);
+      wsRef.current = ws;
 
-        if (type === "message") {
-          const data = payload.data as Message;
-          setMessages((prev) => prev.some((m) => m.id === data.id) ? prev : [...prev, data]);
-          return;
-        }
+      ws.onopen = () => { if (active) setConnected(true); };
+      ws.onclose = () => {
+        if (!active) return;
+        setConnected(false);
+        // Auto-reconnect after 3 seconds
+        reconnectTimer = setTimeout(() => { if (active) connect(); }, 3000);
+      };
+      ws.onerror = () => { ws.close(); };
 
-        if (type === "call-offer") {
-          setCallType((payload.callType as "audio" | "video") || "audio");
-          pendingOfferRef.current = { type: "offer", sdp: payload.sdp as string };
-          setCallState("incoming");
-        }
+      ws.onmessage = async (event) => {
+        try {
+          const payload = JSON.parse(event.data) as Record<string, unknown>;
+          const type = payload.type as string;
 
-        if (type === "call-answer" && pcRef.current) {
-          await pcRef.current.setRemoteDescription({ type: "answer", sdp: payload.sdp as string });
-        }
+          if (type === "message") {
+            const data = payload.data as Message;
+            setMessages((prev) => prev.some((m) => m.id === data.id) ? prev : [...prev, data]);
+            return;
+          }
 
-        if (type === "ice-candidate" && pcRef.current) {
-          try { await pcRef.current.addIceCandidate(payload.candidate as RTCIceCandidateInit); } catch { /* ok */ }
-        }
+          if (type === "call-offer") {
+            setCallType((payload.callType as "audio" | "video") || "audio");
+            pendingOfferRef.current = { type: "offer", sdp: payload.sdp as string };
+            setCallState("incoming");
+          }
 
-        if (type === "call-end" || type === "call-reject") {
-          endCall();
-        }
-      } catch { /* ignore */ }
+          if (type === "call-answer" && pcRef.current) {
+            await pcRef.current.setRemoteDescription({ type: "answer", sdp: payload.sdp as string });
+          }
+
+          if (type === "ice-candidate" && pcRef.current) {
+            try { await pcRef.current.addIceCandidate(payload.candidate as RTCIceCandidateInit); } catch { /* ok */ }
+          }
+
+          if (type === "call-end" || type === "call-reject") {
+            endCall();
+          }
+        } catch { /* ignore */ }
+      };
     };
 
-    return () => { ws.close(); endCall(); };
+    connect();
+
+    return () => {
+      active = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      wsRef.current?.close();
+      endCall();
+    };
   }, [match.match_id, endCall]);
 
   useEffect(() => {

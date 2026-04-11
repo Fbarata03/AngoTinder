@@ -138,9 +138,10 @@ export const authApi = {
 export const profilesApi = {
   discover: (params?: { min_age?: number; max_age?: number; gender?: string; verified_only?: boolean }) => {
     const q = new URLSearchParams();
-    if (params?.min_age) q.set("min_age", String(params.min_age));
-    if (params?.max_age) q.set("max_age", String(params.max_age));
-    if (params?.gender && params.gender !== "all") q.set("gender", params.gender);
+    if (params?.min_age != null) q.set("min_age", String(params.min_age));
+    if (params?.max_age != null) q.set("max_age", String(params.max_age));
+    // Always send gender param so backend knows it was explicitly set
+    q.set("gender", params?.gender || "all");
     if (params?.verified_only) q.set("verified_only", "true");
     const qs = q.toString();
     return request<User[]>(`/profiles/discover${qs ? "?" + qs : ""}`);
