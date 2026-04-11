@@ -209,8 +209,7 @@ async def discover(
             user_id, user_id, user_id, user_id,
         )
 
-    # Fallback 2 (último recurso): ignora cooldown de left — mostra todos que não foram right/super e não são match
-    # Evita o ecrã "Sem mais perfis" quando a base tem poucos utilizadores
+    # Fallback 2: ignora cooldown de left — mostra todos que não foram right/super e não são match
     if not rows and not liked_rows:
         rows = await db.fetch(
             """SELECT u.* FROM users u
@@ -225,6 +224,14 @@ async def discover(
                )
                ORDER BY RANDOM() LIMIT 50""",
             user_id, user_id, user_id, user_id,
+        )
+
+    # Fallback 3 (nuclear): base com poucos users — mostra toda a gente exceto o próprio
+    # Inclui matches existentes para não deixar discover completamente vazio
+    if not rows and not liked_rows:
+        rows = await db.fetch(
+            "SELECT u.* FROM users u WHERE u.id != $1 ORDER BY RANDOM() LIMIT 50",
+            user_id,
         )
 
     combined = []
