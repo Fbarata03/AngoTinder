@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, User, Bell, Shield, CreditCard, HelpCircle, LogOut, ChevronRight, Heart, MessageCircle, Crown, Eye, EyeOff, MapPin, Mail, Lock, X, Check } from "lucide-react";
+import { Settings, User, Bell, Shield, CreditCard, HelpCircle, LogOut, ChevronRight, Heart, MessageCircle, Crown, Eye, EyeOff, MapPin, Mail, Lock, X, Check, ExternalLink } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Switch } from "./ui/switch";
@@ -10,6 +10,112 @@ import { useApp } from "../context";
 import { authApi } from "../api";
 
 const SETTINGS_KEY = "angotinder_settings";
+const GOLD_KEY = "angotinder_gold";
+
+function isGoldActive(): boolean {
+  return localStorage.getItem(GOLD_KEY) === "true";
+}
+
+function activateGold() {
+  localStorage.setItem(GOLD_KEY, "true");
+}
+
+// Modal de assinatura Gold — segue nas redes sociais e fica com Gold para sempre
+function GoldModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState<"intro" | "confirm">("intro");
+  const [checked, setChecked] = useState({ ig: false, tt: false, yt: false });
+  const allChecked = checked.ig && checked.tt && checked.yt;
+
+  const socials = [
+    { key: "ig", label: "Instagram", handle: "@feliciano_barata", url: "https://www.instagram.com/feliciano_barata", color: "#E1306C", icon: "📸" },
+    { key: "tt", label: "TikTok", handle: "@feliciano_barata", url: "https://www.tiktok.com/@feliciano_barata", color: "#010101", icon: "🎵" },
+    { key: "yt", label: "YouTube", handle: "@feliciano_barata", url: "https://www.youtube.com/@feliciano_barata", color: "#FF0000", icon: "▶️" },
+  ] as const;
+
+  const handleActivate = () => {
+    activateGold();
+    setStep("confirm");
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.85, opacity: 0 }} transition={{ type: "spring", duration: 0.5 }}
+        className="w-full max-w-sm relative">
+
+        <button onClick={onClose} className="absolute -top-3 -right-3 z-10 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-xl">
+          <X className="w-5 h-5 text-gray-800" />
+        </button>
+
+        <div className="bg-gradient-to-r from-secondary via-[#FFD700] to-[#FFA500] p-1 rounded-3xl shadow-2xl">
+          <div className="bg-gradient-to-br from-black via-[#1a0a00] to-black rounded-3xl p-6">
+
+            {step === "intro" ? (
+              <>
+                <div className="text-center mb-6">
+                  <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-4 rounded-2xl inline-block mb-3">
+                    <Crown className="w-12 h-12 text-black" />
+                  </div>
+                  <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-secondary to-[#FFD700]">AngoTinder Gold</h2>
+                  <p className="text-white/70 text-sm mt-1">Likes ilimitados · Rewind · Super Likes · e mais!</p>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-4 mb-5 border border-secondary/30">
+                  <p className="text-secondary font-black text-center text-sm mb-4">Para ativar o Gold GRÁTIS para sempre, segue nas redes sociais:</p>
+
+                  <div className="space-y-3">
+                    {socials.map(({ key, label, handle, url, color, icon }) => (
+                      <div key={key} className="flex items-center gap-3">
+                        <button
+                          onClick={() => { window.open(url, "_blank"); setChecked((c) => ({ ...c, [key]: true })); }}
+                          className="flex-1 flex items-center gap-3 rounded-xl p-3 text-left transition-all hover:opacity-80 active:scale-95"
+                          style={{ backgroundColor: color + "33", border: `2px solid ${checked[key] ? "#FFCD00" : color + "55"}` }}
+                        >
+                          <span className="text-2xl">{icon}</span>
+                          <div className="flex-1">
+                            <p className="font-black text-white text-sm">{label}</p>
+                            <p className="text-white/60 text-xs">{handle}</p>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-white/40" />
+                        </button>
+                        <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${checked[key] ? "bg-secondary border-secondary" : "border-white/30"}`}>
+                          {checked[key] && <Check className="w-4 h-4 text-black" />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleActivate}
+                  disabled={!allChecked}
+                  className="w-full h-14 text-black font-black text-lg rounded-2xl shadow-xl disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: allChecked ? "linear-gradient(to right, #FFCD00, #FFD700)" : undefined }}
+                >
+                  {allChecked ? "✅ Ativar Gold GRÁTIS!" : "Segue as 3 contas para ativar"}
+                </Button>
+              </>
+            ) : (
+              <div className="text-center py-4">
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring" }}
+                  className="bg-gradient-to-br from-secondary to-[#FFD700] p-5 rounded-full inline-block mb-4">
+                  <Crown className="w-16 h-16 text-black" />
+                </motion.div>
+                <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-secondary to-[#FFD700] mb-2">Gold Ativado!</h2>
+                <p className="text-white/80 font-medium mb-1">Obrigado por seguir o Feliciano!</p>
+                <p className="text-white/50 text-sm mb-6">Aproveita o AngoTinder Gold para sempre</p>
+                <Button onClick={onClose} className="w-full h-12 bg-gradient-to-r from-secondary to-[#FFD700] text-black font-black rounded-2xl">
+                  Aproveitar o Gold 🔥
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 function loadSettings() {
   try {
@@ -30,6 +136,8 @@ export function TelaConfiguracoes() {
     discovery: { showMe: true, globalMode: false, ...saved.discovery },
   });
 
+  const [showGold, setShowGold] = useState(false);
+  const [isGold, setIsGold] = useState(isGoldActive());
   const [showChangePw, setShowChangePw] = useState(false);
   const [pw, setPw] = useState({ current: "", new: "", confirm: "" });
   const [showPw, setShowPw] = useState(false);
@@ -139,9 +247,17 @@ export function TelaConfiguracoes() {
               </div>
               <div className="flex-1">
                 <h3 className="font-black text-xl text-white mb-1">AngoTinder Gold</h3>
-                <p className="text-white/80 text-sm font-medium">Likes ilimitados, Rewind, Super Likes e muito mais!</p>
+                {isGold
+                  ? <p className="text-secondary text-sm font-black">✅ Ativo — Aproveita ao máximo!</p>
+                  : <p className="text-white/80 text-sm font-medium">Likes ilimitados, Rewind, Super Likes e muito mais!</p>
+                }
               </div>
-              <Button className="bg-gradient-to-r from-secondary to-[#FFD700] text-black hover:opacity-90 font-black rounded-xl px-6">Assinar</Button>
+              {!isGold && (
+                <Button onClick={() => setShowGold(true)}
+                  className="bg-gradient-to-r from-secondary to-[#FFD700] text-black hover:opacity-90 font-black rounded-xl px-6">
+                  Assinar
+                </Button>
+              )}
             </div>
           </div>
         </motion.div>
@@ -282,9 +398,15 @@ export function TelaConfiguracoes() {
         </Section>
 
         <Section icon={Settings} title="Outros">
-          <NavItem icon={CreditCard} label="Gerenciar Assinatura" onClick={() => {}} />
-          <NavItem icon={HelpCircle} label="Central de Ajuda" onClick={() => {}} />
-          <NavItem icon={Shield} label="Segurança e Privacidade" onClick={() => {}} />
+          <NavItem icon={CreditCard} label="Gerenciar Assinatura"
+            description={isGold ? "✅ Gold Ativo" : "Segue nas redes e fica Gold grátis!"}
+            onClick={() => setShowGold(true)} />
+          <NavItem icon={HelpCircle} label="Central de Ajuda"
+            description="Suporte e perguntas frequentes"
+            onClick={() => window.open("https://www.instagram.com/feliciano_barata", "_blank")} />
+          <NavItem icon={Shield} label="Segurança e Privacidade"
+            description="Protege a tua conta"
+            onClick={() => {}} />
         </Section>
 
         <Button
@@ -298,6 +420,13 @@ export function TelaConfiguracoes() {
 
         <p className="text-center text-sm text-muted-foreground mt-6 font-medium">AngoTinder v1.0.0</p>
       </div>
+
+      {/* Gold Modal */}
+      <AnimatePresence>
+        {showGold && (
+          <GoldModal onClose={() => { setShowGold(false); setIsGold(isGoldActive()); }} />
+        )}
+      </AnimatePresence>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
