@@ -49,7 +49,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Keep-alive: ping backend every 10 min to prevent Render from sleeping
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const base = (import.meta as any).env?.VITE_API_URL || "/api";
+    const envBase = (import.meta as any).env?.VITE_API_URL as string | undefined;
+    const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    const base = envBase || (isLocal ? "/api" : "https://angotinder.onrender.com/api");
     const ping = () => fetch(`${base}/health`).catch(() => {});
     ping(); // ping imediato ao carregar
     const interval = setInterval(ping, 10 * 60 * 1000); // a cada 10 minutos

@@ -216,12 +216,12 @@ async def websocket_chat(
                        WHERE m.match_id=$1 ORDER BY m.created_at DESC LIMIT 1""",
                     match_id,
                 )
+                other = await db.fetchrow(
+                    "SELECT CASE WHEN user1_id=$1 THEN user2_id ELSE user1_id END AS other_id FROM matches WHERE id=$2",
+                    user_id, match_id,
+                )
 
             await manager.broadcast(match_id, {"type": "message", "data": serialize_msg(msg)})
-            other = await db.fetchrow(
-                "SELECT CASE WHEN user1_id=$1 THEN user2_id ELSE user1_id END AS other_id FROM matches WHERE id=$2",
-                user_id, match_id,
-            )
             if other:
                 await notif_manager.notify(other["other_id"], {"type": "new_message", "match_id": match_id, "preview": text})
 

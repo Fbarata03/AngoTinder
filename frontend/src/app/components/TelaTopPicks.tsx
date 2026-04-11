@@ -67,11 +67,20 @@ export function TelaTopPicks() {
               <motion.div key={pick.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.08 }}
                 className="relative aspect-[3/4] rounded-3xl overflow-hidden group cursor-pointer">
-                <img
-                  src={pick.photos[0] || "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400"}
-                  alt={pick.name}
-                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                />
+                {pick.photos[0] ? (
+                  <img
+                    src={pick.photos[0]}
+                    alt={pick.name}
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full flex items-center justify-center text-5xl font-black text-white"
+                    style={{ backgroundColor: ["#CE1126", "#8B0000", "#D4A017", "#006400"][pick.name.charCodeAt(0) % 4] }}
+                  >
+                    {pick.name[0].toUpperCase()}
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
                 {pick.is_verified === 1 && (
                   <div className="absolute top-3 right-3">

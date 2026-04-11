@@ -167,19 +167,8 @@ export function TelaDescoberta() {
       if (res.is_match && res.match_id) {
         setMatchedProfile(profile);
         setMatchId(res.match_id);
+        setShowMatch(true);
         window.dispatchEvent(new Event("angotinder:new_match"));
-        navigate("/chat", {
-          state: {
-            matchId: res.match_id,
-            matchedProfile: {
-              id: profile.id,
-              name: profile.name,
-              photos: profile.photos,
-              age: profile.age,
-              location: profile.location,
-            },
-          },
-        });
       }
     } catch { /* offline */ }
 
