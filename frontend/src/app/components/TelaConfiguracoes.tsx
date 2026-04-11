@@ -27,9 +27,52 @@ function GoldModal({ onClose }: { onClose: () => void }) {
   const allChecked = checked.ig && checked.tt && checked.yt;
 
   const socials = [
-    { key: "ig", label: "Instagram", handle: "@feliciano_barata", url: "https://www.instagram.com/feliciano_barata", color: "#E1306C", icon: "📸" },
-    { key: "tt", label: "TikTok", handle: "@feliciano_barata", url: "https://www.tiktok.com/@feliciano_barata", color: "#010101", icon: "🎵" },
-    { key: "yt", label: "YouTube", handle: "@feliciano_barata", url: "https://www.youtube.com/@feliciano_barata", color: "#FF0000", icon: "▶️" },
+    {
+      key: "ig", label: "Instagram", handle: "@feliciano_barata",
+      url: "https://www.instagram.com/feliciano_barata",
+      color: "#E1306C",
+      icon: (
+        <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none">
+          <defs>
+            <radialGradient id="ig-grad" cx="30%" cy="107%" r="150%">
+              <stop offset="0%" stopColor="#fdf497"/>
+              <stop offset="5%" stopColor="#fdf497"/>
+              <stop offset="45%" stopColor="#fd5949"/>
+              <stop offset="60%" stopColor="#d6249f"/>
+              <stop offset="90%" stopColor="#285AEB"/>
+            </radialGradient>
+          </defs>
+          <rect width="24" height="24" rx="6" fill="url(#ig-grad)"/>
+          <circle cx="12" cy="12" r="4.5" stroke="white" strokeWidth="1.8" fill="none"/>
+          <circle cx="17.5" cy="6.5" r="1" fill="white"/>
+          <rect x="3" y="3" width="18" height="18" rx="5" stroke="white" strokeWidth="1.5" fill="none"/>
+        </svg>
+      ),
+    },
+    {
+      key: "tt", label: "TikTok", handle: "@feliciano_barata",
+      url: "https://www.tiktok.com/@feliciano_barata",
+      color: "#010101",
+      icon: (
+        <svg viewBox="0 0 24 24" className="w-7 h-7" fill="white">
+          <rect width="24" height="24" rx="6" fill="#010101"/>
+          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.78a4.85 4.85 0 0 1-1.01-.09z" fill="white"/>
+          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.78a4.85 4.85 0 0 1-1.01-.09z" fill="#69C9D0" opacity="0.5"/>
+        </svg>
+      ),
+    },
+    {
+      key: "yt", label: "YouTube", handle: "@feliciano_barata",
+      url: "https://www.youtube.com/@feliciano_barata",
+      color: "#FF0000",
+      icon: (
+        <svg viewBox="0 0 24 24" className="w-7 h-7">
+          <rect width="24" height="24" rx="6" fill="#FF0000"/>
+          <path d="M21.8 8s-.2-1.4-.8-2c-.8-.8-1.6-.8-2-.9C16.8 5 12 5 12 5s-4.8 0-7 .1c-.4.1-1.3.1-2 .9-.6.6-.8 2-.8 2S2 9.6 2 11.2v1.5c0 1.6.2 3.2.2 3.2s.2 1.4.8 2c.8.8 1.8.8 2.2.8C6.8 19 12 19 12 19s4.8 0 7-.2c.4-.1 1.3-.1 2-.9.6-.6.8-2 .8-2s.2-1.6.2-3.2v-1.5C22 9.6 21.8 8 21.8 8z" fill="white" opacity="0.2"/>
+          <polygon points="10,8.5 10,15.5 16,12" fill="white"/>
+        </svg>
+      ),
+    },
   ] as const;
 
   const handleActivate = () => {
@@ -72,7 +115,7 @@ function GoldModal({ onClose }: { onClose: () => void }) {
                           className="flex-1 flex items-center gap-3 rounded-xl p-3 text-left transition-all hover:opacity-80 active:scale-95"
                           style={{ backgroundColor: color + "33", border: `2px solid ${checked[key] ? "#FFCD00" : color + "55"}` }}
                         >
-                          <span className="text-2xl">{icon}</span>
+                          <div className="flex-shrink-0">{icon}</div>
                           <div className="flex-1">
                             <p className="font-black text-white text-sm">{label}</p>
                             <p className="text-white/60 text-xs">{handle}</p>
