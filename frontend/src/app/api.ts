@@ -1,6 +1,14 @@
 // API base URL - uses env var, then proxy in dev, then Render backend
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const BASE_URL = (import.meta as any).env?.VITE_API_URL || "/api";
+const ENV_BASE_URL = (import.meta as any).env?.VITE_API_URL as string | undefined;
+const DEFAULT_PROD_API = "https://angotinder.onrender.com/api";
+const BASE_URL = (() => {
+  if (ENV_BASE_URL) return ENV_BASE_URL;
+  if (typeof window === "undefined") return "/api";
+  const host = window.location.hostname;
+  const isLocal = host === "localhost" || host === "127.0.0.1";
+  return isLocal ? "/api" : DEFAULT_PROD_API;
+})();
 
 const HTTP_BASE = BASE_URL.startsWith("http") ? BASE_URL.replace(/\/api\/?$/, "") : "";
 
