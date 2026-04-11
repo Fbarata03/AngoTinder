@@ -2,8 +2,11 @@ import asyncpg
 import os
 import json
 import time
+import uuid
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+INSTANCE_ID = os.getenv("ANGOTINDER_INSTANCE_ID", "") or uuid.uuid4().hex
+PG_EVENTS_CHANNEL = os.getenv("PG_EVENTS_CHANNEL", "angotinder_events")
 
 _pool: asyncpg.Pool | None = None
 
@@ -19,6 +22,17 @@ async def get_db():
     pool = await get_pool()
     async with pool.acquire() as conn:
         yield conn
+
+
+async def publish_event(event: dict):
+    """
+    Publica um evento via Postgres LISTEN/NOTIFY para sincronizar tempo real entre múltiplas instâncias.
+    Nunca apaga utilizadores e não depende de Redis.
+    """
+    pool = await get_pool()
+    payload = json.dumps({"source": INSTANCE_ID, **event}, ensure_ascii=False)
+    async with pool.acquire() as conn:
+        await conn.execute("SELECT pg_notify($1, $2)", PG_EVENTS_CHANNEL, payload)
 
 
 async def cleanup_old_data():

@@ -2,6 +2,7 @@
 Shared notification manager — lives outside routes/ to avoid circular imports.
 """
 from fastapi import WebSocket
+from database import publish_event
 
 
 class NotificationManager:
@@ -25,7 +26,7 @@ class NotificationManager:
     def is_online(self, user_id: str) -> bool:
         return bool(self.connections.get(user_id))
 
-    async def notify(self, user_id: str, event: dict):
+    async def notify_local(self, user_id: str, event: dict):
         if user_id not in self.connections:
             return
         dead = []
@@ -36,6 +37,10 @@ class NotificationManager:
                 dead.append(ws)
         for ws in dead:
             self.disconnect(ws, user_id)
+
+    async def notify(self, user_id: str, event: dict):
+        await self.notify_local(user_id, event)
+        await publish_event({"kind": "notification", "user_id": user_id, "event": event})
 
 
 # Singleton — imported by both matches.py and notifications.py

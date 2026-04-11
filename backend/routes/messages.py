@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, UploadFile, File
 from pydantic import BaseModel
 import asyncpg
-from database import get_db, get_pool
+from database import get_db, get_pool, publish_event
 from auth_utils import get_current_user_id, decode_token
 from notif_manager import notif_manager
 import os
@@ -177,7 +177,9 @@ async def send_message(
         match_id,
     )
     msg_dict = serialize_msg(msg)
-    await manager.broadcast(match_id, {"type": "message", "data": msg_dict})
+    msg_payload = {"type": "message", "data": msg_dict}
+    await manager.broadcast(match_id, msg_payload)
+    await publish_event({"kind": "room_broadcast", "match_id": match_id, "message": msg_payload})
     other = await db.fetchrow(
         "SELECT CASE WHEN user1_id=$1 THEN user2_id ELSE user1_id END AS other_id FROM matches WHERE id=$2",
         user_id, match_id,
@@ -219,6 +221,7 @@ async def websocket_chat(
             if msg_type in SIGNAL_TYPES:
                 data["from"] = user_id
                 await manager.forward_to_others(match_id, user_id, data)
+                await publish_event({"kind": "room_signal", "match_id": match_id, "sender_id": user_id, "message": data})
                 continue
 
             # ── Regular text message ──
@@ -242,7 +245,9 @@ async def websocket_chat(
                     user_id, match_id,
                 )
 
-            await manager.broadcast(match_id, {"type": "message", "data": serialize_msg(msg)})
+            msg_payload = {"type": "message", "data": serialize_msg(msg)}
+            await manager.broadcast(match_id, msg_payload)
+            await publish_event({"kind": "room_broadcast", "match_id": match_id, "message": msg_payload})
             if other:
                 await notif_manager.notify(other["other_id"], {"type": "new_message", "match_id": match_id, "preview": text})
 
