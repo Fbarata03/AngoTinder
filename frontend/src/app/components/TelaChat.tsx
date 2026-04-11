@@ -21,6 +21,19 @@ const RTC_CONFIG: RTCConfiguration = {
 
 type CallState = "idle" | "calling" | "incoming" | "connected";
 
+// Avatar com iniciais quando não há foto
+function Avatar({ photo, name, className = "" }: { photo?: string; name: string; className?: string }) {
+  const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400", "#00008B"];
+  const bg = colors[name.charCodeAt(0) % colors.length];
+  const initials = name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
+  if (photo) return <img src={photo} alt={name} className={`w-full h-full object-cover ${className}`} />;
+  return (
+    <div className={`w-full h-full flex items-center justify-center font-black text-white text-lg ${className}`} style={{ backgroundColor: bg }}>
+      {initials}
+    </div>
+  );
+}
+
 // ─── Chat List ────────────────────────────────────────────────────────────
 function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match) => void; autoOpenMatchId?: string }) {
   const navigate = useNavigate();
@@ -75,7 +88,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
                   transition={{ delay: i * 0.1 }} onClick={() => onSelectMatch(m)} className="flex-shrink-0 text-center">
                   <div className="relative">
                     <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-secondary shadow-lg">
-                      {m.photos[0] && <img src={m.photos[0]} alt={m.name} className="w-full h-full object-cover" />}
+                      <Avatar photo={m.photos[0]} name={m.name} />
                     </div>
                     <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-primary to-[#8B0000] rounded-full border-2 border-white flex items-center justify-center shadow-lg">
                       <Heart className="w-3 h-3 text-white fill-white" />
@@ -116,7 +129,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
               className="w-full p-6 border-b border-primary/10 hover:bg-white/70 transition-all flex items-center gap-4 text-left relative group">
               <div className="relative flex-shrink-0">
                 <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-secondary/50 group-hover:border-secondary transition-all shadow-md">
-                  {m.photos[0] && <img src={m.photos[0]} alt={m.name} className="w-full h-full object-cover" />}
+                  <Avatar photo={m.photos[0]} name={m.name} />
                 </div>
                 <Star className="absolute -top-1 -right-1 w-5 h-5 text-secondary fill-secondary drop-shadow-lg" />
               </div>
@@ -352,7 +365,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-secondary shadow-lg flex-shrink-0">
-            {match.photos[0] && <img src={match.photos[0]} alt={match.name} className="w-full h-full object-cover" />}
+            <Avatar photo={match.photos[0]} name={match.name} />
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="font-black text-base truncate">{match.name}</h2>
@@ -429,7 +442,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="absolute inset-0 z-50 bg-black/95 flex flex-col items-center justify-center gap-8">
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-secondary shadow-2xl animate-pulse">
-              {match.photos[0] && <img src={match.photos[0]} alt={match.name} className="w-full h-full object-cover" />}
+              <Avatar photo={match.photos[0]} name={match.name} />
             </div>
             <div className="text-center">
               <p className="text-white/60 text-sm font-bold mb-2">
@@ -460,7 +473,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="absolute inset-0 z-50 bg-black/95 flex flex-col items-center justify-center gap-8">
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-secondary shadow-2xl">
-              {match.photos[0] && <img src={match.photos[0]} alt={match.name} className="w-full h-full object-cover" />}
+              <Avatar photo={match.photos[0]} name={match.name} />
             </div>
             <div className="text-center">
               <p className="text-white/60 text-sm font-bold mb-2">
@@ -488,7 +501,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
               ) : (
                 <div className="flex flex-col items-center gap-4">
                   <div className="w-36 h-36 rounded-full overflow-hidden border-4 border-secondary shadow-2xl">
-                    {match.photos[0] && <img src={match.photos[0]} alt={match.name} className="w-full h-full object-cover" />}
+                    <Avatar photo={match.photos[0]} name={match.name} />
                   </div>
                   <h2 className="text-3xl font-black text-white">{match.name}</h2>
                   <p className="text-white/40 text-sm">Em chamada</p>

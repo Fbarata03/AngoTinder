@@ -11,6 +11,18 @@ interface MatchModalProps {
   userPhoto: string;
 }
 
+function Avatar({ photo, name }: { photo: string; name: string }) {
+  const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400"];
+  const bg = colors[name.charCodeAt(0) % colors.length];
+  const initials = name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
+  if (photo) return <img src={photo} alt={name} className="w-full h-full object-cover" />;
+  return (
+    <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white" style={{ backgroundColor: bg }}>
+      {initials}
+    </div>
+  );
+}
+
 export function MatchModal({ isOpen, onClose, onSendMessage, matchedProfile, userPhoto }: MatchModalProps) {
   if (!isOpen) return null;
 
@@ -78,7 +90,7 @@ export function MatchModal({ isOpen, onClose, onSendMessage, matchedProfile, use
               className="absolute left-0 z-10"
             >
               <div className="w-40 h-40 rounded-3xl overflow-hidden border-4 border-secondary shadow-2xl">
-                <img src={userPhoto} alt="Você" className="w-full h-full object-cover" />
+                <Avatar photo={userPhoto} name="Eu" />
               </div>
             </motion.div>
 
@@ -102,7 +114,7 @@ export function MatchModal({ isOpen, onClose, onSendMessage, matchedProfile, use
               className="absolute right-0 z-10"
             >
               <div className="w-40 h-40 rounded-3xl overflow-hidden border-4 border-secondary shadow-2xl">
-                <img src={matchedProfile.photo} alt={matchedProfile.name} className="w-full h-full object-cover" />
+                <Avatar photo={matchedProfile.photo} name={matchedProfile.name} />
               </div>
             </motion.div>
           </div>

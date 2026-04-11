@@ -9,6 +9,18 @@ import { FiltersModal, Filters } from "./FiltersModal";
 import { profilesApi, matchesApi, User as UserType } from "../api";
 import { useApp } from "../context";
 
+// Placeholder colorido com iniciais quando não há foto
+function PhotoPlaceholder({ name, className = "" }: { name: string; className?: string }) {
+  const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400", "#00008B"];
+  const color = colors[name.charCodeAt(0) % colors.length];
+  const initials = name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
+  return (
+    <div className={`flex items-center justify-center ${className}`} style={{ backgroundColor: color }}>
+      <span className="text-white font-black" style={{ fontSize: "clamp(2rem, 8vw, 4rem)" }}>{initials}</span>
+    </div>
+  );
+}
+
 function SwipeCard({ profile, onSwipe }: { profile: UserType; onSwipe: (dir: "left" | "right") => void }) {
   const [currentPhoto, setCurrentPhoto] = useState(0);
   const x = useMotionValue(0);
@@ -16,6 +28,9 @@ function SwipeCard({ profile, onSwipe }: { profile: UserType; onSwipe: (dir: "le
   const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
   const likeOpacity = useTransform(x, [0, 100], [0, 1]);
   const nopeOpacity = useTransform(x, [-100, 0], [1, 0]);
+
+  const hasPhotos = profile.photos.length > 0;
+  const safeIndex = hasPhotos ? Math.max(0, Math.min(currentPhoto, profile.photos.length - 1)) : 0;
 
   const handleDragEnd = (_: unknown, info: { offset: { x: number } }) => {
     if (info.offset.x > 100) onSwipe("right");
@@ -32,28 +47,39 @@ function SwipeCard({ profile, onSwipe }: { profile: UserType; onSwipe: (dir: "le
     >
       <div className="relative w-full h-full rounded-3xl overflow-hidden shadow-2xl border-4 border-secondary/30">
         <div className="relative h-[65%]">
-          <img src={profile.photos[currentPhoto] || "https://images.unsplash.com/photo-1557296387-5358ad7997bb?w=800"}
-            alt={profile.name} className="w-full h-full object-cover" />
+          {hasPhotos ? (
+            <img src={profile.photos[safeIndex]} alt={profile.name} className="w-full h-full object-cover" />
+          ) : (
+            <PhotoPlaceholder name={profile.name} className="w-full h-full" />
+          )}
 
-          <div className="absolute top-6 right-6 bg-gradient-to-r from-secondary via-[#FFD700] to-secondary p-0.5 rounded-full">
-            <div className="bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1">
-              <Star className="w-3 h-3 text-secondary fill-secondary" />
-              <span className="text-xs font-bold text-secondary">VERIFICADO</span>
-            </div>
-          </div>
-
-          <div className="absolute top-4 left-0 right-0 flex gap-2 px-4">
-            {profile.photos.map((_, i) => (
-              <div key={i} className="flex-1 h-1.5 bg-black/30 rounded-full overflow-hidden backdrop-blur-sm border border-secondary/30">
-                {i === currentPhoto && <div className="h-full bg-gradient-to-r from-secondary to-[#FFD700] rounded-full" />}
+          {/* Badge verificado — só para utilizadores verificados */}
+          {profile.is_verified === 1 && (
+            <div className="absolute top-6 right-6 bg-gradient-to-r from-secondary via-[#FFD700] to-secondary p-0.5 rounded-full">
+              <div className="bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1">
+                <Star className="w-3 h-3 text-secondary fill-secondary" />
+                <span className="text-xs font-bold text-secondary">VERIFICADO</span>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
 
-          <div className="absolute inset-0 flex">
-            <button className="flex-1" onClick={() => setCurrentPhoto(Math.max(0, currentPhoto - 1))} />
-            <button className="flex-1" onClick={() => setCurrentPhoto(Math.min(profile.photos.length - 1, currentPhoto + 1))} />
-          </div>
+          {/* Indicadores de fotos */}
+          {hasPhotos && profile.photos.length > 1 && (
+            <div className="absolute top-4 left-0 right-0 flex gap-2 px-4">
+              {profile.photos.map((_, i) => (
+                <div key={i} className="flex-1 h-1.5 bg-black/30 rounded-full overflow-hidden backdrop-blur-sm border border-secondary/30">
+                  {i === safeIndex && <div className="h-full bg-gradient-to-r from-secondary to-[#FFD700] rounded-full" />}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {hasPhotos && profile.photos.length > 1 && (
+            <div className="absolute inset-0 flex">
+              <button className="flex-1" onClick={() => setCurrentPhoto(Math.max(0, safeIndex - 1))} />
+              <button className="flex-1" onClick={() => setCurrentPhoto(Math.min(profile.photos.length - 1, safeIndex + 1))} />
+            </div>
+          )}
 
           <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black via-black/80 to-transparent">
             <AfricanPattern className="absolute inset-0 text-secondary opacity-10" />
@@ -292,7 +318,7 @@ export function TelaDescoberta() {
         onClose={() => setShowMatch(false)}
         onSendMessage={() => { setShowMatch(false); navigate("/chat", { state: { matchId, matchedProfile } }); }}
         matchedProfile={{ name: matchedProfile?.name || "", photo: matchedProfile?.photos[0] || "" }}
-        userPhoto={currentUser?.photos[0] || "https://images.unsplash.com/photo-1557296387-5358ad7997bb?w=400"}
+        userPhoto={currentUser?.photos[0] || ""}
       />
       <FiltersModal isOpen={showFilters} onClose={() => setShowFilters(false)} onApply={(f) => { setFilters(f); loadProfiles(f); }} initial={filters} />
     </div>
@@ -304,7 +330,6 @@ function BottomNav({ navigate, active }: { navigate: (path: string) => void; act
     <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
       <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
         <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={active === "discover"} />
-        <NavBtn icon={<Heart className="w-6 h-6 fill-current" />} label="Likes" onClick={() => navigate("/likes")} active={active === "likes"} badge="6" />
         <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={active === "chat"} />
         <NavBtn icon={<User className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} active={active === "profile"} />
       </div>
