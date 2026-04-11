@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 from database import init_db, cleanup_old_data
-from routes import auth, profiles, matches, messages, admin
+from routes import auth, profiles, matches, messages, admin, notifications
 
 app = FastAPI(title="AngoTinder API", version="1.0.0")
 
@@ -34,6 +34,7 @@ app.include_router(profiles.router, prefix="/api/profiles", tags=["profiles"])
 app.include_router(matches.router, prefix="/api/matches", tags=["matches"])
 app.include_router(messages.router, prefix="/api/messages", tags=["messages"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 
 # Serve local photo uploads (fallback when Cloudinary is not configured)
 _static_dir = os.path.join(os.path.dirname(__file__), "static")

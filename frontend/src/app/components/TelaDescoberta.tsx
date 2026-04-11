@@ -316,7 +316,21 @@ export function TelaDescoberta() {
       <MatchModal
         isOpen={showMatch}
         onClose={() => setShowMatch(false)}
-        onSendMessage={() => { setShowMatch(false); navigate("/chat", { state: { matchId, matchedProfile } }); }}
+        onSendMessage={() => {
+          setShowMatch(false);
+          navigate("/chat", {
+            state: {
+              matchId,
+              matchedProfile: matchedProfile ? {
+                id: matchedProfile.id,
+                name: matchedProfile.name,
+                photos: matchedProfile.photos,
+                age: matchedProfile.age,
+                location: matchedProfile.location,
+              } : null,
+            },
+          });
+        }}
         matchedProfile={{ name: matchedProfile?.name || "", photo: matchedProfile?.photos[0] || "" }}
         userPhoto={currentUser?.photos[0] || ""}
       />

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import asyncpg
 from database import get_db
 from auth_utils import get_current_user_id
+from routes.notifications import notif_manager
 
 router = APIRouter()
 
@@ -62,6 +63,32 @@ async def swipe(
             "INSERT INTO matches (id, user1_id, user2_id) VALUES ($1, $2, $3)",
             match_id, user_id, req.swiped_id,
         )
+
+        # Fetch both user profiles to send in notifications
+        me_row = await db.fetchrow("SELECT id, name, photos FROM users WHERE id = $1", user_id)
+        them_row = await db.fetchrow("SELECT id, name, photos FROM users WHERE id = $1", req.swiped_id)
+
+        def user_preview(row):
+            return {
+                "id": row["id"],
+                "name": row["name"],
+                "photos": json.loads(row["photos"]) if row["photos"] else [],
+            }
+
+        # Notify the OTHER user (they didn't see the match modal)
+        await notif_manager.notify(req.swiped_id, {
+            "type": "new_match",
+            "match_id": match_id,
+            "user": user_preview(me_row),
+        })
+
+        # Also notify current user (for multi-device sync)
+        await notif_manager.notify(user_id, {
+            "type": "new_match",
+            "match_id": match_id,
+            "user": user_preview(them_row),
+        })
+
         return {"is_match": True, "match_id": match_id}
 
     return {"is_match": False, "match_id": None}

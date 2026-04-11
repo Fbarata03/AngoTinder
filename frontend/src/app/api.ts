@@ -221,16 +221,20 @@ export const messagesApi = {
 };
 
 // ---------- WebSocket ----------
+function getWsBase(): string {
+  if (BASE_URL.startsWith("http")) {
+    return BASE_URL.replace(/^http/, "ws").replace(/\/api\/?$/, "");
+  }
+  const proto = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${proto}://${window.location.host}`;
+}
+
 export function createChatSocket(matchId: string): WebSocket {
   const token = getToken() || "";
-  let wsBase: string;
-  if (BASE_URL.startsWith("http")) {
-    // Production: https://angotinder.onrender.com/api → wss://angotinder.onrender.com
-    wsBase = BASE_URL.replace(/^http/, "ws").replace(/\/api\/?$/, "");
-  } else {
-    // Local dev: use current host with ws/wss
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    wsBase = `${proto}://${window.location.host}`;
-  }
-  return new WebSocket(`${wsBase}/api/messages/ws/${matchId}?token=${token}`);
+  return new WebSocket(`${getWsBase()}/api/messages/ws/${matchId}?token=${token}`);
+}
+
+export function createNotificationSocket(): WebSocket {
+  const token = getToken() || "";
+  return new WebSocket(`${getWsBase()}/api/notifications/ws?token=${token}`);
 }

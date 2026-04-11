@@ -17,10 +17,21 @@ export function TelaLikes() {
     profilesApi.getLikes().then((l) => { setLikes(l); setLoading(false); }).catch(() => setLoading(false));
   }, [isLoggedIn]);
 
-  const handleLikeBack = async (userId: string) => {
+  const handleLikeBack = async (likedUser: UserType) => {
     try {
-      await matchesApi.swipe(userId, "right");
-      setLikes((prev) => prev.filter((u) => u.id !== userId));
+      const res = await matchesApi.swipe(likedUser.id, "right");
+      setLikes((prev) => prev.filter((u) => u.id !== likedUser.id));
+      if (res.is_match && res.match_id) {
+        navigate("/chat", {
+          state: {
+            matchId: res.match_id,
+            matchedProfile: {
+              id: likedUser.id, name: likedUser.name,
+              photos: likedUser.photos, age: likedUser.age, location: likedUser.location,
+            },
+          },
+        });
+      }
     } catch { /* ignore */ }
   };
 
@@ -63,11 +74,14 @@ export function TelaLikes() {
             {likes.map((like, i) => (
               <motion.div key={like.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.05 }} className="relative aspect-[3/4] rounded-3xl overflow-hidden group cursor-pointer">
-                <img
-                  src={like.photos[0] || "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400"}
-                  alt={like.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                />
+                {like.photos[0] ? (
+                  <img src={like.photos[0]} alt={like.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-5xl font-black text-white"
+                    style={{ backgroundColor: ["#CE1126","#8B0000","#D4A017","#006400"][like.name.charCodeAt(0) % 4] }}>
+                    {like.name[0].toUpperCase()}
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
                 {like.is_verified === 1 && (
                   <div className="absolute top-3 right-3">
@@ -85,7 +99,7 @@ export function TelaLikes() {
                 </div>
                 {/* Like back button */}
                 <button
-                  onClick={() => handleLikeBack(like.id)}
+                  onClick={() => handleLikeBack(like)}
                   className="absolute bottom-3 right-3 bg-gradient-to-br from-secondary to-[#FFD700] p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform"
                 >
                   <Heart className="w-5 h-5 text-black fill-black" />

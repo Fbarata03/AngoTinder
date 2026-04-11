@@ -587,8 +587,25 @@ function NavBtn({ icon, label, onClick, active }: { icon: React.ReactNode; label
 
 export function TelaChat() {
   const location = useLocation();
-  const navState = location.state as { matchId?: string; matchedProfile?: { id: string; name: string; photos: string[] } } | null;
-  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const navState = location.state as {
+    matchId?: string;
+    matchedProfile?: { id: string; name: string; photos: string[]; age?: number; location?: string };
+  } | null;
+
+  // Build a Match object directly from navigation state to open instantly without waiting for API
+  const initialMatch: Match | null = navState?.matchId && navState?.matchedProfile
+    ? {
+        match_id: navState.matchId,
+        matched_at: new Date().toISOString(),
+        id: navState.matchedProfile.id,
+        name: navState.matchedProfile.name,
+        age: navState.matchedProfile.age || 0,
+        location: navState.matchedProfile.location || "",
+        photos: navState.matchedProfile.photos || [],
+      }
+    : null;
+
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(initialMatch);
 
   if (selectedMatch) return <ChatConversation match={selectedMatch} onBack={() => setSelectedMatch(null)} />;
   return <ChatList onSelectMatch={setSelectedMatch} autoOpenMatchId={navState?.matchId} />;
