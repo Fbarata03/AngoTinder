@@ -187,7 +187,7 @@ async def discover(
         *params,
     )
 
-    # Fallback: if no results, keep the same anti-repeat rules (no matches, no recent left, no right/super)
+    # Fallback 1: ignore left-swipe cooldown but still respect age/gender filters
     if not rows and not liked_rows:
         rows = await db.fetch(
             f"""SELECT u.* FROM users u
@@ -200,6 +200,24 @@ async def discover(
                    SELECT swiped_id FROM swipes
                    WHERE swiper_id = $3 AND direction = 'left'
                      AND created_at > NOW() - INTERVAL '{LEFT_SWIPE_COOLDOWN_DAYS} days'
+               )
+               AND u.id NOT IN (
+                   SELECT CASE WHEN user1_id = $2 THEN user2_id ELSE user1_id END
+                   FROM matches WHERE user1_id = $3 OR user2_id = $4
+               )
+               ORDER BY RANDOM() LIMIT 50""",
+            user_id, user_id, user_id, user_id,
+        )
+
+    # Fallback 2 (último recurso): ignora cooldown de left — mostra todos que não foram right/super e não são match
+    # Evita o ecrã "Sem mais perfis" quando a base tem poucos utilizadores
+    if not rows and not liked_rows:
+        rows = await db.fetch(
+            """SELECT u.* FROM users u
+               WHERE u.id != $1
+               AND u.id NOT IN (
+                   SELECT swiped_id FROM swipes
+                   WHERE swiper_id = $2 AND direction IN ('right', 'super')
                )
                AND u.id NOT IN (
                    SELECT CASE WHEN user1_id = $2 THEN user2_id ELSE user1_id END
