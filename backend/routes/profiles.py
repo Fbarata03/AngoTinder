@@ -22,6 +22,7 @@ if CLOUDINARY_ENABLED:
     )
 
 LOCAL_PHOTOS_MAX_MB = int(os.getenv("LOCAL_PHOTOS_MAX_MB", "900") or "900")
+LEFT_SWIPE_COOLDOWN_DAYS = int(os.getenv("LEFT_SWIPE_COOLDOWN_DAYS", "7") or "7")
 
 
 def get_local_photos_dir() -> str:
@@ -109,12 +110,17 @@ async def discover(
     # - Not yourself
     # - Not already right/super swiped (pending like — no point showing again)
     # - Not already matched
-    # Left swipes CAN reappear (user may change their mind, and for small user bases this is essential)
+    # Left swipes can reappear AFTER a cooldown to avoid showing the same profile all the time
     base_conditions = [
         "u.id != $1",
         """u.id NOT IN (
             SELECT swiped_id FROM swipes
             WHERE swiper_id = $2 AND direction IN ('right', 'super')
+        )""",
+        f"""u.id NOT IN (
+            SELECT swiped_id FROM swipes
+            WHERE swiper_id = $3 AND direction = 'left'
+              AND created_at > NOW() - INTERVAL '{LEFT_SWIPE_COOLDOWN_DAYS} days'
         )""",
         """u.id NOT IN (
             SELECT CASE WHEN user1_id = $3 THEN user2_id ELSE user1_id END
@@ -138,11 +144,20 @@ async def discover(
         *params,
     )
 
-    # Fallback: if no results and filters were applied, return anyone except self and matches
+    # Fallback: if no results, keep the same anti-repeat rules (no matches, no recent left, no right/super)
     if not rows:
         rows = await db.fetch(
-            """SELECT u.* FROM users u
+            f"""SELECT u.* FROM users u
                WHERE u.id != $1
+               AND u.id NOT IN (
+                   SELECT swiped_id FROM swipes
+                   WHERE swiper_id = $2 AND direction IN ('right', 'super')
+               )
+               AND u.id NOT IN (
+                   SELECT swiped_id FROM swipes
+                   WHERE swiper_id = $3 AND direction = 'left'
+                     AND created_at > NOW() - INTERVAL '{LEFT_SWIPE_COOLDOWN_DAYS} days'
+               )
                AND u.id NOT IN (
                    SELECT CASE WHEN user1_id = $2 THEN user2_id ELSE user1_id END
                    FROM matches WHERE user1_id = $3 OR user2_id = $4
