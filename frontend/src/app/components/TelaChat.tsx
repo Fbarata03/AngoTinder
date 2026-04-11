@@ -17,6 +17,38 @@ const RTC_CONFIG: RTCConfiguration = {
 
 type CallState = "idle" | "incoming" | "calling" | "connected";
 
+const LAST_SEEN_KEY = "angotinder_last_seen_messages";
+
+function loadLastSeen(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(LAST_SEEN_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function writeLastSeen(next: Record<string, string>) {
+  try {
+    localStorage.setItem(LAST_SEEN_KEY, JSON.stringify(next));
+  } catch {
+  }
+}
+
+function maxIso(a?: string, b?: string) {
+  const da = a ? Date.parse(a) : 0;
+  const db = b ? Date.parse(b) : 0;
+  return db > da ? (b || a || "") : (a || b || "");
+}
+
+function markLastSeen(matchId: string, iso: string) {
+  const prev = loadLastSeen();
+  const next = { ...prev, [matchId]: maxIso(prev[matchId], iso) };
+  writeLastSeen(next);
+}
+
 function Avatar({ photo, name }: { photo?: string; name: string }) {
   const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400"];
   const bg = colors[name.charCodeAt(0) % colors.length];
@@ -45,6 +77,24 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const autoOpenedRef = useRef(false);
+  const [lastSeen, setLastSeen] = useState<Record<string, string>>(() => loadLastSeen());
+
+  const setSeen = useCallback((matchId: string, iso: string) => {
+    setLastSeen((prev) => {
+      const next = { ...prev, [matchId]: maxIso(prev[matchId], iso) };
+      writeLastSeen(next);
+      return next;
+    });
+  }, []);
+
+  const isUnread = useCallback((m: Match) => {
+    if (!m.last_message_at) return false;
+    const last = Date.parse(m.last_message_at);
+    const seen = lastSeen[m.match_id] ? Date.parse(lastSeen[m.match_id]) : 0;
+    return last > seen;
+  }, [lastSeen]);
+
+  const unreadCount = matches.reduce((acc, m) => acc + (isUnread(m) ? 1 : 0), 0);
 
   const loadMatches = useCallback(() => {
     if (!isLoggedIn) return;
@@ -55,11 +105,15 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
         // Auto-abrir conversa se veio de um match (só uma vez)
         if (autoOpenMatchId && !autoOpenedRef.current) {
           const found = m.find((x) => x.match_id === autoOpenMatchId);
-          if (found) { autoOpenedRef.current = true; onSelectMatch(found); }
+          if (found) {
+            autoOpenedRef.current = true;
+            if (found.last_message_at) setSeen(found.match_id, found.last_message_at);
+            onSelectMatch(found);
+          }
         }
       })
       .catch(() => setLoading(false));
-  }, [isLoggedIn, autoOpenMatchId, onSelectMatch]);
+  }, [isLoggedIn, autoOpenMatchId, onSelectMatch, setSeen]);
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
@@ -98,6 +152,11 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-secondary rounded-full animate-pulse"></div>
             <p className="text-secondary font-bold">{matches.length} {matches.length === 1 ? "conversa" : "conversas"} 🔥</p>
+            {unreadCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-secondary text-black text-xs font-black animate-pulse">
+                {unreadCount}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -111,11 +170,16 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
             <div className="flex gap-4 overflow-x-auto pb-2">
               {matches.map((m, i) => (
                 <motion.button key={m.match_id} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.1 }} onClick={() => onSelectMatch(m)} className="flex-shrink-0 text-center">
+                  transition={{ delay: i * 0.1 }}
+                  onClick={() => { if (m.last_message_at) setSeen(m.match_id, m.last_message_at); onSelectMatch(m); }}
+                  className="flex-shrink-0 text-center">
                   <div className="relative">
                     <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-secondary shadow-lg">
                       <Avatar photo={m.photos[0]} name={m.name} />
                     </div>
+                    {isUnread(m) && (
+                      <div className="absolute -bottom-1 -left-1 w-4 h-4 bg-secondary rounded-full border-2 border-black shadow-lg animate-pulse" />
+                    )}
                     <div className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-primary to-[#8B0000] rounded-full border-2 border-white flex items-center justify-center shadow-lg">
                       <Heart className="w-3 h-3 text-white fill-white" />
                     </div>
@@ -151,24 +215,33 @@ function ChatList({ onSelectMatch, autoOpenMatchId }: { onSelectMatch: (m: Match
           )}
           {matches.map((m, i) => (
             <motion.button key={m.match_id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.05 }} onClick={() => onSelectMatch(m)}
+              transition={{ delay: i * 0.05 }}
+              onClick={() => { if (m.last_message_at) setSeen(m.match_id, m.last_message_at); onSelectMatch(m); }}
               className="w-full p-6 border-b border-primary/10 hover:bg-card/70 transition-all flex items-center gap-4 text-left relative group">
               <div className="relative flex-shrink-0">
                 <div className="w-16 h-16 rounded-full overflow-hidden border-4 border-secondary/50 group-hover:border-secondary transition-all shadow-md">
                   <Avatar photo={m.photos[0]} name={m.name} />
                 </div>
                 <Star className="absolute -top-1 -right-1 w-5 h-5 text-secondary fill-secondary drop-shadow-lg" />
+                {isUnread(m) && (
+                  <div className="absolute -bottom-1 -left-1 w-4 h-4 bg-secondary rounded-full border-2 border-white shadow-lg animate-pulse" />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-black truncate text-lg">{m.name}</h3>
+                  <h3 className="font-black truncate text-lg flex items-center gap-2">
+                    {m.name}
+                    {isUnread(m) && <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />}
+                  </h3>
                   {m.last_message_at && (
                     <span className="text-xs text-muted-foreground font-bold">
                       {new Date(m.last_message_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
                 </div>
-                <p className="text-sm truncate text-muted-foreground">{m.last_message || "Diga olá! 👋"}</p>
+                <p className={`text-sm truncate ${isUnread(m) ? "text-foreground font-bold" : "text-muted-foreground"}`}>
+                  {m.last_message || "Diga olá! 👋"}
+                </p>
               </div>
             </motion.button>
           ))}
@@ -221,7 +294,12 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
   useEffect(() => {
     messagesApi.getMessages(match.match_id)
-      .then((m) => { setMessages(m); setLoading(false); })
+      .then((m) => {
+        setMessages(m);
+        setLoading(false);
+        const last = m.length ? m[m.length - 1].created_at : null;
+        if (last) markLastSeen(match.match_id, last);
+      })
       .catch(() => setLoading(false));
   }, [match.match_id]);
 
@@ -293,6 +371,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           if (type === "message") {
             const data = payload.data as Message;
             setMessages((prev) => prev.some((m) => m.id === data.id) ? prev : [...prev, data]);
+            markLastSeen(match.match_id, data.created_at);
             return;
           }
 
@@ -579,6 +658,8 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         </div>
       </div>
 
+      <ProfileModal open={showProfile} onClose={() => setShowProfile(false)} match={match} />
+
       {/* ── Incoming Call ── */}
       <AnimatePresence>
         {callState === "incoming" && (
@@ -700,7 +781,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 function ProfileModal({ open, onClose, match }: { open: boolean; onClose: () => void; match: Match }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4">
       <div className="bg-card rounded-3xl max-w-md w-full overflow-hidden">
         <div className="relative h-72">
           {match.photos[0] ? <img src={match.photos[0]} alt={match.name} className="w-full h-full object-cover" /> : null}
