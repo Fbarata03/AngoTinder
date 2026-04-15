@@ -15,12 +15,10 @@ const TURN_URL = (import.meta as any).env?.VITE_TURN_URL as string | undefined;
 const TURN_USERNAME = (import.meta as any).env?.VITE_TURN_USERNAME as string | undefined;
 const TURN_CREDENTIAL = (import.meta as any).env?.VITE_TURN_CREDENTIAL as string | undefined;
 
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [
-    { urls: ["stun:stun.l.google.com:19302"] },
-    ...(TURN_URL ? [{ urls: [TURN_URL], username: TURN_USERNAME, credential: TURN_CREDENTIAL }] : []),
-  ],
-};
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
+  { urls: ["stun:stun.l.google.com:19302"] },
+  ...(TURN_URL ? [{ urls: [TURN_URL], username: TURN_USERNAME, credential: TURN_CREDENTIAL }] : []),
+];
 
 type CallState = "idle" | "incoming" | "calling" | "connected";
 
@@ -335,6 +333,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const turnCacheRef = useRef<{ exp: number; server: RTCIceServer } | null>(null);
 
   useEffect(() => {
     callStateRef.current = callState;
@@ -390,8 +389,23 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     setVideoOff(false);
   }, []);
 
-  const createPC = useCallback((): RTCPeerConnection => {
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+  const getTurnIceServer = useCallback(async (): Promise<RTCIceServer | null> => {
+    const cached = turnCacheRef.current;
+    const now = Date.now();
+    if (cached && cached.exp > now + 10_000) return cached.server;
+    try {
+      const creds = await messagesApi.getTurnCredentials();
+      const server: RTCIceServer = { urls: creds.urls, username: creds.username, credential: creds.credential };
+      turnCacheRef.current = { exp: now + Math.max(60, creds.ttl) * 1000, server };
+      return server;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const createPC = useCallback(async (): Promise<RTCPeerConnection> => {
+    const turn = await getTurnIceServer();
+    const pc = new RTCPeerConnection({ iceServers: turn ? [...DEFAULT_ICE_SERVERS, turn] : DEFAULT_ICE_SERVERS });
     pcRef.current = pc;
 
     pc.onicecandidate = (e) => {
@@ -420,7 +434,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       }
     };
     return pc;
-  }, [sendSignal, endCall]);
+  }, [sendSignal, endCall, getTurnIceServer]);
 
   useEffect(() => {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -515,7 +529,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         localVideoRef.current.srcObject = stream;
         localVideoRef.current.play().catch(() => { /* ignore */ });
       }
-      const pc = createPC();
+      const pc = await createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -535,7 +549,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         localVideoRef.current.srcObject = stream;
         localVideoRef.current.play().catch(() => { /* ignore */ });
       }
-      const pc = createPC();
+      const pc = await createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       if (pendingOfferRef.current) {
         await pc.setRemoteDescription(pendingOfferRef.current);

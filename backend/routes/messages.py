@@ -7,6 +7,9 @@ from notif_manager import notif_manager
 import os
 import uuid
 import time
+import base64
+import hmac
+import hashlib
 import cloudinary
 import cloudinary.uploader
 
@@ -22,6 +25,9 @@ router = APIRouter()
 
 # Signaling message types (not stored in DB — just forwarded)
 SIGNAL_TYPES = {"call-offer", "call-answer", "ice-candidate", "call-end", "call-reject", "call-busy"}
+TURN_URLS = [u.strip() for u in (os.getenv("TURN_URLS", "") or "").split(",") if u.strip()]
+TURN_SHARED_SECRET = os.getenv("TURN_SHARED_SECRET", "") or ""
+TURN_TTL_SECONDS = int(os.getenv("TURN_TTL_SECONDS", "3600") or "3600")
 
 
 class ConnectionManager:
@@ -82,6 +88,18 @@ def chat_media_dir() -> str:
     base = os.path.join(os.path.dirname(__file__), "..", "static", "chat")
     os.makedirs(base, exist_ok=True)
     return base
+
+
+@router.get("/turn/credentials")
+async def turn_credentials(user_id: str = Depends(get_current_user_id)):
+    if not TURN_URLS or not TURN_SHARED_SECRET:
+        raise HTTPException(status_code=501, detail="TURN não configurado no servidor")
+    ttl = max(300, min(TURN_TTL_SECONDS, 24 * 3600))
+    exp = int(time.time()) + ttl
+    username = f"{exp}:{user_id}"
+    digest = hmac.new(TURN_SHARED_SECRET.encode("utf-8"), username.encode("utf-8"), hashlib.sha1).digest()
+    credential = base64.b64encode(digest).decode("utf-8")
+    return {"urls": TURN_URLS, "username": username, "credential": credential, "ttl": ttl}
 
 
 @router.post("/upload")

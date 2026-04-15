@@ -244,6 +244,9 @@ export const messagesApi = {
       body: JSON.stringify({ text }),
     }),
 
+  getTurnCredentials: () =>
+    request<{ urls: string[]; username: string; credential: string; ttl: number }>("/messages/turn/credentials"),
+
   uploadMedia: (file: File, type: "image" | "audio", ttlHours = 24) =>
     upload<{ url: string; text: string }>(`/messages/upload?type=${type}&ttl_hours=${ttlHours}`, file).then((r) => {
       const fixedUrl = resolveMediaUrl(r.url);
