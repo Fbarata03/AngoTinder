@@ -29,8 +29,3 @@ async def notifications_ws(ws: WebSocket, token: str = Query(...)):
             await ws.receive_text()
     except WebSocketDisconnect:
         notif_manager.disconnect(ws, user_id)
-
-
-@router.get("/online-count")
-async def online_count():
-    return {"count": notif_manager.online_count()}

@@ -343,6 +343,27 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       .catch(() => setLoading(false));
   }, [match.match_id]);
 
+  useEffect(() => {
+    if (connected) return;
+    let active = true;
+    const t = setInterval(() => {
+      messagesApi.getMessages(match.match_id)
+        .then((m) => {
+          if (!active) return;
+          setMessages((prev) => {
+            if (!prev.length) return m;
+            const byId = new Map(prev.map((x) => [x.id, x]));
+            for (const x of m) byId.set(x.id, x);
+            return Array.from(byId.values()).sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+          });
+          const last = m.length ? m[m.length - 1].created_at : null;
+          if (last) markLastSeen(match.match_id, last);
+        })
+        .catch(() => { /* ignore */ });
+    }, 4000);
+    return () => { active = false; clearInterval(t); };
+  }, [connected, match.match_id]);
+
   const sendSignal = useCallback((data: object) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(data));
@@ -606,7 +627,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   };
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
       <AfricanPattern className="absolute inset-0 text-primary opacity-5 pointer-events-none" />
 
       {/* Header */}
@@ -641,7 +662,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 relative z-10">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 relative z-10">
         <div className="max-w-4xl mx-auto space-y-3">
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-center py-4">
             <div className="inline-flex items-center gap-2 bg-gradient-to-r from-secondary via-[#FFD700] to-secondary p-0.5 rounded-full shadow-xl">
@@ -962,9 +983,9 @@ export function TelaChat() {
 
   // Desktop: layout 2 colunas (lista esquerda + conversa direita)
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-[100dvh] overflow-hidden">
       {/* Coluna esquerda — lista de matches (sempre visível no desktop) */}
-      <div className={`${selectedMatch ? "hidden md:flex md:w-80 lg:w-96" : "flex w-full"} flex-col flex-shrink-0 border-r-2 border-secondary/20`}>
+      <div className={`${selectedMatch ? "hidden md:flex md:w-80 lg:w-96" : "flex w-full"} flex-col flex-shrink-0 min-h-0 border-r-2 border-secondary/20`}>
         <ChatList
           onSelectMatch={setSelectedMatch}
           autoOpenMatchId={navState?.matchId}
@@ -975,7 +996,7 @@ export function TelaChat() {
 
       {/* Coluna direita — conversa activa */}
       {selectedMatch ? (
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <ChatConversation match={selectedMatch} onBack={() => setSelectedMatch(null)} />
         </div>
       ) : (
