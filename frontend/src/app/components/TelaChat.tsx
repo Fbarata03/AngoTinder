@@ -11,8 +11,15 @@ import { motion, AnimatePresence } from "motion/react";
 import { matchesApi, messagesApi, notificationsApi, createChatSocket, resolveMediaUrl, Match, Message } from "../api";
 import { useApp } from "../context";
 
+const TURN_URL = (import.meta as any).env?.VITE_TURN_URL as string | undefined;
+const TURN_USERNAME = (import.meta as any).env?.VITE_TURN_USERNAME as string | undefined;
+const TURN_CREDENTIAL = (import.meta as any).env?.VITE_TURN_CREDENTIAL as string | undefined;
+
 const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+  iceServers: [
+    { urls: ["stun:stun.l.google.com:19302"] },
+    ...(TURN_URL ? [{ urls: [TURN_URL], username: TURN_USERNAME, credential: TURN_CREDENTIAL }] : []),
+  ],
 };
 
 type CallState = "idle" | "incoming" | "calling" | "connected";
@@ -325,6 +332,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
 
@@ -391,7 +399,15 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     };
 
     pc.ontrack = (e) => {
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0];
+      const stream = e.streams[0];
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = stream;
+        remoteVideoRef.current.play().catch(() => { /* ignore */ });
+      }
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = stream;
+        remoteAudioRef.current.play().catch(() => { /* ignore */ });
+      }
     };
 
     pc.onconnectionstatechange = () => {
@@ -495,7 +511,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === "video" });
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      if (type === "video" && localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.play().catch(() => { /* ignore */ });
+      }
       const pc = createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       const offer = await pc.createOffer();
@@ -512,7 +531,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === "video" });
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      if (callType === "video" && localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.play().catch(() => { /* ignore */ });
+      }
       const pc = createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       if (pendingOfferRef.current) {
@@ -520,8 +542,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         sendSignal({ type: "call-answer", sdp: answer.sdp });
-        setCallState("connected");
-        callTimerRef.current = setInterval(() => setCallDuration((d) => d + 1), 1000);
+        setCallState("calling");
       }
     } catch {
       sendSignal({ type: "call-reject" });
@@ -629,6 +650,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   return (
     <div className="h-full min-h-0 flex flex-col bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
       <AfricanPattern className="absolute inset-0 text-primary opacity-5 pointer-events-none" />
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
 
       {/* Header */}
       <div className="relative bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-[#1a0000] px-4 py-3 text-white shadow-2xl z-10 flex-shrink-0 border-b-2 border-secondary/30">

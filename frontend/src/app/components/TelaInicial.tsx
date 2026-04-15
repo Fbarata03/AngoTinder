@@ -99,7 +99,7 @@ export function TelaInicial() {
   };
 
   return (
-    <div className="h-screen relative overflow-hidden bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-[#000000] flex flex-col">
+    <div className="min-h-[100dvh] relative overflow-hidden bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-[#000000] flex flex-col">
       <div className="absolute inset-0 opacity-20 pointer-events-none">
         <AfricanPattern className="absolute top-0 left-0 w-96 h-96 text-secondary animate-pulse" />
         <AfricanPattern className="absolute bottom-0 right-0 w-96 h-96 text-secondary animate-pulse" style={{ animationDelay: "1s" }} />

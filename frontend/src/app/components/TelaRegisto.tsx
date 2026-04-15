@@ -125,13 +125,13 @@ export function TelaRegisto() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-[#000000]">
+    <div className="min-h-[100dvh] relative overflow-hidden bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-[#000000]">
       <div className="absolute inset-0 opacity-10">
         <AfricanPattern className="absolute top-0 left-0 w-96 h-96 text-secondary" />
         <AfricanPattern className="absolute bottom-0 right-0 w-96 h-96 text-secondary" />
       </div>
 
-      <div className="relative min-h-screen flex flex-col px-6 py-12">
+      <div className="relative min-h-[100dvh] flex flex-col px-6 py-12">
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={() => (step === 1 ? navigate("/") : step === 4 ? null : setStep((s) => s - 1))}

@@ -192,7 +192,7 @@ export function TelaDescoberta() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-black flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-black flex items-center justify-center">
         <div className="text-center">
           <Heart className="w-20 h-20 text-secondary fill-secondary animate-pulse mx-auto mb-4" />
           <p className="text-white font-bold text-xl">A carregar perfis...</p>
@@ -203,7 +203,7 @@ export function TelaDescoberta() {
 
   if (currentIndex >= profiles.length && !loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-black flex flex-col relative overflow-hidden">
+      <div className="min-h-[100dvh] bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-black flex flex-col relative overflow-hidden">
         <AfricanPattern className="absolute inset-0 text-secondary opacity-10" />
         <div className="flex-1 flex items-center justify-center px-6 relative z-10">
           <div className="text-center">
@@ -242,7 +242,7 @@ export function TelaDescoberta() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] flex flex-col relative overflow-hidden">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] flex flex-col relative overflow-hidden">
       <AfricanPattern className="absolute top-0 right-0 w-96 h-96 text-primary opacity-5" />
       <AfricanPattern className="absolute bottom-0 left-0 w-96 h-96 text-secondary opacity-5" />
 
