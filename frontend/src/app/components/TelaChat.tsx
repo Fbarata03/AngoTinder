@@ -15,8 +15,17 @@ const TURN_URL = (import.meta as any).env?.VITE_TURN_URL as string | undefined;
 const TURN_USERNAME = (import.meta as any).env?.VITE_TURN_USERNAME as string | undefined;
 const TURN_CREDENTIAL = (import.meta as any).env?.VITE_TURN_CREDENTIAL as string | undefined;
 
+// Fallback grátis para melhorar chamadas sem servidor TURN próprio.
+// Nota: pode ter limites, mas melhora bastante em redes móveis/NAT.
+const PUBLIC_FALLBACK_ICE_SERVERS: RTCIceServer[] = [
+  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+  { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+];
+
 const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
-  { urls: ["stun:stun.l.google.com:19302"] },
+  ...PUBLIC_FALLBACK_ICE_SERVERS,
   ...(TURN_URL ? [{ urls: [TURN_URL], username: TURN_USERNAME, credential: TURN_CREDENTIAL }] : []),
 ];
 
@@ -523,7 +532,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
   const startCall = async (type: "audio" | "video") => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === "video" });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: type === "video",
+      });
       localStreamRef.current = stream;
       if (type === "video" && localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
@@ -543,7 +555,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
   const acceptCall = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === "video" });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: callType === "video",
+      });
       localStreamRef.current = stream;
       if (callType === "video" && localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
