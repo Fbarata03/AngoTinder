@@ -222,7 +222,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
         </div>
       )}
 
-      <div className={`flex-1 overflow-y-auto relative z-10 ${hideMobileNav ? "pb-4" : "pb-28"}`}>
+      <div className={`flex-1 overflow-y-auto relative z-10 ${hideMobileNav ? "pb-4" : "pb-28 md:pb-4"}`}>
         <div className="max-w-4xl mx-auto">
           {loading && (
             <div className="text-center py-16">
@@ -297,7 +297,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
       </div>
 
       {!hideMobileNav && (
-        <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
           <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
             <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={false} />
             <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={true} />
@@ -752,7 +752,8 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       {/* Header */}
       <div className="relative bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-[#1a0000] px-4 py-3 text-white shadow-2xl z-10 flex-shrink-0 border-b-2 border-secondary/30">
         <div className="max-w-4xl mx-auto flex items-center gap-3">
-          <button onClick={onBack} className="p-2 hover:bg-white/20 rounded-xl transition-colors">
+          {/* Botão voltar apenas no mobile */}
+          <button onClick={onBack} className="md:hidden p-2 hover:bg-white/20 rounded-xl transition-colors flex-shrink-0">
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-secondary shadow-lg flex-shrink-0 cursor-pointer" onClick={() => setShowProfile(true)}>
@@ -1139,6 +1140,30 @@ function ProfileModal({ open, onClose, match }: { open: boolean; onClose: () => 
     </div>
   );
 }
+function DesktopPlaceholder() {
+  const navigate = useNavigate();
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
+      <AfricanPattern className="absolute inset-0 text-primary opacity-5 pointer-events-none" />
+      <div className="text-center px-8 relative z-10">
+        <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-1 rounded-full inline-block mb-6 shadow-2xl">
+          <div className="bg-black p-8 rounded-full">
+            <MessageCircle className="w-16 h-16 text-secondary" />
+          </div>
+        </div>
+        <h2 className="text-2xl font-black text-foreground mb-2">Seleciona uma conversa</h2>
+        <p className="text-muted-foreground font-medium mb-8">Escolhe um match à esquerda para começar a falar</p>
+        <button
+          onClick={() => navigate("/discover")}
+          className="px-6 py-3 bg-gradient-to-r from-primary to-[#8B0000] text-white font-black rounded-2xl shadow-lg hover:opacity-90 transition-opacity"
+        >
+          Descobrir Perfis
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function NavBtn({ icon, label, onClick, active }: { icon: React.ReactNode; label: string; onClick: () => void; active: boolean }) {
   return (
     <button onClick={onClick} className={`flex flex-col items-center gap-1.5 transition-colors ${active ? "text-primary" : "text-muted-foreground hover:text-primary"}`}>
@@ -1172,8 +1197,16 @@ export function TelaChat() {
   // Desktop: layout 2 colunas (lista esquerda + conversa direita)
   return (
     <div className="flex h-[100dvh] overflow-hidden">
-      {/* Coluna esquerda — lista de matches (sempre visível no desktop) */}
-      <div className={`${selectedMatch ? "hidden md:flex md:w-80 lg:w-96" : "flex w-full"} flex-col flex-shrink-0 min-h-0 border-r-2 border-secondary/20`}>
+      {/* Coluna esquerda — lista de matches
+          Mobile sem match: ocupa tudo | Mobile com match: esconde
+          Desktop: sempre sidebar fixa (w-80 / w-96) */}
+      <div className={`
+        flex flex-col flex-shrink-0 min-h-0
+        border-r-2 border-secondary/20
+        ${selectedMatch
+          ? "hidden md:flex md:w-80 lg:w-96"
+          : "w-full md:w-80 lg:w-96"}
+      `}>
         <ChatList
           onSelectMatch={setSelectedMatch}
           autoOpenMatchId={navState?.matchId}
@@ -1182,23 +1215,19 @@ export function TelaChat() {
         />
       </div>
 
-      {/* Coluna direita — conversa activa */}
-      {selectedMatch ? (
-        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+      {/* Coluna direita — conversa activa ou placeholder desktop */}
+      <div className="hidden md:flex flex-1 flex-col min-w-0 min-h-0">
+        {selectedMatch ? (
           <ChatConversation match={selectedMatch} onBack={() => setSelectedMatch(null)} />
-        </div>
-      ) : (
-        /* Desktop placeholder quando nenhuma conversa está aberta */
-        <div className="hidden md:flex flex-1 flex-col items-center justify-center bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406]">
-          <div className="text-center px-8">
-            <div className="bg-gradient-to-br from-secondary to-[#FFD700] p-1 rounded-full inline-block mb-6 shadow-2xl">
-              <div className="bg-black p-8 rounded-full">
-                <MessageCircle className="w-16 h-16 text-secondary" />
-              </div>
-            </div>
-            <h2 className="text-2xl font-black text-foreground mb-2">Seleciona uma conversa</h2>
-            <p className="text-muted-foreground font-medium">Escolhe um match à esquerda para começar a falar</p>
-          </div>
+        ) : (
+          <DesktopPlaceholder />
+        )}
+      </div>
+
+      {/* Mobile: conversa abre em full-screen */}
+      {selectedMatch && (
+        <div className="flex md:hidden flex-1 flex-col min-w-0 min-h-0">
+          <ChatConversation match={selectedMatch} onBack={() => setSelectedMatch(null)} />
         </div>
       )}
     </div>
