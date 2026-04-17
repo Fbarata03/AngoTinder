@@ -111,7 +111,12 @@ async def discover(
         "u.age <= $3",
         """u.id NOT IN (
             SELECT swiped_id FROM swipes
-            WHERE swiper_id = $4
+            WHERE swiper_id = $4 AND direction IN ('right', 'super')
+        )""",
+        f"""u.id NOT IN (
+            SELECT swiped_id FROM swipes
+            WHERE swiper_id = $4 AND direction = 'left'
+              AND created_at > NOW() - INTERVAL '{LEFT_SWIPE_COOLDOWN_DAYS} days'
         )""",
         """u.id NOT IN (
             SELECT CASE WHEN user1_id = $5 THEN user2_id ELSE user1_id END

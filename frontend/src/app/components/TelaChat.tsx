@@ -924,7 +924,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       <AnimatePresence>
         {callState === "incoming" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 bg-black/95 flex flex-col items-center justify-center gap-8">
+            className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center gap-8">
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-secondary shadow-2xl animate-pulse">
               <Avatar photo={match.photos[0]} name={match.name} />
             </div>
@@ -955,7 +955,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       <AnimatePresence>
         {callState === "calling" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 bg-black/95 flex flex-col items-center justify-center gap-8">
+            className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center gap-8">
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-secondary shadow-2xl">
               <Avatar photo={match.photos[0]} name={match.name} />
             </div>
@@ -978,7 +978,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       <AnimatePresence>
         {callState === "connected" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 bg-black flex flex-col">
+            className="fixed inset-0 z-50 bg-black flex flex-col">
             <div className="flex-1 relative flex items-center justify-center bg-gray-900">
               {callType === "video" ? (
                 <video
