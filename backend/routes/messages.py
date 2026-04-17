@@ -24,7 +24,7 @@ if CLOUDINARY_ENABLED:
 router = APIRouter()
 
 # Signaling message types (not stored in DB — just forwarded)
-SIGNAL_TYPES = {"call-offer", "call-answer", "ice-candidate", "call-end", "call-reject", "call-busy"}
+SIGNAL_TYPES = {"call-offer", "call-answer", "ice-candidate", "call-end", "call-reject", "call-busy", "typing", "typing-stop"}
 TURN_URLS = [u.strip() for u in (os.getenv("TURN_URLS", "") or "").split(",") if u.strip()]
 TURN_SHARED_SECRET = os.getenv("TURN_SHARED_SECRET", "") or ""
 TURN_TTL_SECONDS = int(os.getenv("TURN_TTL_SECONDS", "3600") or "3600")

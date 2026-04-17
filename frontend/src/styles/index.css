@@ -37,3 +37,20 @@ button, input, select, textarea {
 /* Scrollbar invisível em mobile */
 ::-webkit-scrollbar { display: none; }
 * { scrollbar-width: none; }
+
+/* Espelhar vídeo local (self-view) */
+.mirror { transform: scaleX(-1); }
+
+/* Previne selecção de texto durante drag de cards */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Contentor de cards adaptável */
+@media (max-height: 700px) {
+  .card-stack { min-height: 380px !important; }
+}
+@media (max-height: 600px) {
+  .card-stack { min-height: 300px !important; }
+}

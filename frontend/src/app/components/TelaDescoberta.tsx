@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Heart, X, MapPin, Briefcase, MessageCircle, Star, Sparkles, RotateCcw, Zap, Sliders, User } from "lucide-react";
 import { Button } from "./ui/button";
 import { useNavigate } from "react-router";
-import { motion, useMotionValue, useTransform } from "motion/react";
+import { motion, useMotionValue, useTransform, animate, MotionValue } from "motion/react";
 import { AfricanPattern } from "./AfricanPatterns";
 import { MatchModal } from "./MatchModal";
 import { FiltersModal, Filters } from "./FiltersModal";
@@ -21,29 +21,55 @@ function PhotoPlaceholder({ name, className = "" }: { name: string; className?: 
   );
 }
 
-function SwipeCard({ profile, onSwipe }: { profile: UserType; onSwipe: (dir: "left" | "right") => void }) {
+interface SwipeCardProps {
+  profile: UserType;
+  /** Called after the exit animation completes */
+  onSwipe: (dir: "left" | "right") => void;
+  /** Only the top card is interactive */
+  isTop: boolean;
+  /** Parent uses this to animate the card away imperatively (button swipes) */
+  onXReady?: (x: MotionValue<number>) => void;
+}
+
+function SwipeCard({ profile, onSwipe, isTop, onXReady }: SwipeCardProps) {
   const [currentPhoto, setCurrentPhoto] = useState(0);
   const x = useMotionValue(0);
-  const rotate = useTransform(x, [-200, 200], [-25, 25]);
-  const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
-  const likeOpacity = useTransform(x, [0, 100], [0, 1]);
-  const nopeOpacity = useTransform(x, [-100, 0], [1, 0]);
+  const rotate = useTransform(x, [-220, 220], [-28, 28]);
+  const opacity = useTransform(x, [-220, -120, 0, 120, 220], [0, 1, 1, 1, 0]);
+  const likeOpacity = useTransform(x, [0, 80], [0, 1]);
+  const nopeOpacity = useTransform(x, [-80, 0], [1, 0]);
 
   const hasPhotos = profile.photos.length > 0;
   const safeIndex = hasPhotos ? Math.max(0, Math.min(currentPhoto, profile.photos.length - 1)) : 0;
 
-  const handleDragEnd = (_: unknown, info: { offset: { x: number } }) => {
-    if (info.offset.x > 100) onSwipe("right");
-    else if (info.offset.x < -100) onSwipe("left");
+  // Expose x to parent so buttons can animate this card away
+  useEffect(() => {
+    if (isTop && onXReady) onXReady(x);
+  }, [isTop, onXReady, x]);
+
+  const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
+    if (!isTop) return;
+    const offset = info.offset.x;
+    const velocity = info.velocity.x;
+    // Swipe if dragged far enough OR flicked fast enough
+    if (offset > 100 || (offset > 40 && velocity > 400)) {
+      // Wait for exit animation to finish before removing card from DOM
+      animate(x, 700, { duration: 0.22 }).then(() => onSwipe("right"));
+    } else if (offset < -100 || (offset < -40 && velocity < -400)) {
+      animate(x, -700, { duration: 0.22 }).then(() => onSwipe("left"));
+    } else {
+      // Not far enough — snap back with spring
+      animate(x, 0, { type: "spring", stiffness: 400, damping: 30 });
+    }
   };
 
   return (
     <motion.div
-      drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
+      drag={isTop ? "x" : false}
       onDragEnd={handleDragEnd}
       style={{ x, rotate, opacity }}
-      className="absolute inset-0 cursor-grab active:cursor-grabbing"
+      whileDrag={{ scale: 1.02 }}
+      className={`absolute inset-0 ${isTop ? "cursor-grab active:cursor-grabbing" : "pointer-events-none"}`}
     >
       <div className="relative w-full h-full rounded-3xl overflow-hidden shadow-2xl border-4 border-secondary/30">
         <div className="relative h-[65%]">
@@ -107,14 +133,17 @@ function SwipeCard({ profile, onSwipe }: { profile: UserType; onSwipe: (dir: "le
           {profile.bio && <p className="mt-4 text-white/90 leading-relaxed line-clamp-2">{profile.bio}</p>}
         </div>
 
+        {/* GOSTEI overlay */}
         <motion.div style={{ opacity: likeOpacity }}
-          className="absolute top-1/3 right-8 bg-gradient-to-br from-secondary via-[#FFD700] to-secondary p-1 rounded-3xl rotate-12 shadow-2xl">
+          className="absolute top-1/3 right-8 bg-gradient-to-br from-secondary via-[#FFD700] to-secondary p-1 rounded-3xl rotate-12 shadow-2xl pointer-events-none">
           <div className="bg-black px-8 py-4 rounded-3xl">
             <span className="text-secondary font-black text-2xl drop-shadow-lg">GOSTEI</span>
           </div>
         </motion.div>
+
+        {/* NOPE overlay */}
         <motion.div style={{ opacity: nopeOpacity }}
-          className="absolute top-1/3 left-8 bg-gradient-to-br from-[#CE1126] to-[#8B0000] p-1 rounded-3xl -rotate-12 shadow-2xl">
+          className="absolute top-1/3 left-8 bg-gradient-to-br from-[#CE1126] to-[#8B0000] p-1 rounded-3xl -rotate-12 shadow-2xl pointer-events-none">
           <div className="bg-black px-8 py-4 rounded-3xl">
             <span className="text-[#CE1126] font-black text-2xl drop-shadow-lg">NOPE</span>
           </div>
@@ -141,12 +170,18 @@ export function TelaDescoberta() {
   const [resetting, setResetting] = useState(false);
   const [onlineCount, setOnlineCount] = useState(0);
 
+  // Swipe locking to prevent double-swipes
+  const swipingRef = useRef(false);
+  // x MotionValue of the top card — used to animate it away from buttons
+  const topCardXRef = useRef<MotionValue<number> | null>(null);
+
   useEffect(() => {
     notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => {});
   }, []);
 
   const loadProfiles = (f: Filters) => {
     setLoading(true);
+    topCardXRef.current = null;
     profilesApi.discover({
       min_age: f.ageRange[0],
       max_age: f.ageRange[1],
@@ -162,31 +197,78 @@ export function TelaDescoberta() {
     loadProfiles(filters);
   }, [isLoggedIn]);
 
-  const handleSwipe = async (dir: "left" | "right" | "super") => {
-    const profile = profiles[currentIndex];
-    if (!profile) return;
+  // Real-time: when a new user registers, silently fetch updated profiles and append new ones
+  useEffect(() => {
+    const handler = () => {
+      profilesApi.discover({
+        min_age: filters.ageRange[0],
+        max_age: filters.ageRange[1],
+        gender: filters.gender,
+        verified_only: filters.showVerifiedOnly,
+      }).then((fresh) => {
+        setProfiles((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const newOnes = fresh.filter((p) => !existingIds.has(p.id));
+          if (newOnes.length === 0) return prev;
+          return [...prev, ...newOnes];
+        });
+      }).catch(() => {});
+    };
+    window.addEventListener("angotinder:new_user", handler);
+    return () => window.removeEventListener("angotinder:new_user", handler);
+  }, [filters]);
 
+  /** Core swipe logic — called AFTER the card has already animated off-screen */
+  const processSwipe = useCallback(async (profile: UserType, dir: "left" | "right" | "super") => {
     setHistory((h) => [...h, profile]);
-
+    setCurrentIndex((i) => i + 1);
     try {
-      const res = await matchesApi.swipe(profile.id, dir === "super" ? "super" : dir);
+      const res = await matchesApi.swipe(profile.id, dir);
       if (res.is_match && res.match_id) {
         setMatchedProfile(profile);
         setMatchId(res.match_id);
         setShowMatch(true);
         window.dispatchEvent(new Event("angotinder:new_match"));
       }
-    } catch { /* offline */ }
+    } catch { /* offline — swipe still recorded locally */ }
+  }, []);
 
-    setTimeout(() => setCurrentIndex((i) => i + 1), 200);
-  };
+  /** Called by the card after its drag animation completes (card is already off-screen) */
+  const onCardSwiped = useCallback((dir: "left" | "right") => {
+    if (swipingRef.current) return;
+    const profile = profiles[currentIndex];
+    if (!profile) return;
+    swipingRef.current = true;
+    processSwipe(profile, dir).finally(() => { swipingRef.current = false; });
+  }, [profiles, currentIndex, processSwipe]);
+
+  /** Called by action buttons — animates card away first, then processes swipe */
+  const handleButtonSwipe = useCallback(async (dir: "left" | "right" | "super") => {
+    if (swipingRef.current) return;
+    const profile = profiles[currentIndex];
+    if (!profile) return;
+    swipingRef.current = true;
+
+    const xVal = topCardXRef.current;
+    if (xVal) {
+      const target = (dir === "right" || dir === "super") ? 700 : -700;
+      await animate(xVal, target, { duration: 0.25 });
+    }
+
+    await processSwipe(profile, dir === "super" ? "super" : dir);
+    swipingRef.current = false;
+  }, [profiles, currentIndex, processSwipe]);
 
   const handleRewind = () => {
-    if (history.length > 0 && currentIndex > 0) {
-      setHistory((h) => h.slice(0, -1));
-      setCurrentIndex((i) => i - 1);
-    }
+    if (swipingRef.current || history.length === 0 || currentIndex === 0) return;
+    topCardXRef.current = null;
+    setHistory((h) => h.slice(0, -1));
+    setCurrentIndex((i) => i - 1);
   };
+
+  const registerTopCardX = useCallback((x: MotionValue<number>) => {
+    topCardXRef.current = x;
+  }, []);
 
   if (!isLoggedIn) return null;
 
@@ -241,6 +323,9 @@ export function TelaDescoberta() {
     );
   }
 
+  // Render the next 2 cards; reversed so the current card is on top (higher z)
+  const visibleProfiles = [...profiles.slice(currentIndex, currentIndex + 2)].reverse();
+
   return (
     <div className="min-h-[100dvh] bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] flex flex-col relative overflow-hidden">
       <AfricanPattern className="absolute top-0 right-0 w-96 h-96 text-primary opacity-5" />
@@ -289,45 +374,64 @@ export function TelaDescoberta() {
         </div>
       </div>
 
-      <div className="flex-1 px-6 pb-40 max-w-md mx-auto w-full relative z-10">
-        <div className="relative h-full min-h-[500px]">
-          {profiles.slice(currentIndex, currentIndex + 2).reverse().map((profile) => (
-            <SwipeCard key={profile.id} profile={profile} onSwipe={handleSwipe} />
-          ))}
+      <div className="flex-1 px-4 sm:px-6 pb-40 max-w-md mx-auto w-full relative z-10">
+        <div className="card-stack relative h-full min-h-[480px]">
+          {visibleProfiles.map((profile, revIdx) => {
+            const isTop = revIdx === visibleProfiles.length - 1;
+            return (
+              <SwipeCard
+                key={profile.id}
+                profile={profile}
+                onSwipe={onCardSwiped}
+                isTop={isTop}
+                onXReady={isTop ? registerTopCardX : undefined}
+              />
+            );
+          })}
         </div>
       </div>
 
-      <div className="fixed bottom-32 left-0 right-0 px-6 z-20">
-        <div className="max-w-md mx-auto flex items-center justify-center gap-4">
-          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={handleRewind}
-            className="w-16 h-16 rounded-full bg-white shadow-xl flex items-center justify-center border-4 border-secondary/30 hover:border-secondary transition-all" disabled={history.length === 0}>
-            <RotateCcw className="w-7 h-7 text-secondary" strokeWidth={2.5} />
-          </motion.button>
-
-          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleSwipe("left")}
-            className="w-20 h-20 rounded-full bg-white shadow-2xl flex items-center justify-center border-4 border-[#CE1126]/30 hover:border-[#CE1126] transition-all">
-            <X className="w-10 h-10 text-[#CE1126]" strokeWidth={3} />
-          </motion.button>
-
-          <motion.button whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.95 }} onClick={() => handleSwipe("right")}
-            className="relative w-24 h-24 rounded-full bg-gradient-to-br from-secondary via-[#FFD700] to-[#FFA500] shadow-2xl shadow-secondary/50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-secondary rounded-full blur-xl opacity-50 animate-pulse"></div>
-            <Heart className="relative w-12 h-12 text-black fill-black drop-shadow-lg" strokeWidth={2.5} />
+      <div className="fixed bottom-32 left-0 right-0 px-2 sm:px-6 z-20">
+        <div className="max-w-md mx-auto flex items-center justify-center gap-2 sm:gap-4">
+          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+            onClick={handleRewind}
+            disabled={history.length === 0}
+            className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-white shadow-xl flex items-center justify-center border-4 border-secondary/30 hover:border-secondary transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            <RotateCcw className="w-5 h-5 sm:w-7 sm:h-7 text-secondary" strokeWidth={2.5} />
           </motion.button>
 
           <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-            onClick={() => { if (superLikesLeft > 0) { setSuperLikesLeft((n) => n - 1); handleSwipe("super"); } }}
-            className="relative w-20 h-20 rounded-full bg-gradient-to-br from-[#00C9FF] to-[#0080FF] shadow-2xl flex items-center justify-center border-4 border-blue-300/50 hover:border-blue-400 transition-all">
-            <Star className="w-9 h-9 text-white fill-white" strokeWidth={2.5} />
-            <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-secondary to-[#FFD700] rounded-full border-2 border-white flex items-center justify-center">
+            onClick={() => handleButtonSwipe("left")}
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white shadow-2xl flex items-center justify-center border-4 border-[#CE1126]/30 hover:border-[#CE1126] transition-all">
+            <X className="w-8 h-8 sm:w-10 sm:h-10 text-[#CE1126]" strokeWidth={3} />
+          </motion.button>
+
+          <motion.button whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.95 }}
+            onClick={() => handleButtonSwipe("right")}
+            className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-secondary via-[#FFD700] to-[#FFA500] shadow-2xl shadow-secondary/50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-secondary rounded-full blur-xl opacity-50 animate-pulse"></div>
+            <Heart className="relative w-10 h-10 sm:w-12 sm:h-12 text-black fill-black drop-shadow-lg" strokeWidth={2.5} />
+          </motion.button>
+
+          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+            onClick={() => {
+              if (superLikesLeft > 0) {
+                setSuperLikesLeft((n) => n - 1);
+                handleButtonSwipe("super");
+              }
+            }}
+            disabled={superLikesLeft === 0}
+            className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[#00C9FF] to-[#0080FF] shadow-2xl flex items-center justify-center border-4 border-blue-300/50 hover:border-blue-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            <Star className="w-7 h-7 sm:w-9 sm:h-9 text-white fill-white" strokeWidth={2.5} />
+            <div className="absolute -top-2 -right-2 w-6 h-6 sm:w-7 sm:h-7 bg-gradient-to-br from-secondary to-[#FFD700] rounded-full border-2 border-white flex items-center justify-center">
               <span className="text-xs font-black text-black">{superLikesLeft}</span>
             </div>
           </motion.button>
 
           <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
             onClick={() => { setBoostActive(true); setTimeout(() => setBoostActive(false), 1800000); }}
-            className={`w-16 h-16 rounded-full shadow-xl flex items-center justify-center border-4 transition-all ${boostActive ? "bg-gradient-to-br from-secondary to-[#FFD700] border-secondary/50" : "bg-white border-purple-300 hover:border-purple-500"}`}>
-            <Zap className={`w-7 h-7 ${boostActive ? "text-black fill-black" : "text-purple-600 fill-purple-600"}`} strokeWidth={2.5} />
+            className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full shadow-xl flex items-center justify-center border-4 transition-all ${boostActive ? "bg-gradient-to-br from-secondary to-[#FFD700] border-secondary/50" : "bg-white border-purple-300 hover:border-purple-500"}`}>
+            <Zap className={`w-5 h-5 sm:w-7 sm:h-7 ${boostActive ? "text-black fill-black" : "text-purple-600 fill-purple-600"}`} strokeWidth={2.5} />
           </motion.button>
         </div>
       </div>

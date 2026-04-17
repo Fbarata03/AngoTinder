@@ -42,6 +42,23 @@ class NotificationManager:
         await self.notify_local(user_id, event)
         await publish_event({"kind": "notification", "user_id": user_id, "event": event})
 
+    async def broadcast_all_local(self, event: dict):
+        """Envia evento a todos os utilizadores ligados nesta instância."""
+        dead: list[tuple[str, object]] = []
+        for user_id, conns in list(self.connections.items()):
+            for ws in conns:
+                try:
+                    await ws.send_json(event)
+                except Exception:
+                    dead.append((user_id, ws))
+        for user_id, ws in dead:
+            self.disconnect(ws, user_id)
+
+    async def broadcast_all(self, event: dict):
+        """Envia evento a todos os utilizadores (local + outras instâncias via PG)."""
+        await self.broadcast_all_local(event)
+        await publish_event({"kind": "broadcast_all", "event": event})
+
 
 # Singleton — imported by both matches.py and notifications.py
 notif_manager = NotificationManager()

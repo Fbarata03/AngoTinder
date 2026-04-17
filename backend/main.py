@@ -90,6 +90,11 @@ async def pg_events_task():
                     if match_id and isinstance(msg, dict) and isinstance(sender_id, str):
                         asyncio.create_task(messages.manager.forward_to_others(match_id, sender_id, msg))
                     return
+                if kind == "broadcast_all":
+                    ev = event.get("event")
+                    if isinstance(ev, dict):
+                        asyncio.create_task(notif_manager.broadcast_all_local(ev))
+                    return
 
             listener = _listener
             await conn.add_listener(PG_EVENTS_CHANNEL, listener)

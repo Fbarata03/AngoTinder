@@ -115,9 +115,21 @@ export function TelaRegisto() {
       const msg = err instanceof Error ? err.message : "";
       try {
         const parsed = JSON.parse(msg);
-        setError(parsed.detail || "Erro ao criar conta");
+        const detail = parsed.detail;
+        if (typeof detail === "string") {
+          setError(detail);
+        } else if (Array.isArray(detail) && detail.length > 0) {
+          // FastAPI validation error: [{ loc, msg, type }]
+          setError(detail[0]?.msg || "Erro de validação");
+        } else {
+          setError("Erro ao criar conta");
+        }
       } catch {
-        setError("Erro ao criar conta. Tente novamente.");
+        if (msg.includes("409") || msg.toLowerCase().includes("already")) {
+          setError("Este email já está registado.");
+        } else {
+          setError("Erro ao criar conta. Tente novamente.");
+        }
       }
     } finally {
       setLoading(false);

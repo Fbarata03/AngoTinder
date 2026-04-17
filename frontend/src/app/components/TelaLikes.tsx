@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { Heart, User, MessageCircle, Star, Sparkles } from "lucide-react";
+import { Heart, User, MessageCircle, Star, Sparkles, X } from "lucide-react";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { profilesApi, matchesApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
 
@@ -11,15 +11,26 @@ export function TelaLikes() {
   const { isLoggedIn } = useApp();
   const [likes, setLikes] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
     profilesApi.getLikes().then((l) => { setLikes(l); setLoading(false); }).catch(() => setLoading(false));
   }, [isLoggedIn]);
 
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleLikeBack = async (likedUser: UserType) => {
+    if (pendingIds.has(likedUser.id)) return;
+    setPendingIds((s) => new Set(s).add(likedUser.id));
     try {
       const res = await matchesApi.swipe(likedUser.id, "right");
+      // Remove from list immediately (already liked back or matched)
+      setLikes((prev) => prev.filter((u) => u.id !== likedUser.id));
       if (res.is_match && res.match_id) {
         navigate("/chat", {
           state: {
@@ -33,8 +44,14 @@ export function TelaLikes() {
             },
           },
         });
+      } else {
+        showToast(`Like enviado a ${likedUser.name}! 💛`);
       }
-    } catch { /* ignore */ }
+    } catch {
+      showToast("Erro ao enviar like. Tente novamente.");
+    } finally {
+      setPendingIds((s) => { const n = new Set(s); n.delete(likedUser.id); return n; });
+    }
   };
 
   return (
@@ -73,44 +90,71 @@ export function TelaLikes() {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4">
-            {likes.map((like, i) => (
-              <motion.div key={like.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: i * 0.05 }} className="relative aspect-[3/4] rounded-3xl overflow-hidden group cursor-pointer">
-                {like.photos[0] ? (
-                  <img src={resolveMediaUrl(like.photos[0])} alt={like.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-5xl font-black text-white"
-                    style={{ backgroundColor: ["#CE1126","#8B0000","#D4A017","#006400"][like.name.charCodeAt(0) % 4] }}>
-                    {like.name[0].toUpperCase()}
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
-                {like.is_verified === 1 && (
-                  <div className="absolute top-3 right-3">
-                    <div className="bg-gradient-to-r from-secondary to-[#FFD700] p-0.5 rounded-full">
-                      <div className="bg-black/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1">
-                        <Star className="w-3 h-3 text-secondary fill-secondary" />
-                        <span className="text-xs font-black text-secondary">VIP</span>
+            <AnimatePresence>
+              {likes.map((like, i) => (
+                <motion.div
+                  key={like.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.85, transition: { duration: 0.2 } }}
+                  transition={{ delay: i * 0.05 }}
+                  className="relative aspect-[3/4] rounded-3xl overflow-hidden group cursor-pointer"
+                >
+                  {like.photos[0] ? (
+                    <img src={resolveMediaUrl(like.photos[0])} alt={like.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-5xl font-black text-white"
+                      style={{ backgroundColor: ["#CE1126","#8B0000","#D4A017","#006400"][like.name.charCodeAt(0) % 4] }}>
+                      {like.name[0].toUpperCase()}
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+                  {like.is_verified === 1 && (
+                    <div className="absolute top-3 right-3">
+                      <div className="bg-gradient-to-r from-secondary to-[#FFD700] p-0.5 rounded-full">
+                        <div className="bg-black/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1">
+                          <Star className="w-3 h-3 text-secondary fill-secondary" />
+                          <span className="text-xs font-black text-secondary">VIP</span>
+                        </div>
                       </div>
                     </div>
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 p-3">
+                    <p className="text-white font-black text-base">{like.name}, {like.age}</p>
+                    <p className="text-white/70 text-xs font-medium">{like.location}</p>
                   </div>
-                )}
-                <div className="absolute bottom-0 left-0 right-0 p-3">
-                  <p className="text-white font-black text-base">{like.name}, {like.age}</p>
-                  <p className="text-white/70 text-xs font-medium">{like.location}</p>
-                </div>
-                {/* Like back button */}
-                <button
-                  onClick={() => handleLikeBack(like)}
-                  className="absolute bottom-3 right-3 bg-gradient-to-br from-secondary to-[#FFD700] p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform"
-                >
-                  <Heart className="w-5 h-5 text-black fill-black" />
-                </button>
-              </motion.div>
-            ))}
+                  {/* Like back button */}
+                  <button
+                    onClick={() => handleLikeBack(like)}
+                    disabled={pendingIds.has(like.id)}
+                    className="absolute bottom-3 right-3 bg-gradient-to-br from-secondary to-[#FFD700] p-2.5 rounded-full shadow-lg hover:scale-110 active:scale-95 transition-transform disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    <Heart className={`w-5 h-5 text-black ${pendingIds.has(like.id) ? "animate-pulse" : "fill-black"}`} />
+                  </button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </div>
+
+      {/* Toast notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 bg-black/90 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 max-w-xs text-center"
+          >
+            <span className="font-bold text-sm">{toast}</span>
+            <button onClick={() => setToast(null)} className="text-white/60 hover:text-white ml-1">
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">

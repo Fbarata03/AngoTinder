@@ -10,6 +10,7 @@ import asyncpg
 import httpx
 from database import get_db
 from auth_utils import hash_password, verify_password, create_token, get_current_user_id
+from notif_manager import notif_manager
 
 router = APIRouter()
 
@@ -98,6 +99,11 @@ async def register(req: RegisterRequest, db: asyncpg.Connection = Depends(get_db
 
     user = await db.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
     token = create_token(user_id)
+    # Notificar todos os utilizadores online que um novo perfil está disponível
+    try:
+        await notif_manager.broadcast_all({"type": "new_user", "user_id": user_id})
+    except Exception:
+        pass
     return AuthResponse(token=token, user=parse_user(user))
 
 

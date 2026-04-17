@@ -1,11 +1,13 @@
 import json
 import os
+import asyncio
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 import asyncpg
 from jose import jwt, JWTError
 from database import get_db, cleanup_old_data
+from notif_manager import notif_manager
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 router = APIRouter()
@@ -53,24 +55,54 @@ async def get_stats(
     db: asyncpg.Connection = Depends(get_db),
     _admin=Depends(get_admin_user),
 ):
-    total_users = await db.fetchval("SELECT COUNT(*) FROM users")
-    verified_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE is_verified = 1")
-    total_matches = await db.fetchval("SELECT COUNT(*) FROM matches")
-    total_messages = await db.fetchval("SELECT COUNT(*) FROM messages")
-    users_today = await db.fetchval(
-        "SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '24 hours'"
+    # Execute all stat queries in parallel for speed
+    (
+        total_users,
+        verified_users,
+        total_matches,
+        total_messages,
+        total_swipes,
+        users_today,
+        matches_today,
+        messages_today,
+        swipes_today,
+        active_24h,
+        top_locations,
+    ) = await asyncio.gather(
+        db.fetchval("SELECT COUNT(*) FROM users"),
+        db.fetchval("SELECT COUNT(*) FROM users WHERE is_verified = 1"),
+        db.fetchval("SELECT COUNT(*) FROM matches"),
+        db.fetchval("SELECT COUNT(*) FROM messages"),
+        db.fetchval("SELECT COUNT(*) FROM swipes"),
+        db.fetchval("SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '24 hours'"),
+        db.fetchval("SELECT COUNT(*) FROM matches WHERE created_at >= NOW() - INTERVAL '24 hours'"),
+        db.fetchval("SELECT COUNT(*) FROM messages WHERE created_at >= NOW() - INTERVAL '24 hours'"),
+        db.fetchval("SELECT COUNT(*) FROM swipes WHERE created_at >= NOW() - INTERVAL '24 hours'"),
+        db.fetchval(
+            """SELECT COUNT(DISTINCT sender_id) FROM messages
+               WHERE created_at >= NOW() - INTERVAL '24 hours'"""
+        ),
+        db.fetch(
+            """SELECT location, COUNT(*) as cnt FROM users
+               GROUP BY location ORDER BY cnt DESC LIMIT 6"""
+        ),
     )
-    matches_today = await db.fetchval(
-        "SELECT COUNT(*) FROM matches WHERE created_at >= NOW() - INTERVAL '24 hours'"
-    )
+
+    online_users = notif_manager.online_count()
 
     return {
         "total_users": total_users,
         "verified_users": verified_users,
         "total_matches": total_matches,
         "total_messages": total_messages,
+        "total_swipes": total_swipes,
         "users_today": users_today,
         "matches_today": matches_today,
+        "messages_today": messages_today,
+        "swipes_today": swipes_today,
+        "active_users_24h": active_24h,
+        "online_users": online_users,
+        "top_locations": [{"location": r["location"], "count": r["cnt"]} for r in top_locations],
     }
 
 
@@ -80,29 +112,51 @@ async def get_all_users(
     _admin=Depends(get_admin_user),
     search: str = "",
     page: int = 1,
+    gender: str = "",
+    verified: str = "",
+    location: str = "",
 ):
-    limit = 50
+    limit = 30
     offset = (page - 1) * limit
 
+    conditions = []
+    params: list = []
+
     if search:
-        rows = await db.fetch(
-            """SELECT id, name, email, age, location, gender, is_verified, photos, created_at
-               FROM users
-               WHERE name ILIKE $1 OR email ILIKE $1
-               ORDER BY created_at DESC LIMIT $2 OFFSET $3""",
-            f"%{search}%", limit, offset,
-        )
-        total = await db.fetchval(
-            "SELECT COUNT(*) FROM users WHERE name ILIKE $1 OR email ILIKE $1",
-            f"%{search}%",
-        )
-    else:
-        rows = await db.fetch(
-            """SELECT id, name, email, age, location, gender, is_verified, photos, created_at
-               FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2""",
-            limit, offset,
-        )
-        total = await db.fetchval("SELECT COUNT(*) FROM users")
+        params.append(f"%{search}%")
+        conditions.append(f"(name ILIKE ${len(params)} OR email ILIKE ${len(params)})")
+
+    if gender:
+        params.append(gender)
+        conditions.append(f"gender = ${len(params)}")
+
+    if verified == "yes":
+        conditions.append("is_verified = 1")
+    elif verified == "no":
+        conditions.append("is_verified = 0")
+
+    if location:
+        params.append(f"%{location}%")
+        conditions.append(f"location ILIKE ${len(params)}")
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    count_params = params[:]
+    params += [limit, offset]
+
+    rows, total = await asyncio.gather(
+        db.fetch(
+            f"""SELECT u.id, u.name, u.email, u.age, u.location, u.gender,
+                       u.is_verified, u.photos, u.created_at,
+                       (SELECT COUNT(*) FROM matches WHERE user1_id=u.id OR user2_id=u.id) as match_count,
+                       (SELECT COUNT(*) FROM messages WHERE sender_id=u.id) as message_count
+                FROM users u {where}
+                ORDER BY u.created_at DESC
+                LIMIT ${len(params)-1} OFFSET ${len(params)}""",
+            *params,
+        ),
+        db.fetchval(f"SELECT COUNT(*) FROM users {where}", *count_params),
+    )
 
     users = []
     for row in rows:
@@ -113,6 +167,35 @@ async def get_all_users(
         users.append(d)
 
     return {"users": users, "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
+
+
+@router.get("/users/{user_id}")
+async def get_user_detail(
+    user_id: str,
+    db: asyncpg.Connection = Depends(get_db),
+    _admin=Depends(get_admin_user),
+):
+    row = await db.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado")
+
+    d = dict(row)
+    d.pop("password_hash", None)
+    d["photos"] = json.loads(d["photos"]) if d.get("photos") else []
+    d["interests"] = json.loads(d["interests"]) if d.get("interests") else []
+    if d.get("created_at") and not isinstance(d["created_at"], str):
+        d["created_at"] = d["created_at"].isoformat()
+
+    match_count, msg_count, swipe_count = await asyncio.gather(
+        db.fetchval("SELECT COUNT(*) FROM matches WHERE user1_id=$1 OR user2_id=$1", user_id),
+        db.fetchval("SELECT COUNT(*) FROM messages WHERE sender_id=$1", user_id),
+        db.fetchval("SELECT COUNT(*) FROM swipes WHERE swiper_id=$1", user_id),
+    )
+    d["match_count"] = match_count
+    d["message_count"] = msg_count
+    d["swipe_count"] = swipe_count
+    d["is_online"] = notif_manager.is_online(user_id)
+    return d
 
 
 @router.post("/users/{user_id}/verify")
@@ -166,24 +249,80 @@ async def delete_user(
 async def get_all_matches(
     db: asyncpg.Connection = Depends(get_db),
     _admin=Depends(get_admin_user),
+    page: int = 1,
 ):
-    rows = await db.fetch(
-        """SELECT m.id, m.created_at,
-                  u1.name as user1_name, u1.email as user1_email,
-                  u2.name as user2_name, u2.email as user2_email,
-                  (SELECT COUNT(*) FROM messages WHERE match_id = m.id) as message_count
-           FROM matches m
-           JOIN users u1 ON u1.id = m.user1_id
-           JOIN users u2 ON u2.id = m.user2_id
-           ORDER BY m.created_at DESC LIMIT 100"""
+    limit = 30
+    offset = (page - 1) * limit
+
+    rows, total = await asyncio.gather(
+        db.fetch(
+            """SELECT m.id, m.created_at,
+                      u1.name as user1_name, u1.email as user1_email, u1.photos as user1_photos,
+                      u2.name as user2_name, u2.email as user2_email, u2.photos as user2_photos,
+                      (SELECT COUNT(*) FROM messages WHERE match_id = m.id) as message_count
+               FROM matches m
+               JOIN users u1 ON u1.id = m.user1_id
+               JOIN users u2 ON u2.id = m.user2_id
+               ORDER BY m.created_at DESC
+               LIMIT $1 OFFSET $2""",
+            limit, offset,
+        ),
+        db.fetchval("SELECT COUNT(*) FROM matches"),
     )
+
     result = []
     for row in rows:
         d = dict(row)
         if d.get("created_at") and not isinstance(d["created_at"], str):
             d["created_at"] = d["created_at"].isoformat()
+        d["user1_photos"] = json.loads(d["user1_photos"]) if d.get("user1_photos") else []
+        d["user2_photos"] = json.loads(d["user2_photos"]) if d.get("user2_photos") else []
         result.append(d)
-    return result
+
+    return {"matches": result, "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
+
+
+@router.get("/activity")
+async def get_recent_activity(
+    db: asyncpg.Connection = Depends(get_db),
+    _admin=Depends(get_admin_user),
+):
+    """Últimas 20 ações: registos, matches e mensagens."""
+    users_recent, matches_recent, msgs_recent = await asyncio.gather(
+        db.fetch(
+            """SELECT 'register' as type, u.name, u.email, u.created_at as ts
+               FROM users u ORDER BY u.created_at DESC LIMIT 10"""
+        ),
+        db.fetch(
+            """SELECT 'match' as type,
+                      u1.name || ' ↔ ' || u2.name as name,
+                      '' as email,
+                      m.created_at as ts
+               FROM matches m
+               JOIN users u1 ON u1.id = m.user1_id
+               JOIN users u2 ON u2.id = m.user2_id
+               ORDER BY m.created_at DESC LIMIT 10"""
+        ),
+        db.fetch(
+            """SELECT 'message' as type,
+                      u.name,
+                      '' as email,
+                      msg.created_at as ts
+               FROM messages msg
+               JOIN users u ON u.id = msg.sender_id
+               ORDER BY msg.created_at DESC LIMIT 10"""
+        ),
+    )
+
+    all_events = []
+    for r in list(users_recent) + list(matches_recent) + list(msgs_recent):
+        d = dict(r)
+        if d.get("ts") and not isinstance(d["ts"], str):
+            d["ts"] = d["ts"].isoformat()
+        all_events.append(d)
+
+    all_events.sort(key=lambda x: x.get("ts", ""), reverse=True)
+    return all_events[:30]
 
 
 @router.post("/cleanup")

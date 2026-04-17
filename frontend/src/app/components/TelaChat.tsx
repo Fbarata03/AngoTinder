@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Heart, User, MessageCircle, Send, ArrowLeft, Sparkles, Star,
-  Phone, Video, PhoneOff, VideoOff, Mic, MicOff, PhoneCall, Trash2,
+  Phone, Video, PhoneOff, VideoOff, Mic, MicOff, PhoneCall, Trash2, ImageIcon,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -319,10 +319,13 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
+  const [peerTyping, setPeerTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const wsPingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const myTypingRef = useRef(false);
   const [showProfile, setShowProfile] = useState(false);
   const [uploading, setUploading] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -335,18 +338,36 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [videoOff, setVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const callStateRef = useRef<CallState>("idle");
+  const callTypeRef = useRef<"audio" | "video">("audio");
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const turnCacheRef = useRef<{ exp: number; server: RTCIceServer } | null>(null);
 
+  useEffect(() => { callStateRef.current = callState; }, [callState]);
+  useEffect(() => { callTypeRef.current = callType; }, [callType]);
+
+  // When call becomes connected, apply the remote stream to the correct element
   useEffect(() => {
-    callStateRef.current = callState;
-  }, [callState]);
+    if (callState !== "connected" || !remoteStreamRef.current) return;
+    const stream = remoteStreamRef.current;
+    if (callType === "video") {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = stream;
+        remoteVideoRef.current.play().catch(() => {});
+      }
+    } else {
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = stream;
+        remoteAudioRef.current.play().catch(() => {});
+      }
+    }
+  }, [callState, callType]);
 
   useEffect(() => {
     messagesApi.getMessages(match.match_id)
@@ -391,6 +412,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
+    remoteStreamRef.current = null;
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
     setCallState("idle");
     setCallDuration(0);
@@ -423,13 +448,22 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
     pc.ontrack = (e) => {
       const stream = e.streams[0];
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = stream;
-        remoteVideoRef.current.play().catch(() => { /* ignore */ });
-      }
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = stream;
-        remoteAudioRef.current.play().catch(() => { /* ignore */ });
+      remoteStreamRef.current = stream;
+      // Route stream to the correct element based on call type.
+      // Video calls: video element handles both audio+video (avoids echo).
+      // Audio calls: hidden audio element handles audio.
+      if (callTypeRef.current === "video") {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream;
+          remoteVideoRef.current.play().catch(() => {});
+        }
+        // Clear audio element to prevent echo
+        if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+      } else {
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = stream;
+          remoteAudioRef.current.play().catch(() => {});
+        }
       }
     };
 
@@ -482,6 +516,17 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             const data = payload.data as Message;
             setMessages((prev) => prev.some((m) => m.id === data.id) ? prev : [...prev, data]);
             markLastSeen(match.match_id, data.created_at);
+            // The other person sent a message → they stopped typing
+            setPeerTyping(false);
+            return;
+          }
+
+          if (type === "typing") {
+            setPeerTyping(true);
+            return;
+          }
+          if (type === "typing-stop") {
+            setPeerTyping(false);
             return;
           }
 
@@ -521,6 +566,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       active = false;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (wsPingRef.current) { clearInterval(wsPingRef.current); wsPingRef.current = null; }
+      if (typingTimeoutRef.current) { clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }
       wsRef.current?.close();
       endCall();
     };
@@ -531,38 +577,48 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   }, [messages]);
 
   const startCall = async (type: "audio" | "video") => {
+    if (callStateRef.current !== "idle") return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const constraints: MediaStreamConstraints = {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        video: type === "video",
-      });
+        video: type === "video" ? { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
+      setCallType(type);
+      setCallState("calling");
       if (type === "video" && localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
-        localVideoRef.current.play().catch(() => { /* ignore */ });
+        localVideoRef.current.play().catch(() => {});
       }
       const pc = await createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
-      const offer = await pc.createOffer();
+      const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: type === "video" });
       await pc.setLocalDescription(offer);
-      setCallType(type);
-      setCallState("calling");
       sendSignal({ type: "call-offer", sdp: offer.sdp, callType: type });
-    } catch {
-      alert("Não foi possível aceder ao microfone/câmara. Verifica as permissões.");
+    } catch (err) {
+      setCallState("idle");
+      const msg = err instanceof Error && err.name === "NotAllowedError"
+        ? "Permissão negada. Ativa o microfone/câmara nas definições do browser."
+        : type === "video"
+        ? "Não foi possível aceder à câmara. Verifica as permissões."
+        : "Não foi possível aceder ao microfone. Verifica as permissões.";
+      alert(msg);
     }
   };
 
   const acceptCall = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const constraints: MediaStreamConstraints = {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        video: callType === "video",
-      });
+        video: callType === "video" ? { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
+      setCallState("calling");
       if (callType === "video" && localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
-        localVideoRef.current.play().catch(() => { /* ignore */ });
+        localVideoRef.current.play().catch(() => {});
       }
       const pc = await createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
@@ -571,12 +627,11 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         sendSignal({ type: "call-answer", sdp: answer.sdp });
-        setCallState("calling");
       }
     } catch {
       sendSignal({ type: "call-reject" });
       endCall();
-      alert("Não foi possível aceder ao microfone/câmara.");
+      alert("Não foi possível aceder ao microfone/câmara. Verifica as permissões.");
     }
   };
 
@@ -607,7 +662,11 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     if (!newMessage.trim()) return;
     const text = newMessage.trim();
     setNewMessage("");
+    // Stop typing indicator
+    myTypingRef.current = false;
+    if (typingTimeoutRef.current) { clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "typing-stop" }));
       wsRef.current.send(JSON.stringify({ type: "text", text }));
     } else {
       try {
@@ -679,7 +738,16 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   return (
     <div className="h-full min-h-0 flex flex-col bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
       <AfricanPattern className="absolute inset-0 text-primary opacity-5 pointer-events-none" />
-      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+      <audio
+        ref={(el) => {
+          remoteAudioRef.current = el;
+          if (el && remoteStreamRef.current && callTypeRef.current !== "video") {
+            el.srcObject = remoteStreamRef.current;
+            el.play().catch(() => {});
+          }
+        }}
+        autoPlay playsInline className="hidden"
+      />
 
       {/* Header */}
       <div className="relative bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-[#1a0000] px-4 py-3 text-white shadow-2xl z-10 flex-shrink-0 border-b-2 border-secondary/30">
@@ -693,9 +761,9 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           <div className="flex-1 min-w-0">
             <h2 className="font-black text-base truncate">{match.name}</h2>
             <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full ${connected ? "bg-secondary animate-pulse" : "bg-white/40"}`} />
-              <p className="text-xs font-bold" style={{ color: connected ? "#FFCD00" : "rgba(255,255,255,0.4)" }}>
-                {connected ? "Online" : "A ligar..."}
+              <div className={`w-2 h-2 rounded-full transition-colors ${connected ? "bg-green-400 animate-pulse" : "bg-white/30"}`} />
+              <p className="text-xs font-bold transition-colors" style={{ color: connected ? "#86efac" : "rgba(255,255,255,0.35)" }}>
+                {connected ? "Ligado" : "A reconectar..."}
               </p>
             </div>
           </div>
@@ -763,6 +831,29 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             </motion.div>
             );
           })}
+          {/* Typing indicator */}
+          <AnimatePresence>
+            {peerTyping && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                className="flex justify-start"
+              >
+                <div className="bg-card border-2 border-secondary/20 rounded-3xl rounded-bl-sm px-4 py-3 shadow-md flex items-center gap-1.5">
+                  {[0, 1, 2].map((i) => (
+                    <motion.div
+                      key={i}
+                      className="w-2 h-2 bg-muted-foreground rounded-full"
+                      animate={{ y: [0, -5, 0] }}
+                      transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div ref={bottomRef} />
         </div>
       </div>
@@ -770,10 +861,38 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       {/* Message Input */}
       <div className="relative border-t-4 border-secondary/30 p-3 bg-card/95 backdrop-blur-xl shadow-2xl z-10 flex-shrink-0">
         <div className="max-w-4xl mx-auto flex items-center gap-2">
-          <Input ref={inputRef} value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            placeholder="Escreva uma mensagem..."
-            className="flex-1 bg-input-background border-2 border-primary/20 focus:border-secondary rounded-2xl h-12 px-4 font-medium text-sm" />
+          <Input
+            ref={inputRef}
+            value={newMessage}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              // Send typing indicator
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                if (!myTypingRef.current) {
+                  myTypingRef.current = true;
+                  wsRef.current.send(JSON.stringify({ type: "typing" }));
+                }
+                if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                typingTimeoutRef.current = setTimeout(() => {
+                  myTypingRef.current = false;
+                  if (wsRef.current?.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({ type: "typing-stop" }));
+                  }
+                }, 2000);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                // Stop typing indicator on send
+                myTypingRef.current = false;
+                if (typingTimeoutRef.current) { clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }
+                handleSend();
+              }
+            }}
+            placeholder={uploading ? "A enviar..." : "Escreva uma mensagem..."}
+            disabled={uploading}
+            className="flex-1 bg-input-background border-2 border-primary/20 focus:border-secondary rounded-2xl h-12 px-4 font-medium text-sm disabled:opacity-60"
+          />
           <input id="photoInput" type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
           <Button
             onPointerDown={() => { if (!uploading) startRecording(); }}
@@ -788,8 +907,8 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           <Button onClick={() => document.getElementById("photoInput")?.click()}
             disabled={uploading}
             className="w-12 h-12 rounded-2xl bg-black/60 hover:bg-black/80 flex items-center justify-center p-0 shadow-xl flex-shrink-0"
-            title="Enviar foto temporária">
-            <VideoOff className="w-5 h-5" />
+            title="Enviar imagem">
+            <ImageIcon className="w-5 h-5" />
           </Button>
           <Button onClick={handleSend} disabled={uploading}
             className="w-12 h-12 rounded-2xl bg-gradient-to-r from-primary via-[#8B0000] to-black hover:opacity-90 flex items-center justify-center p-0 shadow-xl flex-shrink-0">
@@ -861,7 +980,16 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             className="absolute inset-0 z-50 bg-black flex flex-col">
             <div className="flex-1 relative flex items-center justify-center bg-gray-900">
               {callType === "video" ? (
-                <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                <video
+                  ref={(el) => {
+                    remoteVideoRef.current = el;
+                    if (el && remoteStreamRef.current) {
+                      el.srcObject = remoteStreamRef.current;
+                      el.play().catch(() => {});
+                    }
+                  }}
+                  autoPlay playsInline className="w-full h-full object-cover"
+                />
               ) : (
                 <div className="flex flex-col items-center gap-4">
                   <div className="w-36 h-36 rounded-full overflow-hidden border-4 border-secondary shadow-2xl">
@@ -873,8 +1001,17 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
               )}
 
               {callType === "video" && (
-                <div className="absolute top-4 right-4 w-24 h-32 rounded-xl overflow-hidden border-2 border-secondary shadow-xl bg-gray-800">
-                  <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                <div className="absolute top-3 right-3 w-20 h-28 sm:w-28 sm:h-36 rounded-xl overflow-hidden border-2 border-secondary shadow-xl bg-gray-800">
+                  <video
+                    ref={(el) => {
+                      (localVideoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
+                      if (el && localStreamRef.current) {
+                        el.srcObject = localStreamRef.current;
+                        el.play().catch(() => {});
+                      }
+                    }}
+                    autoPlay playsInline muted className="w-full h-full object-cover mirror"
+                  />
                 </div>
               )}
 

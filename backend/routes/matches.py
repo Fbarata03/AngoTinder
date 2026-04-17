@@ -33,9 +33,11 @@ async def swipe(
     if not target:
         raise HTTPException(status_code=404, detail="Perfil não encontrado")
 
-    # Record swipe, ignore duplicate
+    # Record swipe; if already swiped, update direction (e.g. left→right after cooldown)
     await db.execute(
-        "INSERT INTO swipes (swiper_id, swiped_id, direction) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+        """INSERT INTO swipes (swiper_id, swiped_id, direction) VALUES ($1, $2, $3)
+           ON CONFLICT (swiper_id, swiped_id) DO UPDATE
+           SET direction = EXCLUDED.direction, created_at = NOW()""",
         user_id, req.swiped_id, req.direction,
     )
 

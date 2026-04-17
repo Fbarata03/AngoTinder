@@ -14,7 +14,13 @@ _pool: asyncpg.Pool | None = None
 async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
-        _pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5)
+        _pool = await asyncpg.create_pool(
+            DATABASE_URL,
+            min_size=2,
+            max_size=10,
+            command_timeout=30,
+            max_inactive_connection_lifetime=300,
+        )
     return _pool
 
 
@@ -201,6 +207,14 @@ async def init_db():
         # Índices para melhorar performance e reduzir uso de BD
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_swiper ON swipes(swiper_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_swiped ON swipes(swiped_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_swiped_dir ON swipes(swiped_id, direction)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_created ON swipes(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_match ON messages(match_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_matches_users ON matches(user1_id, user2_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_matches_created ON matches(created_at)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_created ON users(created_at)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_location ON users(location)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_verified ON users(is_verified)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_match_created ON messages(match_id, created_at DESC)")

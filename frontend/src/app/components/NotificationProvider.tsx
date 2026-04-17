@@ -62,6 +62,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             if (payload.type === "new_message") {
               window.dispatchEvent(new Event("angotinder:new_message"));
             }
+            if (payload.type === "new_user") {
+              window.dispatchEvent(new Event("angotinder:new_user"));
+            }
           } catch { /* ignore */ }
         };
 
