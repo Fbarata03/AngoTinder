@@ -2,7 +2,7 @@ import { Heart, Sparkles, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { useNavigate } from "react-router";
-import { AfricanPattern, AngolanFlag } from "./AfricanPatterns";
+import { AfricanPattern } from "./AfricanPatterns";
 import { motion } from "motion/react";
 import { useApp } from "../context";
 import { useState } from "react";
@@ -103,9 +103,6 @@ export function TelaInicial() {
       <div className="absolute inset-0 opacity-20 pointer-events-none">
         <AfricanPattern className="absolute top-0 left-0 w-96 h-96 text-secondary animate-pulse" />
         <AfricanPattern className="absolute bottom-0 right-0 w-96 h-96 text-secondary animate-pulse" style={{ animationDelay: "1s" }} />
-      </div>
-      <div className="absolute top-4 right-4 opacity-30 pointer-events-none">
-        <AngolanFlag className="w-16 h-11" />
       </div>
 
       <div className="relative flex flex-col h-full overflow-y-auto">

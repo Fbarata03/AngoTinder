@@ -145,6 +145,8 @@ async def upload_chat_media(
 @router.get("/{match_id}")
 async def get_messages(
     match_id: str,
+    limit: int = Query(120, ge=1, le=200),
+    before_id: int | None = Query(None, ge=1),
     user_id: str = Depends(get_current_user_id),
     db: asyncpg.Connection = Depends(get_db),
 ):
@@ -155,15 +157,32 @@ async def get_messages(
     if not row:
         raise HTTPException(status_code=403, detail="Sem permissão")
 
-    rows = await db.fetch(
-        """SELECT m.*, u.name as sender_name
-           FROM messages m
-           JOIN users u ON u.id = m.sender_id
-           WHERE m.match_id=$1
-           ORDER BY m.created_at ASC""",
-        match_id,
-    )
-    return [serialize_msg(r) for r in rows]
+    if before_id:
+        rows = await db.fetch(
+            """SELECT m.*, u.name as sender_name
+               FROM messages m
+               JOIN users u ON u.id = m.sender_id
+               WHERE m.match_id=$1 AND m.id < $2
+               ORDER BY m.id DESC
+               LIMIT $3""",
+            match_id,
+            before_id,
+            limit,
+        )
+    else:
+        rows = await db.fetch(
+            """SELECT m.*, u.name as sender_name
+               FROM messages m
+               JOIN users u ON u.id = m.sender_id
+               WHERE m.match_id=$1
+               ORDER BY m.id DESC
+               LIMIT $2""",
+            match_id,
+            limit,
+        )
+
+    rows_asc = list(reversed(rows))
+    return [serialize_msg(r) for r in rows_asc]
 
 
 @router.post("/{match_id}")
