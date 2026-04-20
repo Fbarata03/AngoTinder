@@ -337,12 +337,17 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  // streamTick: incrementado sempre que local ou remote stream mudam → dispara re-aplicação
+  const [streamTick, setStreamTick] = useState(0);
+  const bumpStream = useCallback(() => setStreamTick((n) => n + 1), []);
+
   const callStateRef = useRef<CallState>("idle");
   const callTypeRef = useRef<"audio" | "video">("audio");
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
+  // Refs simples — os elementos estão sempre no DOM (hidden via CSS)
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -352,22 +357,42 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   useEffect(() => { callStateRef.current = callState; }, [callState]);
   useEffect(() => { callTypeRef.current = callType; }, [callType]);
 
-  // When call becomes connected, apply the remote stream to the correct element
+  // Aplicação central de streams — dispara quando qualquer dependência muda,
+  // com retries (200ms e 900ms) para cobrir timing issues em iOS/Safari/Firefox
   useEffect(() => {
-    if (callState !== "connected" || !remoteStreamRef.current) return;
-    const stream = remoteStreamRef.current;
-    if (callType === "video") {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = stream;
-        remoteVideoRef.current.play().catch(() => {});
+    const apply = () => {
+      // Vídeo local (sempre muted — evita eco)
+      if (localStreamRef.current && localVideoRef.current) {
+        if (localVideoRef.current.srcObject !== localStreamRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+        }
+        localVideoRef.current.play().catch(() => {});
       }
-    } else {
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = stream;
-        remoteAudioRef.current.play().catch(() => {});
+      // Stream remoto
+      const remote = remoteStreamRef.current;
+      if (callType === "video") {
+        if (remote && remoteVideoRef.current) {
+          if (remoteVideoRef.current.srcObject !== remote) {
+            remoteVideoRef.current.srcObject = remote;
+          }
+          remoteVideoRef.current.play().catch(() => {});
+        }
+        // Evitar eco: limpar elemento de áudio em chamadas de vídeo
+        if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
+      } else {
+        if (remote && remoteAudioRef.current) {
+          if (remoteAudioRef.current.srcObject !== remote) {
+            remoteAudioRef.current.srcObject = remote;
+          }
+          remoteAudioRef.current.play().catch(() => {});
+        }
       }
-    }
-  }, [callState, callType]);
+    };
+    apply();
+    const t1 = setTimeout(apply, 200);
+    const t2 = setTimeout(apply, 900);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [streamTick, callState, callType]);
 
   useEffect(() => {
     messagesApi.getMessages(match.match_id)
@@ -447,24 +472,15 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     };
 
     pc.ontrack = (e) => {
-      const stream = e.streams[0];
+      // Alguns browsers (Firefox, Safari) podem não preencher e.streams
+      const stream = e.streams[0] ?? (() => {
+        const s = new MediaStream();
+        if (e.track) s.addTrack(e.track);
+        return s;
+      })();
       remoteStreamRef.current = stream;
-      // Route stream to the correct element based on call type.
-      // Video calls: video element handles both audio+video (avoids echo).
-      // Audio calls: hidden audio element handles audio.
-      if (callTypeRef.current === "video") {
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = stream;
-          remoteVideoRef.current.play().catch(() => {});
-        }
-        // Clear audio element to prevent echo
-        if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
-      } else {
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = stream;
-          remoteAudioRef.current.play().catch(() => {});
-        }
-      }
+      // Disparar re-aplicação de streams (useEffect central com retries)
+      bumpStream();
     };
 
     pc.onconnectionstatechange = () => {
@@ -477,7 +493,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       }
     };
     return pc;
-  }, [sendSignal, endCall, getTurnIceServer]);
+  }, [sendSignal, endCall, getTurnIceServer, bumpStream]);
 
   useEffect(() => {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -587,10 +603,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       localStreamRef.current = stream;
       setCallType(type);
       setCallState("calling");
-      if (type === "video" && localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        localVideoRef.current.play().catch(() => {});
-      }
+      bumpStream(); // Aplicar stream local imediatamente
       const pc = await createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: type === "video" });
@@ -616,10 +629,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
       setCallState("calling");
-      if (callType === "video" && localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        localVideoRef.current.play().catch(() => {});
-      }
+      bumpStream(); // Aplicar stream local imediatamente
       const pc = await createPC();
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       if (pendingOfferRef.current) {
@@ -738,15 +748,31 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   return (
     <div className="h-full min-h-0 flex flex-col bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
       <AfricanPattern className="absolute inset-0 text-primary opacity-5 pointer-events-none" />
-      <audio
-        ref={(el) => {
-          remoteAudioRef.current = el;
-          if (el && remoteStreamRef.current && callTypeRef.current !== "video") {
-            el.srcObject = remoteStreamRef.current;
-            el.play().catch(() => {});
-          }
-        }}
-        autoPlay playsInline className="hidden"
+
+      {/* ── Elementos de média SEMPRE no DOM para evitar timing issues ── */}
+      {/* O srcObject é gerido pelo useEffect central com retries */}
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+      {/* Vídeo local: mostrado no overlay quando em chamada de vídeo */}
+      <video
+        ref={localVideoRef}
+        autoPlay playsInline muted
+        className={`
+          mirror object-cover
+          ${callState !== "idle" && callType === "video"
+            ? "absolute top-4 right-4 z-[60] w-24 h-32 sm:w-32 sm:h-44 md:w-40 md:h-52 rounded-2xl border-2 border-secondary shadow-2xl bg-gray-900"
+            : "hidden"}
+        `}
+      />
+      {/* Vídeo remoto: mostrado em full quando chamada de vídeo conectada */}
+      <video
+        ref={remoteVideoRef}
+        autoPlay playsInline
+        className={`
+          object-cover
+          ${callState === "connected" && callType === "video"
+            ? "absolute inset-0 z-[55] w-full h-full"
+            : "hidden"}
+        `}
       />
 
       {/* Header */}
@@ -920,11 +946,11 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
       <ProfileModal open={showProfile} onClose={() => setShowProfile(false)} match={match} />
 
-      {/* ── Incoming Call ── */}
+      {/* ── Incoming Call overlay ── */}
       <AnimatePresence>
         {callState === "incoming" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center gap-8">
+            className="absolute inset-0 z-50 bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center gap-8">
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-secondary shadow-2xl animate-pulse">
               <Avatar photo={match.photos[0]} name={match.name} />
             </div>
@@ -933,9 +959,9 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                 {callType === "video" ? "📹 Chamada de vídeo" : "📞 Chamada de voz"}
               </p>
               <h2 className="text-3xl font-black text-white">{match.name}</h2>
-              <p className="text-secondary font-bold mt-2 animate-pulse">A ligar para ti...</p>
+              <p className="text-secondary font-bold mt-2 animate-pulse">Chamada recebida...</p>
             </div>
-            <div className="flex gap-12 mt-2">
+            <div className="flex gap-12">
               <button onClick={rejectCall}
                 className="w-20 h-20 bg-red-500 hover:bg-red-600 active:scale-95 rounded-full flex flex-col items-center justify-center gap-1 shadow-xl transition-all">
                 <PhoneOff className="w-8 h-8 text-white" />
@@ -951,16 +977,20 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         )}
       </AnimatePresence>
 
-      {/* ── Calling (waiting) ── */}
+      {/* ── Calling (a aguardar) overlay ── */}
       <AnimatePresence>
         {callState === "calling" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center gap-8">
-            <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-secondary shadow-2xl">
+            className="absolute inset-0 z-50 bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center gap-6">
+            {/* Preview da câmara própria enquanto aguarda (só vídeo) */}
+            {callType === "video" && (
+              <p className="text-secondary/70 text-xs font-bold tracking-wide uppercase">A tua câmara</p>
+            )}
+            <div className="w-36 h-36 rounded-full overflow-hidden border-4 border-secondary shadow-2xl">
               <Avatar photo={match.photos[0]} name={match.name} />
             </div>
             <div className="text-center">
-              <p className="text-white/60 text-sm font-bold mb-2">
+              <p className="text-white/60 text-sm font-bold mb-1">
                 {callType === "video" ? "📹 Chamada de vídeo" : "📞 Chamada de voz"}
               </p>
               <h2 className="text-3xl font-black text-white">{match.name}</h2>
@@ -974,79 +1004,63 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         )}
       </AnimatePresence>
 
-      {/* ── Active Call ── */}
+      {/* ── Chamada activa overlay ── */}
       <AnimatePresence>
         {callState === "connected" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black flex flex-col">
-            <div className="flex-1 relative flex items-center justify-center bg-gray-900">
-              {callType === "video" ? (
-                <video
-                  ref={(el) => {
-                    remoteVideoRef.current = el;
-                    if (el && remoteStreamRef.current) {
-                      el.srcObject = remoteStreamRef.current;
-                      el.play().catch(() => {});
-                    }
-                  }}
-                  autoPlay playsInline className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-36 h-36 rounded-full overflow-hidden border-4 border-secondary shadow-2xl">
+            className="absolute inset-0 z-50 bg-black flex flex-col">
+
+            {/* Área principal: vídeo remoto ou avatar para chamada de voz */}
+            <div className="flex-1 relative bg-gray-950 overflow-hidden">
+              {callType === "audio" && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+                  <div className="w-36 h-36 md:w-48 md:h-48 rounded-full overflow-hidden border-4 border-secondary shadow-2xl">
                     <Avatar photo={match.photos[0]} name={match.name} />
                   </div>
                   <h2 className="text-3xl font-black text-white">{match.name}</h2>
-                  <p className="text-white/40 text-sm">Em chamada</p>
+                  <p className="text-secondary/80 text-sm font-bold animate-pulse">Em chamada de voz</p>
                 </div>
               )}
+              {/* Nota: o <video remoteVideoRef> está sempre no DOM (acima),
+                  posicionado com absolute inset-0 quando callState==="connected" && callType==="video" */}
 
-              {callType === "video" && (
-                <div className="absolute top-3 right-3 w-20 h-28 sm:w-28 sm:h-36 rounded-xl overflow-hidden border-2 border-secondary shadow-xl bg-gray-800">
-                  <video
-                    ref={(el) => {
-                      (localVideoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
-                      if (el && localStreamRef.current) {
-                        el.srcObject = localStreamRef.current;
-                        el.play().catch(() => {});
-                      }
-                    }}
-                    autoPlay playsInline muted className="w-full h-full object-cover mirror"
-                  />
-                </div>
-              )}
-
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 px-4 py-1.5 rounded-full">
-                <p className="text-secondary font-black text-sm">{formatDuration(callDuration)}</p>
+              {/* Timer */}
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-black/70 px-5 py-2 rounded-full">
+                <p className="text-secondary font-black text-sm tracking-widest">{formatDuration(callDuration)}</p>
               </div>
+
+              {/* Nome do outro utilizador (vídeo) */}
+              {callType === "video" && (
+                <div className="absolute bottom-4 left-4 z-10 bg-black/60 px-3 py-1.5 rounded-full">
+                  <p className="text-white font-bold text-sm">{match.name}</p>
+                </div>
+              )}
             </div>
 
-            {/* Controls */}
-            <div className="bg-black/95 px-8 py-6 flex items-center justify-around flex-shrink-0">
-              <button onClick={toggleMute}
-                className={`w-14 h-14 rounded-full flex flex-col items-center justify-center gap-1 transition-colors active:scale-95 ${muted ? "bg-white/30" : "bg-white/10 hover:bg-white/20"}`}>
-                {muted ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
-                <span className="text-white/60 text-xs">{muted ? "Ligar" : "Mudo"}</span>
-              </button>
-
+            {/* Controlos */}
+            <div className="bg-black px-6 py-5 md:py-6 flex items-center justify-around flex-shrink-0 border-t border-white/10">
+              <CallBtn
+                onClick={toggleMute}
+                active={muted}
+                label={muted ? "Ativar" : "Mudo"}
+                icon={muted ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
+              />
               <button onClick={hangUp}
                 className="w-16 h-16 bg-red-500 hover:bg-red-600 active:scale-95 rounded-full flex items-center justify-center shadow-xl transition-all">
                 <PhoneOff className="w-7 h-7 text-white" />
               </button>
-
               {callType === "video" ? (
-                <button
+                <CallBtn
                   onClick={toggleVideo}
-                  className={`w-14 h-14 rounded-full flex flex-col items-center justify-center gap-1 transition-colors active:scale-95 ${videoOff ? "bg-white/30" : "bg-white/10 hover:bg-white/20"}`}
-                >
-                  {videoOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6 text-white" />}
-                  <span className="text-white/60 text-xs">{videoOff ? "Ativar" : "Câmara"}</span>
-                </button>
+                  active={videoOff}
+                  label={videoOff ? "Ativar" : "Câmara"}
+                  icon={videoOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6 text-white" />}
+                />
               ) : (
-                <button disabled className="w-14 h-14 rounded-full flex flex-col items-center justify-center gap-1 bg-white/10 opacity-40">
+                <div className="w-14 h-14 rounded-full bg-white/5 flex flex-col items-center justify-center gap-1 opacity-30">
                   <VideoOff className="w-6 h-6 text-white" />
                   <span className="text-white/60 text-xs">Vídeo</span>
-                </button>
+                </div>
               )}
             </div>
           </motion.div>
@@ -1140,6 +1154,16 @@ function ProfileModal({ open, onClose, match }: { open: boolean; onClose: () => 
     </div>
   );
 }
+function CallBtn({ onClick, active, label, icon }: { onClick: () => void; active: boolean; label: string; icon: React.ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className={`w-14 h-14 rounded-full flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${active ? "bg-white/30" : "bg-white/10 hover:bg-white/20"}`}>
+      {icon}
+      <span className="text-white/60 text-xs">{label}</span>
+    </button>
+  );
+}
+
 function DesktopPlaceholder() {
   const navigate = useNavigate();
   return (
