@@ -15,8 +15,8 @@ const TURN_URL = (import.meta as any).env?.VITE_TURN_URL as string | undefined;
 const TURN_USERNAME = (import.meta as any).env?.VITE_TURN_USERNAME as string | undefined;
 const TURN_CREDENTIAL = (import.meta as any).env?.VITE_TURN_CREDENTIAL as string | undefined;
 
-// Fallback grÃ¡tis para melhorar chamadas sem servidor TURN prÃ³prio.
-// Nota: pode ter limites, mas melhora bastante em redes mÃ³veis/NAT.
+// Fallback grátis para melhorar chamadas sem servidor TURN próprio.
+// Nota: pode ter limites, mas melhora bastante em redes móveis/NAT.
 const PUBLIC_FALLBACK_ICE_SERVERS: RTCIceServer[] = [
   { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
   { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
@@ -119,7 +119,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
       .then((m) => {
         setMatches(m);
         setLoading(false);
-        // Auto-abrir conversa se veio de um match (sÃ³ uma vez)
+        // Auto-abrir conversa se veio de um match (só uma vez)
         if (autoOpenMatchId && !autoOpenedRef.current) {
           const found = m.find((x) => x.match_id === autoOpenMatchId);
           if (found) {
@@ -273,7 +273,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
                     )}
                   </div>
                   <p className={`text-sm truncate ${isUnread(m) ? "text-foreground font-bold" : "text-muted-foreground"}`}>
-                    {m.last_message || "Diga olÃ¡! ð"}
+                    {m.last_message || "Diga olá! ð"}
                   </p>
                 </div>
               </button>
@@ -337,7 +337,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
-  // streamTick: incrementado sempre que local ou remote stream mudam â dispara re-aplicaÃ§Ã£o
+  // streamTick: incrementado sempre que local ou remote stream mudam â dispara re-aplicação
   const [streamTick, setStreamTick] = useState(0);
   const bumpStream = useCallback(() => setStreamTick((n) => n + 1), []);
 
@@ -346,7 +346,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
-  // Refs simples â os elementos estÃ£o sempre no DOM (hidden via CSS)
+  // Refs simples â os elementos estão sempre no DOM (hidden via CSS)
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -357,11 +357,11 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   useEffect(() => { callStateRef.current = callState; }, [callState]);
   useEffect(() => { callTypeRef.current = callType; }, [callType]);
 
-  // AplicaÃ§Ã£o central de streams â dispara quando qualquer dependÃªncia muda,
+  // Aplicação central de streams â dispara quando qualquer dependência muda,
   // com retries (200ms e 900ms) para cobrir timing issues em iOS/Safari/Firefox
   useEffect(() => {
     const apply = () => {
-      // VÃ­deo local (sempre muted â evita eco)
+      // Vídeo local (sempre muted â evita eco)
       if (localStreamRef.current && localVideoRef.current) {
         if (localVideoRef.current.srcObject !== localStreamRef.current) {
           localVideoRef.current.srcObject = localStreamRef.current;
@@ -377,7 +377,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           }
           remoteVideoRef.current.play().catch(() => {});
         }
-        // Evitar eco: limpar elemento de Ã¡udio em chamadas de vÃ­deo
+        // Evitar eco: limpar elemento de áudio em chamadas de vídeo
         if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
       } else {
         if (remote && remoteAudioRef.current) {
@@ -472,14 +472,14 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     };
 
     pc.ontrack = (e) => {
-      // Alguns browsers (Firefox, Safari) podem nÃ£o preencher e.streams
+      // Alguns browsers (Firefox, Safari) podem não preencher e.streams
       const stream = e.streams[0] ?? (() => {
         const s = new MediaStream();
         if (e.track) s.addTrack(e.track);
         return s;
       })();
       remoteStreamRef.current = stream;
-      // Disparar re-aplicaÃ§Ã£o de streams (useEffect central com retries)
+      // Disparar re-aplicação de streams (useEffect central com retries)
       bumpStream();
     };
 
@@ -570,7 +570,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
           if (type === "call-busy") {
             endCall();
-            alert("A outra pessoa jÃ¡ estÃ¡ em chamada.");
+            alert("A outra pessoa já está em chamada.");
           }
         } catch { /* ignore */ }
       };
@@ -612,10 +612,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     } catch (err) {
       setCallState("idle");
       const msg = err instanceof Error && err.name === "NotAllowedError"
-        ? "PermissÃ£o negada. Ativa o microfone/cÃ¢mara nas definiÃ§Ãµes do browser."
+        ? "Permissão negada. Ativa o microfone/câmara nas definições do browser."
         : type === "video"
-        ? "NÃ£o foi possÃ­vel aceder Ã  cÃ¢mara. Verifica as permissÃµes."
-        : "NÃ£o foi possÃ­vel aceder ao microfone. Verifica as permissÃµes.";
+        ? "Não foi possível aceder à  câmara. Verifica as permissões."
+        : "Não foi possível aceder ao microfone. Verifica as permissões.";
       alert(msg);
     }
   };
@@ -641,7 +641,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     } catch {
       sendSignal({ type: "call-reject" });
       endCall();
-      alert("NÃ£o foi possÃ­vel aceder ao microfone/cÃ¢mara. Verifica as permissÃµes.");
+      alert("Não foi possível aceder ao microfone/câmara. Verifica as permissões.");
     }
   };
 
@@ -735,7 +735,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       };
       rec.start();
     } catch {
-      alert("Permita acesso ao microfone para gravar Ã¡udio.");
+      alert("Permita acesso ao microfone para gravar áudio.");
     }
   };
 
@@ -749,10 +749,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     <div className="h-full min-h-0 flex flex-col bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
       <AfricanPattern className="absolute inset-0 text-primary opacity-5 pointer-events-none" />
 
-      {/* ââ Elementos de mÃ©dia SEMPRE no DOM para evitar timing issues ââ */}
-      {/* O srcObject Ã© gerido pelo useEffect central com retries */}
+      {/* ââ Elementos de média SEMPRE no DOM para evitar timing issues ââ */}
+      {/* O srcObject é gerido pelo useEffect central com retries */}
       <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
-      {/* VÃ­deo local: mostrado no overlay quando em chamada de vÃ­deo */}
+      {/* Vídeo local: mostrado no overlay quando em chamada de vídeo */}
       <video
         ref={localVideoRef}
         autoPlay playsInline muted
@@ -763,7 +763,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             : "hidden"}
         `}
       />
-      {/* VÃ­deo remoto: mostrado em full quando chamada de vÃ­deo conectada */}
+      {/* Vídeo remoto: mostrado em full quando chamada de vídeo conectada */}
       <video
         ref={remoteVideoRef}
         autoPlay playsInline
@@ -778,7 +778,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       {/* Header */}
       <div className="relative bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-[#1a0000] px-6 py-4 text-white shadow-2xl z-10 flex-shrink-0 border-b-2 border-secondary/30">
         <div className="max-w-4xl mx-auto flex items-center gap-4">
-          {/* BotÃ£o voltar apenas no mobile */}
+          {/* Botão voltar apenas no mobile */}
           <button onClick={onBack} className="md:hidden p-2 hover:bg-white/20 rounded-xl transition-colors flex-shrink-0">
             <ArrowLeft className="w-6 h-6" />
           </button>
@@ -800,7 +800,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             <Phone className="w-5 h-5 text-white" />
           </button>
           <button onClick={() => startCall("video")} disabled={callState !== "idle"}
-            title="Chamada de vÃ­deo"
+            title="Chamada de vídeo"
             className="p-2.5 w-11 h-11 flex items-center justify-center bg-[#1e3a6e] hover:bg-[#1e4a8a] rounded-full transition-colors disabled:opacity-40 shadow-lg flex-shrink-0">
             <Video className="w-5 h-5 text-white" />
           </button>
@@ -844,7 +844,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                       const el = e.target as HTMLAudioElement;
                       el.style.display = "none";
                       const p = document.createElement("p");
-                      p.textContent = "ðµ Ãudio expirado";
+                      p.textContent = "ðµ ›udio expirado";
                       p.className = "text-xs opacity-60 italic";
                       el.parentNode?.appendChild(p);
                     }} />
@@ -928,7 +928,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             onPointerLeave={stopRecording}
             disabled={uploading}
             className="w-12 h-12 rounded-2xl bg-black/60 hover:bg-black/80 flex items-center justify-center p-0 shadow-xl flex-shrink-0"
-            title="Gravar Ã¡udio">
+            title="Gravar áudio">
             <Mic className="w-5 h-5" />
           </Button>
           <Button onClick={() => document.getElementById("photoInput")?.click()}
@@ -956,7 +956,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             </div>
             <div className="text-center">
               <p className="text-white/60 text-sm font-bold mb-2">
-                {callType === "video" ? "ð¹ Chamada de vÃ­deo" : "ð Chamada de voz"}
+                {callType === "video" ? "ð¹ Chamada de vídeo" : "ð Chamada de voz"}
               </p>
               <h2 className="text-3xl font-black text-white">{match.name}</h2>
               <p className="text-secondary font-bold mt-2 animate-pulse">Chamada recebida...</p>
@@ -982,16 +982,16 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         {callState === "calling" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="absolute inset-0 z-50 bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center gap-6">
-            {/* Preview da cÃ¢mara prÃ³pria enquanto aguarda (sÃ³ vÃ­deo) */}
+            {/* Preview da câmara própria enquanto aguarda (só vídeo) */}
             {callType === "video" && (
-              <p className="text-secondary/70 text-xs font-bold tracking-wide uppercase">A tua cÃ¢mara</p>
+              <p className="text-secondary/70 text-xs font-bold tracking-wide uppercase">A tua câmara</p>
             )}
             <div className="w-36 h-36 rounded-full overflow-hidden border-4 border-secondary shadow-2xl">
               <Avatar photo={match.photos[0]} name={match.name} />
             </div>
             <div className="text-center">
               <p className="text-white/60 text-sm font-bold mb-1">
-                {callType === "video" ? "ð¹ Chamada de vÃ­deo" : "ð Chamada de voz"}
+                {callType === "video" ? "ð¹ Chamada de vídeo" : "ð Chamada de voz"}
               </p>
               <h2 className="text-3xl font-black text-white">{match.name}</h2>
               <p className="text-secondary font-bold mt-2 animate-pulse">A chamar...</p>
@@ -1010,7 +1010,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="absolute inset-0 z-50 bg-black flex flex-col">
 
-            {/* Ãrea principal: vÃ­deo remoto ou avatar para chamada de voz */}
+            {/* ›rea principal: vídeo remoto ou avatar para chamada de voz */}
             <div className="flex-1 relative bg-gray-950 overflow-hidden">
               {callType === "audio" && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
@@ -1021,7 +1021,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                   <p className="text-secondary/80 text-sm font-bold animate-pulse">Em chamada de voz</p>
                 </div>
               )}
-              {/* Nota: o <video remoteVideoRef> estÃ¡ sempre no DOM (acima),
+              {/* Nota: o <video remoteVideoRef> está sempre no DOM (acima),
                   posicionado com absolute inset-0 quando callState==="connected" && callType==="video" */}
 
               {/* Timer */}
@@ -1029,7 +1029,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                 <p className="text-secondary font-black text-sm tracking-widest">{formatDuration(callDuration)}</p>
               </div>
 
-              {/* Nome do outro utilizador (vÃ­deo) */}
+              {/* Nome do outro utilizador (vídeo) */}
               {callType === "video" && (
                 <div className="absolute bottom-4 left-4 z-10 bg-black/60 px-3 py-1.5 rounded-full">
                   <p className="text-white font-bold text-sm">{match.name}</p>
@@ -1053,13 +1053,13 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                 <CallBtn
                   onClick={toggleVideo}
                   active={videoOff}
-                  label={videoOff ? "Ativar" : "CÃ¢mara"}
+                  label={videoOff ? "Ativar" : "Câmara"}
                   icon={videoOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6 text-white" />}
                 />
               ) : (
                 <div className="w-14 h-14 rounded-full bg-white/5 flex flex-col items-center justify-center gap-1 opacity-30">
                   <VideoOff className="w-6 h-6 text-white" />
-                  <span className="text-white/60 text-xs">VÃ­deo</span>
+                  <span className="text-white/60 text-xs">Vídeo</span>
                 </div>
               )}
             </div>
@@ -1105,7 +1105,7 @@ function ProfileModal({ open, onClose, match }: { open: boolean; onClose: () => 
             </>
           )}
           {/* Close */}
-          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white font-black text-lg">Ã</button>
+          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white font-black text-lg">›</button>
           {match.is_verified === 1 && (
             <div className="absolute top-3 left-3 bg-gradient-to-r from-secondary to-[#FFD700] px-2 py-0.5 rounded-full flex items-center gap-1">
               <Star className="w-3 h-3 text-black fill-black" />
@@ -1176,7 +1176,7 @@ function DesktopPlaceholder() {
           </div>
         </div>
         <h2 className="text-2xl font-black text-foreground mb-2">Seleciona uma conversa</h2>
-        <p className="text-muted-foreground font-medium mb-8">Escolhe um match Ã  esquerda para comeÃ§ar a falar</p>
+        <p className="text-muted-foreground font-medium mb-8">Escolhe um match à  esquerda para começar a falar</p>
         <button
           onClick={() => navigate("/discover")}
           className="px-6 py-3 bg-gradient-to-r from-primary to-[#8B0000] text-white font-black rounded-2xl shadow-lg hover:opacity-90 transition-opacity"
