@@ -353,6 +353,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const turnCacheRef = useRef<{ exp: number; server: RTCIceServer } | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
 
   useEffect(() => { callStateRef.current = callState; }, [callState]);
   useEffect(() => { callTypeRef.current = callType; }, [callType]);
@@ -560,8 +561,18 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             await pcRef.current.setRemoteDescription({ type: "answer", sdp: payload.sdp as string });
           }
 
-          if (type === "ice-candidate" && pcRef.current) {
-            try { await pcRef.current.addIceCandidate(payload.candidate as RTCIceCandidateInit); } catch { /* ok */ }
+          if (type === "ice-candidate") {
+            const candidate = payload.candidate as RTCIceCandidateInit;
+            const pc = pcRef.current;
+            if (!pc || !pc.remoteDescription) {
+              pendingCandidatesRef.current.push(candidate);
+              return;
+            }
+            try {
+              await pc.addIceCandidate(candidate);
+            } catch {
+              pendingCandidatesRef.current.push(candidate);
+            }
           }
 
           if (type === "call-end" || type === "call-reject") {
@@ -637,6 +648,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         sendSignal({ type: "call-answer", sdp: answer.sdp });
+        for (const c of pendingCandidatesRef.current) {
+          try { await pc.addIceCandidate(c); } catch { /* ok */ }
+        }
+        pendingCandidatesRef.current = [];
       }
     } catch {
       sendSignal({ type: "call-reject" });
