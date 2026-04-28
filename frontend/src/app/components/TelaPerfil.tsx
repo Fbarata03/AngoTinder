@@ -74,9 +74,11 @@ export function TelaPerfil() {
   if (!profile) return null;
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
-      <AfricanPattern className="absolute top-0 right-0 w-96 h-96 text-primary opacity-5" />
-      <AfricanPattern className="absolute bottom-0 left-0 w-96 h-96 text-secondary opacity-5" />
+    <div className="min-h-[100dvh] bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <AfricanPattern className="absolute top-0 right-0 w-96 h-96 text-primary opacity-5" />
+        <AfricanPattern className="absolute bottom-0 left-0 w-96 h-96 text-secondary opacity-5" />
+      </div>
 
       <div className="relative bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-black p-6 text-white shadow-xl">
         <div className="flex items-center justify-between max-w-4xl mx-auto">

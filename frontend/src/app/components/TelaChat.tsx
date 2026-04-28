@@ -2,7 +2,7 @@
 import {
   Heart, User, MessageCircle, Send, ArrowLeft, Sparkles, Star,
   Phone, Video, PhoneOff, VideoOff, Mic, MicOff, PhoneCall, Trash2, ImageIcon,
-  CheckCheck, Smile, X as XIcon, Play, Pause,
+  CheckCheck, Smile, X as XIcon, Play, Pause, Volume2, VolumeX, RefreshCw,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -339,7 +339,13 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
               </Button>
             </div>
           )}
-          {matches.map((m, i) => (
+          {!loading && matches.length > 0 && !matches.some((m) => !!m.last_message) && (
+            <div className="text-center py-10 px-6">
+              <MessageCircle className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-muted-foreground text-sm font-medium">Clica num match acima para começar a falar!</p>
+            </div>
+          )}
+          {matches.filter((m) => !!m.last_message).map((m, i) => (
             <motion.div key={m.match_id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
               className={`border-b border-primary/10 flex items-center group ${selectedMatchId === m.match_id ? "bg-secondary/10 border-l-4 border-l-secondary" : ""}`}>
@@ -444,6 +450,8 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [callType, setCallType] = useState<"audio" | "video">("audio");
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(false);
+  const [speakerOn, setSpeakerOn] = useState(true);
+  const [facingFront, setFacingFront] = useState(true);
   const [callDuration, setCallDuration] = useState(0);
   // streamTick: incrementado sempre que local ou remote stream mudam â dispara re-aplicação
   const [streamTick, setStreamTick] = useState(0);
@@ -806,6 +814,32 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const toggleVideo = () => {
     localStreamRef.current?.getVideoTracks().forEach((t) => { t.enabled = videoOff; });
     setVideoOff((v) => !v);
+  };
+
+  const toggleSpeaker = () => {
+    const audio = remoteAudioRef.current;
+    if (audio && "setSinkId" in HTMLMediaElement.prototype) {
+      (audio as any).setSinkId(speakerOn ? "" : "default").catch(() => {});
+    }
+    setSpeakerOn((s) => !s);
+  };
+
+  const flipCamera = async () => {
+    if (!localStreamRef.current || callType !== "video") return;
+    const videoTrack = localStreamRef.current.getVideoTracks()[0];
+    if (!videoTrack) return;
+    const newFacing = facingFront ? "environment" : "user";
+    videoTrack.stop();
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: newFacing }, audio: false });
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === "video");
+      if (sender) await sender.replaceTrack(newVideoTrack);
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      localStreamRef.current = new MediaStream([...audioTracks, newVideoTrack]);
+      setFacingFront((f) => !f);
+      bumpStream();
+    } catch { /* sem câmara traseira ou permissão negada */ }
   };
 
   const formatDuration = (s: number) =>
@@ -1350,30 +1384,27 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
               )}
             </div>
 
-            {/* Controlos */}
-            <div className="bg-black px-6 py-5 md:py-6 flex items-center justify-around flex-shrink-0 border-t border-white/10">
-              <CallBtn
-                onClick={toggleMute}
-                active={muted}
-                label={muted ? "Ativar" : "Mudo"}
-                icon={muted ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />}
-              />
+            {/* Controlos estilo WhatsApp */}
+            <div className="bg-black/95 px-3 py-5 md:py-6 flex items-center justify-around flex-shrink-0 border-t border-white/10">
+              <CallBtn onClick={toggleSpeaker} active={!speakerOn}
+                label={speakerOn ? "Altifalante" : "Auricular"}
+                icon={speakerOn ? <Volume2 className="w-6 h-6 text-white" /> : <VolumeX className="w-6 h-6 text-white" />} />
+              <CallBtn onClick={toggleMute} active={muted}
+                label={muted ? "Ativar Mic" : "Silenciar"}
+                icon={muted ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-white" />} />
               <button onClick={hangUp}
                 className="w-16 h-16 bg-red-500 hover:bg-red-600 active:scale-95 rounded-full flex items-center justify-center shadow-xl transition-all">
                 <PhoneOff className="w-7 h-7 text-white" />
               </button>
+              <CallBtn onClick={toggleVideo} active={videoOff}
+                label={videoOff ? "Ligar Cam" : "Câmara"}
+                icon={videoOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6 text-white" />} />
               {callType === "video" ? (
-                <CallBtn
-                  onClick={toggleVideo}
-                  active={videoOff}
-                  label={videoOff ? "Ativar" : "Câmara"}
-                  icon={videoOff ? <VideoOff className="w-6 h-6 text-white" /> : <Video className="w-6 h-6 text-white" />}
-                />
+                <CallBtn onClick={flipCamera} active={false}
+                  label="Inverter"
+                  icon={<RefreshCw className="w-5 h-5 text-white" />} />
               ) : (
-                <div className="w-14 h-14 rounded-full bg-white/5 flex flex-col items-center justify-center gap-1 opacity-30">
-                  <VideoOff className="w-6 h-6 text-white" />
-                  <span className="text-white/60 text-xs">Vídeo</span>
-                </div>
+                <div className="w-14 h-14 opacity-0 pointer-events-none" />
               )}
             </div>
           </motion.div>
