@@ -369,7 +369,16 @@ async def get_likes(
     rows = await db.fetch(
         """SELECT u.* FROM users u
            INNER JOIN swipes s ON s.swiper_id = u.id
-           WHERE s.swiped_id = $1 AND s.direction IN ('right', 'super')
+           WHERE s.swiped_id = $1
+             AND s.direction IN ('right', 'super')
+             AND u.id NOT IN (
+                 SELECT CASE WHEN user1_id = $1 THEN user2_id ELSE user1_id END
+                 FROM matches WHERE user1_id = $1 OR user2_id = $1
+             )
+             AND u.id NOT IN (
+                 SELECT swiped_id FROM swipes
+                 WHERE swiper_id = $1 AND direction = 'left'
+             )
            ORDER BY s.created_at DESC""",
         user_id,
     )
@@ -384,10 +393,14 @@ async def get_top_picks(
     rows = await db.fetch(
         """SELECT u.* FROM users u
            WHERE u.id != $1
-             AND u.id NOT IN (SELECT swiped_id FROM swipes WHERE swiper_id = $2)
+             AND u.id NOT IN (SELECT swiped_id FROM swipes WHERE swiper_id = $1)
+             AND u.id NOT IN (
+                 SELECT CASE WHEN user1_id = $1 THEN user2_id ELSE user1_id END
+                 FROM matches WHERE user1_id = $1 OR user2_id = $1
+             )
            ORDER BY u.is_verified DESC, RANDOM()
            LIMIT 6""",
-        user_id, user_id,
+        user_id,
     )
 
     reasons = ["Compartilha seus interesses", "Mora perto de você", "Perfil muito ativo",

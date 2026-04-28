@@ -9,6 +9,26 @@ import { FiltersModal, Filters } from "./FiltersModal";
 import { profilesApi, matchesApi, notificationsApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
 
+const SUPER_KEY = "angotinder_super_likes";
+const SUPER_DATE_KEY = "angotinder_super_likes_date";
+
+function getSuperLikesInitial(): number {
+  try {
+    const today = new Date().toDateString();
+    if (localStorage.getItem(SUPER_DATE_KEY) !== today) {
+      localStorage.setItem(SUPER_DATE_KEY, today);
+      localStorage.setItem(SUPER_KEY, "1");
+      return 1;
+    }
+    const n = parseInt(localStorage.getItem(SUPER_KEY) || "1", 10);
+    return isNaN(n) ? 1 : Math.max(0, n);
+  } catch { return 1; }
+}
+
+function saveSuperLikes(n: number) {
+  try { localStorage.setItem(SUPER_KEY, String(n)); } catch { /* ignore */ }
+}
+
 // Placeholder colorido com iniciais quando não há foto
 function PhotoPlaceholder({ name, className = "" }: { name: string; className?: string }) {
   const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400", "#00008B"];
@@ -71,81 +91,104 @@ function SwipeCard({ profile, onSwipe, isTop, onXReady }: SwipeCardProps) {
       whileDrag={{ scale: 1.02 }}
       className={`absolute inset-0 ${isTop ? "cursor-grab active:cursor-grabbing" : "pointer-events-none"}`}
     >
-      <div className="relative w-full h-full rounded-3xl overflow-hidden shadow-2xl border-4 border-secondary/30">
-        <div className="relative h-[65%]">
-          {hasPhotos ? (
-            <img src={resolveMediaUrl(profile.photos[safeIndex])} alt={profile.name} className="w-full h-full object-cover" />
-          ) : (
-            <PhotoPlaceholder name={profile.name} className="w-full h-full" />
-          )}
-          {profile.is_verified === 1 && (
-            <div className="absolute bottom-4 left-4">
-              <div className="bg-gradient-to-r from-secondary to-[#FFD700] p-0.5 rounded-full">
-                <div className="bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1">
-                  <Star className="w-3 h-3 text-secondary fill-secondary" />
-                  <span className="text-xs font-bold text-secondary">VERIFICADO</span>
-                </div>
+      <div className="relative w-full h-full rounded-3xl overflow-hidden shadow-2xl">
+        {/* Full-size photo background */}
+        {hasPhotos ? (
+          <img
+            src={resolveMediaUrl(profile.photos[safeIndex])}
+            alt={profile.name}
+            className="absolute inset-0 w-full h-full object-cover select-none"
+            draggable={false}
+          />
+        ) : (
+          <PhotoPlaceholder name={profile.name} className="absolute inset-0 w-full h-full" />
+        )}
+
+        {/* Photo tap navigation zones */}
+        {hasPhotos && profile.photos.length > 1 && (
+          <div className="absolute inset-0 flex z-10">
+            <button className="flex-1" onClick={() => setCurrentPhoto(Math.max(0, safeIndex - 1))} />
+            <button className="flex-1" onClick={() => setCurrentPhoto(Math.min(profile.photos.length - 1, safeIndex + 1))} />
+          </div>
+        )}
+
+        {/* Photo progress indicators */}
+        {hasPhotos && profile.photos.length > 1 && (
+          <div className="absolute top-3 left-0 right-0 flex gap-1 px-3 z-20 pointer-events-none">
+            {profile.photos.map((_, i) => (
+              <div
+                key={i}
+                className={`flex-1 h-1 rounded-full transition-all ${i === safeIndex ? "bg-white" : "bg-white/40"}`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Verified badge */}
+        {profile.is_verified === 1 && (
+          <div className="absolute top-5 left-4 z-20">
+            <div className="bg-gradient-to-r from-secondary to-[#FFD700] p-0.5 rounded-full">
+              <div className="bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1">
+                <Star className="w-3 h-3 text-secondary fill-secondary" />
+                <span className="text-xs font-bold text-secondary">VERIFICADO</span>
               </div>
             </div>
-          )}
-
-          {/* Indicadores de fotos */}
-          {hasPhotos && profile.photos.length > 1 && (
-            <div className="absolute top-4 left-0 right-0 flex gap-2 px-4">
-              {profile.photos.map((_, i) => (
-                <div key={i} className="flex-1 h-1.5 bg-black/30 rounded-full overflow-hidden backdrop-blur-sm border border-secondary/30">
-                  {i === safeIndex && <div className="h-full bg-gradient-to-r from-secondary to-[#FFD700] rounded-full" />}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {hasPhotos && profile.photos.length > 1 && (
-            <div className="absolute inset-0 flex">
-              <button className="flex-1" onClick={() => setCurrentPhoto(Math.max(0, safeIndex - 1))} />
-              <button className="flex-1" onClick={() => setCurrentPhoto(Math.min(profile.photos.length - 1, safeIndex + 1))} />
-            </div>
-          )}
-
-          <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black via-black/80 to-transparent">
-            <AfricanPattern className="absolute inset-0 text-secondary opacity-10" />
           </div>
-        </div>
+        )}
 
-        <div className="relative bg-gradient-to-br from-black via-[#1a0000] to-black p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-3xl font-black text-white">{profile.name}</h2>
-            <span className="text-3xl font-black text-secondary">{profile.age}</span>
-            <Sparkles className="w-5 h-5 text-secondary animate-pulse" />
+        {/* Bottom gradient */}
+        <div className="absolute bottom-0 left-0 right-0 h-3/5 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none z-10" />
+
+        {/* Interests tags */}
+        {profile.interests && profile.interests.length > 0 && (
+          <div className="absolute bottom-32 left-0 right-0 px-4 flex flex-wrap gap-1.5 pointer-events-none z-20">
+            {profile.interests.slice(0, 3).map((interest) => (
+              <span
+                key={interest}
+                className="bg-white/20 backdrop-blur-sm text-white text-xs font-bold px-2.5 py-1 rounded-full border border-white/30"
+              >
+                {interest}
+              </span>
+            ))}
           </div>
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-2.5 text-secondary/90">
-              <div className="bg-secondary/20 p-1.5 rounded-lg"><MapPin className="w-4 h-4" /></div>
-              <span className="font-medium">{profile.location}</span>
+        )}
+
+        {/* Info overlay */}
+        <div className="absolute bottom-0 left-0 right-0 px-5 pb-5 pointer-events-none z-20">
+          <div className="flex items-baseline gap-2 mb-2">
+            <h2 className="text-[clamp(1.6rem,5vw,2rem)] font-black text-white drop-shadow-lg leading-tight">{profile.name}</h2>
+            <span className="text-2xl font-black text-white/90">{profile.age}</span>
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-white/90">
+              <MapPin className="w-3.5 h-3.5 text-secondary flex-shrink-0" />
+              <span className="font-medium text-sm">{profile.location}</span>
             </div>
             {profile.work && (
-              <div className="flex items-center gap-2.5 text-secondary/90">
-                <div className="bg-secondary/20 p-1.5 rounded-lg"><Briefcase className="w-4 h-4" /></div>
-                <span className="font-medium">{profile.work}</span>
+              <div className="flex items-center gap-2 text-white/80">
+                <Briefcase className="w-3.5 h-3.5 text-secondary/80 flex-shrink-0" />
+                <span className="font-medium text-sm">{profile.work}</span>
               </div>
             )}
           </div>
-          {profile.bio && <p className="mt-4 text-white/90 leading-relaxed line-clamp-2">{profile.bio}</p>}
+          {profile.bio && (
+            <p className="text-white/80 text-sm mt-2 line-clamp-2 leading-relaxed">{profile.bio}</p>
+          )}
         </div>
 
         {/* GOSTEI overlay */}
         <motion.div style={{ opacity: likeOpacity }}
-          className="absolute top-1/3 right-8 bg-gradient-to-br from-secondary via-[#FFD700] to-secondary p-1 rounded-3xl rotate-12 shadow-2xl pointer-events-none">
-          <div className="bg-black px-8 py-4 rounded-3xl">
-            <span className="text-secondary font-black text-2xl drop-shadow-lg">GOSTEI</span>
+          className="absolute top-16 right-5 z-30 bg-gradient-to-br from-secondary via-[#FFD700] to-secondary p-1 rounded-2xl rotate-12 shadow-2xl pointer-events-none">
+          <div className="bg-black px-6 py-3 rounded-2xl">
+            <span className="text-secondary font-black text-xl drop-shadow-lg">GOSTEI</span>
           </div>
         </motion.div>
 
         {/* NOPE overlay */}
         <motion.div style={{ opacity: nopeOpacity }}
-          className="absolute top-1/3 left-8 bg-gradient-to-br from-[#CE1126] to-[#8B0000] p-1 rounded-3xl -rotate-12 shadow-2xl pointer-events-none">
-          <div className="bg-black px-8 py-4 rounded-3xl">
-            <span className="text-[#CE1126] font-black text-2xl drop-shadow-lg">NOPE</span>
+          className="absolute top-16 left-5 z-30 bg-gradient-to-br from-[#CE1126] to-[#8B0000] p-1 rounded-2xl -rotate-12 shadow-2xl pointer-events-none">
+          <div className="bg-black px-6 py-3 rounded-2xl">
+            <span className="text-[#CE1126] font-black text-xl drop-shadow-lg">NOPE</span>
           </div>
         </motion.div>
       </div>
@@ -164,7 +207,7 @@ export function TelaDescoberta() {
   const [matchId, setMatchId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<Filters>({ ageRange: [18, 99], distance: 50, showVerifiedOnly: false, gender: "all" });
-  const [superLikesLeft, setSuperLikesLeft] = useState(1);
+  const [superLikesLeft, setSuperLikesLeft] = useState(() => getSuperLikesInitial());
   const [boostActive, setBoostActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
@@ -363,11 +406,6 @@ export function TelaDescoberta() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-            onClick={() => { setBoostActive(true); setTimeout(() => setBoostActive(false), 1800000); }}
-            className={`p-3 rounded-2xl transition-all ${boostActive ? "bg-gradient-to-br from-secondary to-[#FFD700] shadow-lg" : "hover:bg-secondary/10"}`}>
-            <Zap className={`w-6 h-6 ${boostActive ? "text-black fill-black" : "text-primary"}`} />
-          </motion.button>
           <button onClick={() => setShowFilters(true)} className="p-3 hover:bg-secondary/10 rounded-2xl transition-colors">
             <Sliders className="w-6 h-6 text-primary" />
           </button>
@@ -416,7 +454,7 @@ export function TelaDescoberta() {
           <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
             onClick={() => {
               if (superLikesLeft > 0) {
-                setSuperLikesLeft((n) => n - 1);
+                setSuperLikesLeft((n) => { saveSuperLikes(n - 1); return n - 1; });
                 handleButtonSwipe("super");
               }
             }}
@@ -469,6 +507,7 @@ function BottomNav({ navigate, active }: { navigate: (path: string) => void; act
     <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
       <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
         <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={active === "discover"} />
+        <NavBtn icon={<Heart className="w-6 h-6 fill-current" />} label="Likes" onClick={() => navigate("/likes")} active={active === "likes"} />
         <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={active === "chat"} />
         <NavBtn icon={<User className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} active={active === "profile"} />
       </div>

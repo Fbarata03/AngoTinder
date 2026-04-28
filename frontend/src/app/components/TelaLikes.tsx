@@ -5,6 +5,7 @@ import { AfricanPattern } from "./AfricanPatterns";
 import { motion, AnimatePresence } from "motion/react";
 import { profilesApi, matchesApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
+import { ProfileModal } from "./ProfileModal";
 
 export function TelaLikes() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export function TelaLikes() {
   const [loading, setLoading] = useState(true);
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
+  const [viewProfile, setViewProfile] = useState<UserType | null>(null);
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
@@ -22,6 +24,17 @@ export function TelaLikes() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handlePass = async (userId: string) => {
+    if (pendingIds.has(userId)) return;
+    setPendingIds((s) => new Set(s).add(userId));
+    try {
+      await matchesApi.swipe(userId, "left");
+      setLikes((prev) => prev.filter((u) => u.id !== userId));
+    } catch { /* ignore */ } finally {
+      setPendingIds((s) => { const n = new Set(s); n.delete(userId); return n; });
+    }
   };
 
   const handleLikeBack = async (likedUser: UserType) => {
@@ -100,6 +113,7 @@ export function TelaLikes() {
                   exit={{ opacity: 0, scale: 0.85, transition: { duration: 0.2 } }}
                   transition={{ delay: i * 0.05 }}
                   className="relative aspect-[3/4] rounded-3xl overflow-hidden group cursor-pointer"
+                  onClick={() => setViewProfile(like)}
                 >
                   {like.photos[0] ? (
                     <img src={resolveMediaUrl(like.photos[0])} alt={like.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
@@ -124,9 +138,17 @@ export function TelaLikes() {
                     <p className="text-white font-black text-base">{like.name}, {like.age}</p>
                     <p className="text-white/70 text-xs font-medium">{like.location}</p>
                   </div>
+                  {/* Pass button */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handlePass(like.id); }}
+                    disabled={pendingIds.has(like.id)}
+                    className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-sm p-2.5 rounded-full shadow-lg hover:scale-110 active:scale-95 transition-transform border-2 border-white/20 disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    <X className="w-5 h-5 text-white" />
+                  </button>
                   {/* Like back button */}
                   <button
-                    onClick={() => handleLikeBack(like)}
+                    onClick={(e) => { e.stopPropagation(); handleLikeBack(like); }}
                     disabled={pendingIds.has(like.id)}
                     className="absolute bottom-3 right-3 bg-gradient-to-br from-secondary to-[#FFD700] p-2.5 rounded-full shadow-lg hover:scale-110 active:scale-95 transition-transform disabled:opacity-60 disabled:cursor-wait"
                   >
@@ -138,6 +160,14 @@ export function TelaLikes() {
           </div>
         )}
       </div>
+
+      <ProfileModal
+        profile={viewProfile}
+        onClose={() => setViewProfile(null)}
+        onLike={viewProfile ? () => { handleLikeBack(viewProfile); setViewProfile(null); } : undefined}
+        onPass={viewProfile ? () => { handlePass(viewProfile.id); setViewProfile(null); } : undefined}
+        likeLabel="Dar Like"
+      />
 
       {/* Toast notification */}
       <AnimatePresence>

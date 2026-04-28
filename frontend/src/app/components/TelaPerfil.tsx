@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Camera, User, Heart, MessageCircle, LogOut, Sparkles, MapPin, Star, Settings, Trash2, ChevronDown } from "lucide-react";
+import { Camera, User, Heart, MessageCircle, LogOut, Sparkles, MapPin, Star, Settings, Trash2, ChevronDown, X } from "lucide-react";
 import { ANGOLA_PROVINCES } from "./TelaRegisto";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -16,6 +16,7 @@ export function TelaPerfil() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [interestInput, setInterestInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -100,20 +101,22 @@ export function TelaPerfil() {
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-8 pb-32 relative z-10">
-        <div className="mb-8 bg-gradient-to-r from-secondary via-[#FFD700] to-[#FFA500] p-1 rounded-2xl">
-          <div className="bg-card p-6 rounded-2xl flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="bg-gradient-to-br from-primary to-[#8B0000] p-4 rounded-2xl">
-                <Star className="w-8 h-8 text-secondary fill-secondary" />
+        {profile.is_verified === 1 && (
+          <div className="mb-8 bg-gradient-to-r from-secondary via-[#FFD700] to-[#FFA500] p-1 rounded-2xl">
+            <div className="bg-card p-6 rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-br from-primary to-[#8B0000] p-4 rounded-2xl">
+                  <Star className="w-8 h-8 text-secondary fill-secondary" />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-primary">Perfil Verificado</h3>
+                  <p className="text-sm text-muted-foreground">Você é um membro premium</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-black text-lg text-primary">Perfil Verificado</h3>
-                <p className="text-sm text-muted-foreground">Você é um membro premium</p>
-              </div>
+              <Sparkles className="w-8 h-8 text-secondary animate-pulse" />
             </div>
-            <Sparkles className="w-8 h-8 text-secondary animate-pulse" />
           </div>
-        </div>
+        )}
 
         {/* Fotos */}
         <div className="mb-8">
@@ -189,7 +192,21 @@ export function TelaPerfil() {
           <label className="block mb-3 font-black text-lg">Profissão</label>
           <Input value={profile.work || ""} onChange={(e) => setProfile({ ...profile, work: e.target.value })}
             className="bg-input-background border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
-            placeholder="Sua profissão" />
+            placeholder="Ex: Engenheiro, Professor..." />
+        </div>
+
+        <div className="mb-6">
+          <label className="block mb-3 font-black text-lg">Educação</label>
+          <Input value={profile.education || ""} onChange={(e) => setProfile({ ...profile, education: e.target.value })}
+            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
+            placeholder="Ex: Universidade Agostinho Neto..." />
+        </div>
+
+        <div className="mb-6">
+          <label className="block mb-3 font-black text-lg">Cidade natal</label>
+          <Input value={profile.hometown || ""} onChange={(e) => setProfile({ ...profile, hometown: e.target.value })}
+            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
+            placeholder="Ex: Luanda, Benguela..." />
         </div>
 
         <div className="mb-8">
@@ -203,6 +220,56 @@ export function TelaPerfil() {
           </div>
         </div>
 
+        <div className="mb-8">
+          <label className="block mb-3 font-black text-lg">Interesses <span className="text-sm text-muted-foreground font-normal">({(profile.interests || []).length}/10)</span></label>
+          <div className="flex flex-wrap gap-2 min-h-[48px] p-3 bg-input-background rounded-2xl border-4 border-primary/20 mb-3">
+            {(profile.interests || []).map((interest) => (
+              <span key={interest} className="inline-flex items-center gap-1 px-3 py-1.5 bg-secondary/20 text-primary rounded-xl text-sm font-bold border-2 border-secondary/30">
+                {interest}
+                <button type="button" onClick={() => setProfile({ ...profile, interests: (profile.interests || []).filter((i) => i !== interest) })}
+                  className="text-primary/60 hover:text-primary ml-0.5">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+            {(profile.interests || []).length === 0 && (
+              <span className="text-muted-foreground text-sm font-medium self-center">Nenhum interesse adicionado</span>
+            )}
+          </div>
+          <Input
+            value={interestInput}
+            onChange={(e) => setInterestInput(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.key === "Enter" || e.key === ",") && interestInput.trim()) {
+                e.preventDefault();
+                const val = interestInput.trim().replace(/,$/, "");
+                const current = profile.interests || [];
+                if (val && !current.includes(val) && current.length < 10) {
+                  setProfile({ ...profile, interests: [...current, val] });
+                }
+                setInterestInput("");
+              }
+            }}
+            placeholder="Escreve um interesse e prime Enter..."
+            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-12 rounded-2xl font-medium pl-5 mb-3"
+          />
+          <div className="flex flex-wrap gap-2">
+            {["Música","Desporto","Viagens","Cozinha","Cinema","Arte","Leitura","Dança","Gaming","Natureza","Fotografia","Moda"]
+              .filter((s) => !(profile.interests || []).includes(s))
+              .slice(0, 8)
+              .map((s) => (
+                <button key={s} type="button"
+                  onClick={() => {
+                    const current = profile.interests || [];
+                    if (current.length < 10) setProfile({ ...profile, interests: [...current, s] });
+                  }}
+                  className="px-3 py-1 bg-secondary/10 hover:bg-secondary/20 text-muted-foreground hover:text-primary rounded-xl text-xs font-bold border-2 border-secondary/20 transition-all">
+                  + {s}
+                </button>
+              ))}
+          </div>
+        </div>
+
         <Button onClick={handleSave} disabled={saving}
           className="w-full h-16 bg-gradient-to-r from-primary via-[#8B0000] to-black hover:opacity-90 text-white rounded-2xl font-black text-lg shadow-2xl shadow-primary/30 border-4 border-secondary/50">
           {saving ? "A guardar..." : saved ? "✓ Guardado!" : "Salvar Alterações"}
@@ -212,6 +279,7 @@ export function TelaPerfil() {
       <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
           <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={false} />
+          <NavBtn icon={<Heart className="w-6 h-6 fill-current" />} label="Likes" onClick={() => navigate("/likes")} active={false} />
           <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={false} />
           <NavBtn icon={<User className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} active={true} />
         </div>

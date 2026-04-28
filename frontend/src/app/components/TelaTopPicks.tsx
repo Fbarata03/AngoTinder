@@ -3,8 +3,9 @@ import { Heart, User, MessageCircle, Star, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { motion } from "motion/react";
-import { profilesApi, matchesApi, User as UserType } from "../api";
+import { profilesApi, matchesApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
+import { ProfileModal } from "./ProfileModal";
 type TopPick = UserType & { reason: string };
 
 export function TelaTopPicks() {
@@ -12,6 +13,7 @@ export function TelaTopPicks() {
   const { isLoggedIn } = useApp();
   const [picks, setPicks] = useState<TopPick[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewProfile, setViewProfile] = useState<TopPick | null>(null);
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
@@ -66,10 +68,11 @@ export function TelaTopPicks() {
             {picks.map((pick, i) => (
               <motion.div key={pick.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.08 }}
-                className="relative aspect-[3/4] rounded-3xl overflow-hidden group cursor-pointer">
+                className="relative aspect-[3/4] rounded-3xl overflow-hidden group cursor-pointer"
+                onClick={() => setViewProfile(pick)}>
                 {pick.photos[0] ? (
                   <img
-                    src={pick.photos[0]}
+                    src={resolveMediaUrl(pick.photos[0])}
                     alt={pick.name}
                     className="w-full h-full object-cover transition-transform group-hover:scale-105"
                   />
@@ -107,7 +110,7 @@ export function TelaTopPicks() {
                       <p className="text-white/80 text-sm font-medium">{pick.location}</p>
                     </div>
                     <button
-                      onClick={() => handleLike(pick.id)}
+                      onClick={(e) => { e.stopPropagation(); handleLike(pick.id); }}
                       className="bg-gradient-to-br from-secondary to-[#FFD700] p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform"
                     >
                       <Heart className="w-5 h-5 text-black fill-black" />
@@ -120,10 +123,17 @@ export function TelaTopPicks() {
         )}
       </div>
 
+      <ProfileModal
+        profile={viewProfile}
+        onClose={() => setViewProfile(null)}
+        onLike={viewProfile ? () => { handleLike(viewProfile.id); setViewProfile(null); } : undefined}
+        likeLabel="Dar Like"
+      />
+
       <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
           <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={false} />
-          <NavBtn icon={<Star className="w-6 h-6 fill-current" />} label="Top Picks" onClick={() => navigate("/top-picks")} active={true} />
+          <NavBtn icon={<Heart className="w-6 h-6 fill-current" />} label="Likes" onClick={() => navigate("/likes")} active={true} />
           <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={false} />
           <NavBtn icon={<User className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} active={false} />
         </div>

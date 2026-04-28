@@ -3,10 +3,26 @@ import {
   Users, Heart, MessageCircle, ShieldCheck, Trash2, CheckCircle, XCircle,
   LogOut, Search, TrendingUp, UserCheck, Activity, Zap, ArrowLeftRight,
   RefreshCw, ChevronLeft, ChevronRight, X, Eye, MapPin, Clock,
+  Megaphone, Send, Percent, BarChart2,
 } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const BASE_URL = (import.meta as any).env?.VITE_API_URL || "/api";
+const ENV_API = (import.meta as any).env?.VITE_API_URL as string | undefined;
+const DEFAULT_PROD_API = "https://angotinder.onrender.com/api";
+const BASE_URL = (() => {
+  if (ENV_API) return ENV_API;
+  if (typeof window === "undefined") return "/api";
+  const host = window.location.hostname;
+  return host === "localhost" || host === "127.0.0.1" ? "/api" : DEFAULT_PROD_API;
+})();
+const HTTP_BASE = BASE_URL.startsWith("http") ? BASE_URL.replace(/\/api\/?$/, "") : "";
+
+function resolvePhoto(url: string): string {
+  if (!url) return url;
+  if (url.startsWith("http")) return url;
+  if (HTTP_BASE && url.startsWith("/static/")) return `${HTTP_BASE}${url}`;
+  return url;
+}
 
 function adminRequest<T>(path: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem("admin_token");
@@ -14,11 +30,18 @@ function adminRequest<T>(path: string, options?: RequestInit): Promise<T> {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers as Record<string, string> | undefined),
     },
     ...options,
   }).then(async (res) => {
     if (!res.ok) {
       const err = await res.text();
+      // Only throw auth-specific error object so callers can detect 401/403
+      if (res.status === 401 || res.status === 403) {
+        const e = new Error(err || `HTTP ${res.status}`);
+        (e as any).status = res.status;
+        throw e;
+      }
       throw new Error(err || `HTTP ${res.status}`);
     }
     return res.json() as Promise<T>;
@@ -31,6 +54,9 @@ interface Stats {
   total_matches: number;
   total_messages: number;
   total_swipes: number;
+  right_swipes: number;
+  right_swipe_rate: number;
+  match_rate: number;
   users_today: number;
   matches_today: number;
   messages_today: number;
@@ -57,6 +83,8 @@ interface AdminUser {
 interface AdminUserDetail extends AdminUser {
   bio: string;
   work: string;
+  education?: string;
+  hometown?: string;
   interests: string[];
   swipe_count: number;
   is_online: boolean;
@@ -122,6 +150,7 @@ export function TelaAdmin() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Users tab
   const [usersData, setUsersData] = useState<UsersResponse | null>(null);
@@ -143,6 +172,12 @@ export function TelaAdmin() {
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
 
+  // Broadcast
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState("");
+  const [broadcastMsg, setBroadcastMsg] = useState("");
+  const [broadcastLoading, setBroadcastLoading] = useState(false);
+
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState("");
@@ -153,9 +188,11 @@ export function TelaAdmin() {
     setTimeout(() => setSuccessMsg(""), 3500);
   };
 
-  const handleAuthError = useCallback(() => {
-    localStorage.removeItem("admin_token");
-    setLoggedIn(false);
+  const handleAuthError = useCallback((err: unknown) => {
+    if (err && typeof err === "object" && (err as any).status === 401) {
+      localStorage.removeItem("admin_token");
+      setLoggedIn(false);
+    }
   }, []);
 
   const loadStats = useCallback(async (silent = false) => {
@@ -164,8 +201,8 @@ export function TelaAdmin() {
       const data = await adminRequest<Stats>("/stats");
       setStats(data);
       setLastRefresh(new Date());
-    } catch {
-      handleAuthError();
+    } catch (err) {
+      handleAuthError(err);
     } finally {
       setStatsLoading(false);
     }
@@ -181,8 +218,8 @@ export function TelaAdmin() {
       if (filterLocation) params.set("location", filterLocation);
       const data = await adminRequest<UsersResponse>(`/users?${params}`);
       setUsersData(data);
-    } catch {
-      handleAuthError();
+    } catch (err) {
+      handleAuthError(err);
     } finally {
       setUsersLoading(false);
     }
@@ -193,20 +230,20 @@ export function TelaAdmin() {
     try {
       const data = await adminRequest<MatchesResponse>(`/matches?page=${p}`);
       setMatchesData(data);
-    } catch {
-      handleAuthError();
+    } catch (err) {
+      handleAuthError(err);
     } finally {
       setMatchesLoading(false);
     }
   }, [handleAuthError]);
 
-  const loadActivity = useCallback(async () => {
-    setActivityLoading(true);
+  const loadActivity = useCallback(async (silent = false) => {
+    if (!silent) setActivityLoading(true);
     try {
       const data = await adminRequest<ActivityEvent[]>("/activity");
       setActivity(data);
-    } catch {
-      handleAuthError();
+    } catch (err) {
+      handleAuthError(err);
     } finally {
       setActivityLoading(false);
     }
@@ -217,18 +254,14 @@ export function TelaAdmin() {
     try {
       const data = await adminRequest<AdminUserDetail>(`/users/${userId}`);
       setSelectedUser(data);
-    } catch {
-      // ignore
-    } finally {
+    } catch { /* ignore */ } finally {
       setUserDetailLoading(false);
     }
   };
 
-  // Initial load + tab switching
   useEffect(() => {
     if (!loggedIn) return;
     loadStats();
-    // Auto-refresh stats every 30s
     refreshTimerRef.current = setInterval(() => loadStats(true), 30000);
     return () => { if (refreshTimerRef.current) clearInterval(refreshTimerRef.current); };
   }, [loggedIn, loadStats]);
@@ -237,7 +270,11 @@ export function TelaAdmin() {
     if (!loggedIn) return;
     if (activeTab === "users") loadUsers(1);
     if (activeTab === "matches") loadMatches(1);
-    if (activeTab === "activity") loadActivity();
+    if (activeTab === "activity") {
+      loadActivity();
+      activityTimerRef.current = setInterval(() => loadActivity(true), 20000);
+    }
+    return () => { if (activityTimerRef.current) clearInterval(activityTimerRef.current); };
   }, [activeTab, loggedIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -268,11 +305,7 @@ export function TelaAdmin() {
       if (selectedUser?.id === userId) {
         setSelectedUser(prev => prev ? { ...prev, is_verified: verify ? 1 : 0 } : null);
       }
-    } catch {
-      alert("Erro ao atualizar");
-    } finally {
-      setActionLoading(null);
-    }
+    } catch { alert("Erro ao atualizar"); } finally { setActionLoading(null); }
   };
 
   const handleDelete = async (userId: string, name: string) => {
@@ -284,11 +317,34 @@ export function TelaAdmin() {
       setSelectedUser(null);
       loadUsers(usersPage);
       loadStats(true);
-    } catch {
-      alert("Erro ao eliminar");
-    } finally {
-      setActionLoading(null);
-    }
+    } catch { alert("Erro ao eliminar"); } finally { setActionLoading(null); }
+  };
+
+  const handleDeleteMatch = async (matchId: string) => {
+    if (!confirm("Eliminar este match e todas as suas mensagens?")) return;
+    setActionLoading(matchId);
+    try {
+      await adminRequest(`/matches/${matchId}`, { method: "DELETE" });
+      showSuccess("Match eliminado!");
+      loadMatches(matchesPage);
+      loadStats(true);
+    } catch { alert("Erro ao eliminar match"); } finally { setActionLoading(null); }
+  };
+
+  const handleBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!broadcastTitle.trim() || !broadcastMsg.trim()) return;
+    setBroadcastLoading(true);
+    try {
+      await adminRequest("/broadcast", {
+        method: "POST",
+        body: JSON.stringify({ title: broadcastTitle, message: broadcastMsg }),
+      });
+      showSuccess(`Notificação enviada a ${stats?.online_users ?? 0} utilizadores online!`);
+      setBroadcastTitle("");
+      setBroadcastMsg("");
+      setShowBroadcast(false);
+    } catch { alert("Erro ao enviar notificação"); } finally { setBroadcastLoading(false); }
   };
 
   const handleCleanup = async () => {
@@ -297,11 +353,7 @@ export function TelaAdmin() {
       await adminRequest("/cleanup", { method: "POST" });
       showSuccess("Limpeza concluída! Base de dados otimizada.");
       loadStats(true);
-    } catch {
-      alert("Erro na limpeza");
-    } finally {
-      setCleanupLoading(false);
-    }
+    } catch { alert("Erro na limpeza"); } finally { setCleanupLoading(false); }
   };
 
   const handleUserSearch = (e: React.FormEvent) => {
@@ -312,11 +364,12 @@ export function TelaAdmin() {
 
   const handleLogout = () => {
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    if (activityTimerRef.current) clearInterval(activityTimerRef.current);
     localStorage.removeItem("admin_token");
     setLoggedIn(false);
   };
 
-  // ── Login screen ──────────────────────────────────────────────────────────
+  // ── Login ─────────────────────────────────────────────────────────────────
   if (!loggedIn) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-black flex items-center justify-center p-4">
@@ -331,15 +384,15 @@ export function TelaAdmin() {
           <form onSubmit={handleLogin} className="space-y-4">
             <input
               type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-              placeholder="Utilizador"
+              placeholder="Utilizador" autoComplete="username"
               className="w-full h-12 px-4 bg-white/10 border border-[#FFCD00]/30 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-[#FFCD00] text-sm"
             />
             <input
               type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="Senha"
+              placeholder="Senha" autoComplete="current-password"
               className="w-full h-12 px-4 bg-white/10 border border-[#FFCD00]/30 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-[#FFCD00] text-sm"
             />
-            {loginError && <p className="text-red-400 text-sm text-center">{loginError}</p>}
+            {loginError && <p className="text-red-400 text-sm text-center font-medium">{loginError}</p>}
             <button
               type="submit" disabled={loginLoading}
               className="w-full h-12 bg-[#FFCD00] hover:bg-[#FFD700] text-black font-black rounded-xl transition-colors disabled:opacity-60"
@@ -353,10 +406,10 @@ export function TelaAdmin() {
   }
 
   // ── Main panel ────────────────────────────────────────────────────────────
-  const tabs: { id: Tab; label: string }[] = [
+  const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "dashboard", label: "Dashboard" },
-    { id: "users", label: "Utilizadores" },
-    { id: "matches", label: "Matches" },
+    { id: "users", label: "Utilizadores", count: usersData?.total },
+    { id: "matches", label: "Matches", count: matchesData?.total },
     { id: "activity", label: "Atividade" },
   ];
 
@@ -371,28 +424,35 @@ export function TelaAdmin() {
           <div>
             <h1 className="text-base sm:text-lg font-black text-[#FFCD00] leading-none">AngoTinder Admin</h1>
             {stats && (
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5">
                 <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
                 <span className="text-green-400 text-xs font-bold">{stats.online_users} online</span>
                 {lastRefresh && (
-                  <span className="text-white/30 text-xs hidden sm:inline">· atualizado {timeAgo(lastRefresh.toISOString())}</span>
+                  <span className="text-white/30 text-xs hidden sm:inline">· {timeAgo(lastRefresh.toISOString())}</span>
                 )}
               </div>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setShowBroadcast(true)}
+            title="Enviar notificação a todos"
+            className="flex items-center gap-1.5 h-8 px-3 bg-[#FFCD00]/10 hover:bg-[#FFCD00]/20 text-[#FFCD00] rounded-lg text-xs font-bold transition-colors border border-[#FFCD00]/20"
+          >
+            <Megaphone className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Broadcast</span>
+          </button>
           <button
             onClick={() => loadStats()}
             disabled={statsLoading}
             className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-white transition-colors"
-            title="Atualizar"
           >
             <RefreshCw className={`w-4 h-4 ${statsLoading ? "animate-spin" : ""}`} />
           </button>
-          <button onClick={handleLogout} className="flex items-center gap-1.5 text-white/50 hover:text-white text-sm transition-colors">
+          <button onClick={handleLogout} className="flex items-center gap-1.5 text-white/50 hover:text-white text-sm transition-colors px-2">
             <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline">Sair</span>
+            <span className="hidden sm:inline text-xs">Sair</span>
           </button>
         </div>
       </header>
@@ -404,13 +464,18 @@ export function TelaAdmin() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`py-3 px-3 sm:px-4 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+              className={`py-3 px-3 sm:px-4 text-sm font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === tab.id
                   ? "border-[#FFCD00] text-[#FFCD00]"
                   : "border-transparent text-white/40 hover:text-white"
               }`}
             >
               {tab.label}
+              {tab.count !== undefined && (
+                <span className="bg-white/10 text-white/50 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                  {tab.count.toLocaleString()}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -418,7 +483,8 @@ export function TelaAdmin() {
 
       <div className="p-4 sm:p-6 max-w-6xl mx-auto">
         {successMsg && (
-          <div className="mb-4 bg-green-900/50 border border-green-500 text-green-300 rounded-xl px-4 py-3 text-sm font-medium">
+          <div className="mb-4 bg-green-900/40 border border-green-500/50 text-green-300 rounded-xl px-4 py-3 text-sm font-medium flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 flex-shrink-0" />
             {successMsg}
           </div>
         )}
@@ -426,45 +492,63 @@ export function TelaAdmin() {
         {/* ── DASHBOARD ── */}
         {activeTab === "dashboard" && (
           <div>
-            <h2 className="text-lg font-black text-white mb-4">Visão geral</h2>
-
             {stats ? (
               <>
-                {/* Stat cards grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-5">
                   <StatCard icon={<Users />} label="Total Utilizadores" value={stats.total_users} color="blue" />
                   <StatCard icon={<Zap />} label="Online Agora" value={stats.online_users} color="green" live />
                   <StatCard icon={<TrendingUp />} label="Novos Hoje" value={stats.users_today} color="cyan" />
                   <StatCard icon={<UserCheck />} label="Verificados" value={stats.verified_users} color="yellow" />
                   <StatCard icon={<Heart />} label="Total Matches" value={stats.total_matches} color="red" />
                   <StatCard icon={<Heart />} label="Matches Hoje" value={stats.matches_today} color="pink" />
-                  <StatCard icon={<MessageCircle />} label="Mensagens Hoje" value={stats.messages_today} color="purple" />
-                  <StatCard icon={<MessageCircle />} label="Total Mensagens" value={stats.total_messages} color="indigo" />
+                  <StatCard icon={<MessageCircle />} label="Msgs Hoje" value={stats.messages_today} color="purple" />
+                  <StatCard icon={<MessageCircle />} label="Total Msgs" value={stats.total_messages} color="indigo" />
                   <StatCard icon={<ArrowLeftRight />} label="Swipes Hoje" value={stats.swipes_today} color="orange" />
                   <StatCard icon={<ArrowLeftRight />} label="Total Swipes" value={stats.total_swipes} color="amber" />
                   <StatCard icon={<Activity />} label="Ativos 24h" value={stats.active_users_24h} color="teal" />
                 </div>
 
-                {/* Top locations bar chart */}
+                {/* Rates */}
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+                      <Percent className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-black text-white">{stats.right_swipe_rate}%</div>
+                      <div className="text-xs text-white/40">Taxa de likes (right swipes)</div>
+                    </div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-rose-500/15 flex items-center justify-center flex-shrink-0">
+                      <BarChart2 className="w-5 h-5 text-rose-400" />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-black text-white">{stats.match_rate}%</div>
+                      <div className="text-xs text-white/40">Taxa de match (de likes mútuos)</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top locations */}
                 {stats.top_locations.length > 0 && (
-                  <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-                    <h3 className="font-black text-white mb-4 flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-[#FFCD00]" />
-                      Top Localizações
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-5">
+                    <h3 className="font-black text-white mb-4 flex items-center gap-2 text-sm">
+                      <MapPin className="w-4 h-4 text-[#FFCD00]" /> Top Províncias
                     </h3>
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
                       {stats.top_locations.map((loc) => {
                         const max = stats.top_locations[0]?.count || 1;
                         const pct = Math.round((loc.count / max) * 100);
                         return (
                           <div key={loc.location}>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-white/80">{loc.location || "Desconhecido"}</span>
-                              <span className="text-white/50">{loc.count}</span>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/70">{loc.location || "Desconhecido"}</span>
+                              <span className="text-white/40">{loc.count} utilizadores</span>
                             </div>
-                            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-gradient-to-r from-[#CE1126] to-[#FFCD00] rounded-full transition-all duration-500"
+                                className="h-full bg-gradient-to-r from-[#CE1126] to-[#FFCD00] rounded-full transition-all duration-700"
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
@@ -477,32 +561,29 @@ export function TelaAdmin() {
 
                 {/* System + cleanup */}
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                  <h3 className="font-black text-white mb-3">Estado do Sistema</h3>
-                  <div className="space-y-2 text-sm">
+                  <h3 className="font-black text-white mb-3 text-sm">Estado do Sistema</h3>
+                  <div className="space-y-2 text-sm mb-4">
                     {[
                       ["Base de dados", "PostgreSQL (Neon)"],
                       ["Backend", "Render.com"],
                       ["Frontend", "Netlify"],
-                      ["Domínio", "angotinder.bafly.net"],
                     ].map(([k, v]) => (
                       <div key={k} className="flex justify-between">
-                        <span className="text-white/60">{k}</span>
-                        <span className="text-green-400 font-bold">{v} ✓</span>
+                        <span className="text-white/50">{k}</span>
+                        <span className="text-green-400 font-bold text-xs">{v} ✓</span>
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <p className="text-white/40 text-xs mb-3">
-                      Remove OTPs expirados, swipes antigos (+60 dias) e mensagens excedentes. Nunca apaga utilizadores.
-                    </p>
-                    <button
-                      onClick={handleCleanup}
-                      disabled={cleanupLoading}
-                      className="w-full h-10 bg-[#FFCD00]/10 hover:bg-[#FFCD00]/20 border border-[#FFCD00]/30 text-[#FFCD00] rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
-                    >
-                      {cleanupLoading ? "A limpar..." : "🧹 Limpar Base de Dados"}
-                    </button>
-                  </div>
+                  <p className="text-white/30 text-xs mb-3">
+                    Remove OTPs expirados, swipes antigos (+60 dias) e mensagens excedentes.
+                  </p>
+                  <button
+                    onClick={handleCleanup}
+                    disabled={cleanupLoading}
+                    className="w-full h-10 bg-[#FFCD00]/10 hover:bg-[#FFCD00]/20 border border-[#FFCD00]/30 text-[#FFCD00] rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
+                  >
+                    {cleanupLoading ? "A limpar..." : "🧹 Limpar Base de Dados"}
+                  </button>
                 </div>
               </>
             ) : (
@@ -514,8 +595,7 @@ export function TelaAdmin() {
         {/* ── USERS ── */}
         {activeTab === "users" && (
           <div>
-            {/* Search + filters */}
-            <form onSubmit={handleUserSearch} className="mb-4 space-y-3">
+            <form onSubmit={handleUserSearch} className="mb-4 space-y-2.5">
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
@@ -526,7 +606,7 @@ export function TelaAdmin() {
                   />
                 </div>
                 <button type="submit" className="h-10 px-4 bg-[#FFCD00] text-black font-bold rounded-xl text-sm hover:bg-[#FFD700] transition-colors flex-shrink-0">
-                  Pesquisar
+                  Buscar
                 </button>
               </div>
               <div className="flex gap-2 flex-wrap">
@@ -560,105 +640,80 @@ export function TelaAdmin() {
                     onClick={() => { setFilterGender(""); setFilterVerified(""); setFilterLocation(""); }}
                     className="h-9 px-3 bg-white/10 border border-white/20 rounded-lg text-white/60 text-xs hover:text-white transition-colors flex items-center gap-1"
                   >
-                    <X className="w-3 h-3" /> Limpar filtros
+                    <X className="w-3 h-3" /> Limpar
                   </button>
                 )}
               </div>
             </form>
 
-            {usersLoading ? (
-              <LoadingSpinner />
-            ) : (
+            {usersLoading ? <LoadingSpinner /> : (
               <>
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-white/40 text-sm">
-                    {usersData?.total ?? 0} utilizadores encontrados
-                  </p>
-                  {usersData && usersData.pages > 1 && (
-                    <span className="text-white/40 text-xs">Pág. {usersPage} / {usersData.pages}</span>
-                  )}
-                </div>
-
+                <p className="text-white/40 text-xs mb-3">
+                  {usersData?.total ?? 0} utilizadores · pág. {usersPage}/{usersData?.pages ?? 1}
+                </p>
                 <div className="space-y-2">
                   {usersData?.users.map((user) => (
-                    <div key={user.id} className="bg-white/5 border border-white/10 rounded-2xl p-3 sm:p-4 flex items-center gap-3">
-                      {/* Avatar */}
-                      <div className="w-11 h-11 rounded-full overflow-hidden bg-white/10 flex-shrink-0 cursor-pointer" onClick={() => loadUserDetail(user.id)}>
+                    <div key={user.id} className="bg-white/5 border border-white/10 rounded-2xl p-3 sm:p-4 flex items-center gap-3 hover:border-white/20 transition-colors">
+                      <div
+                        className="w-11 h-11 rounded-full overflow-hidden bg-white/10 flex-shrink-0 cursor-pointer ring-2 ring-transparent hover:ring-[#FFCD00]/50 transition-all"
+                        onClick={() => loadUserDetail(user.id)}
+                      >
                         {user.photos?.[0] ? (
-                          <img src={user.photos[0]} alt={user.name} className="w-full h-full object-cover" />
+                          <img src={resolvePhoto(user.photos[0])} alt={user.name} className="w-full h-full object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white/40 text-lg font-black">
-                            {user.name[0]}
+                          <div className="w-full h-full flex items-center justify-center text-white/40 text-lg font-black bg-gradient-to-br from-[#CE1126]/40 to-black">
+                            {user.name[0]?.toUpperCase()}
                           </div>
                         )}
                       </div>
-
-                      {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-white text-sm truncate">{user.name}</span>
                           {user.is_verified === 1 && (
-                            <span className="bg-blue-500/20 text-blue-300 text-xs px-1.5 py-0.5 rounded-full font-bold flex-shrink-0">✓</span>
+                            <span className="bg-blue-500/20 text-blue-300 text-[10px] px-1.5 py-0.5 rounded-full font-black">VIP</span>
                           )}
                         </div>
                         <p className="text-white/40 text-xs truncate">{user.email}</p>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <span className="text-white/30 text-xs">{user.age}a · {user.location}</span>
+                          <span className="text-white/25 text-xs">{user.age}a · {user.location}</span>
                           {user.match_count !== undefined && (
-                            <span className="text-rose-400/60 text-xs">{user.match_count} matches</span>
+                            <span className="text-rose-400/60 text-xs">{user.match_count}♥</span>
                           )}
                           {user.message_count !== undefined && (
                             <span className="text-purple-400/60 text-xs">{user.message_count} msgs</span>
                           )}
                         </div>
                       </div>
-
-                      {/* Actions */}
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <button
-                          onClick={() => loadUserDetail(user.id)}
-                          title="Ver detalhes"
-                          className="w-8 h-8 bg-white/10 hover:bg-white/20 text-white/60 rounded-lg flex items-center justify-center transition-colors"
-                        >
+                        <button onClick={() => loadUserDetail(user.id)} title="Ver detalhes"
+                          className="w-8 h-8 bg-white/10 hover:bg-white/20 text-white/60 rounded-lg flex items-center justify-center transition-colors">
                           <Eye className="w-3.5 h-3.5" />
                         </button>
                         {user.is_verified === 1 ? (
-                          <button
-                            onClick={() => handleVerify(user.id, false)}
-                            disabled={actionLoading === user.id}
-                            title="Remover verificação"
-                            className="w-8 h-8 bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50"
-                          >
+                          <button onClick={() => handleVerify(user.id, false)} disabled={actionLoading === user.id} title="Remover verificação"
+                            className="w-8 h-8 bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50">
                             <XCircle className="w-3.5 h-3.5" />
                           </button>
                         ) : (
-                          <button
-                            onClick={() => handleVerify(user.id, true)}
-                            disabled={actionLoading === user.id}
-                            title="Verificar"
-                            className="w-8 h-8 bg-green-500/20 hover:bg-green-500/40 text-green-400 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50"
-                          >
+                          <button onClick={() => handleVerify(user.id, true)} disabled={actionLoading === user.id} title="Verificar"
+                            className="w-8 h-8 bg-green-500/20 hover:bg-green-500/40 text-green-400 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50">
                             <CheckCircle className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        <button
-                          onClick={() => handleDelete(user.id, user.name)}
-                          disabled={actionLoading === user.id}
-                          title="Eliminar"
-                          className="w-8 h-8 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50"
-                        >
+                        <button onClick={() => handleDelete(user.id, user.name)} disabled={actionLoading === user.id} title="Eliminar"
+                          className="w-8 h-8 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
                   ))}
+                  {usersData?.users.length === 0 && (
+                    <p className="text-center text-white/30 py-12 text-sm">Nenhum utilizador encontrado.</p>
+                  )}
                 </div>
-
-                {/* Pagination */}
                 {usersData && usersData.pages > 1 && (
                   <Pagination
-                    page={usersPage}
-                    pages={usersData.pages}
+                    page={usersPage} pages={usersData.pages}
                     onPrev={() => { const p = usersPage - 1; setUsersPage(p); loadUsers(p); }}
                     onNext={() => { const p = usersPage + 1; setUsersPage(p); loadUsers(p); }}
                   />
@@ -672,57 +727,62 @@ export function TelaAdmin() {
         {activeTab === "matches" && (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-black text-white">
-                Matches <span className="text-white/40 font-normal text-base">({matchesData?.total ?? 0})</span>
+              <h2 className="text-base font-black text-white">
+                Matches <span className="text-white/30 font-normal">({matchesData?.total ?? 0})</span>
               </h2>
+              <button onClick={() => loadMatches(matchesPage)} disabled={matchesLoading}
+                className="flex items-center gap-1.5 text-white/40 hover:text-white text-xs transition-colors">
+                <RefreshCw className={`w-3.5 h-3.5 ${matchesLoading ? "animate-spin" : ""}`} />
+                Atualizar
+              </button>
             </div>
-
-            {matchesLoading ? (
-              <LoadingSpinner />
-            ) : (
+            {matchesLoading ? <LoadingSpinner /> : (
               <>
                 <div className="space-y-2">
                   {matchesData?.matches.map((m) => (
-                    <div key={m.id} className="bg-white/5 border border-white/10 rounded-2xl p-3 sm:p-4 flex items-center gap-3">
-                      {/* User 1 avatar */}
+                    <div key={m.id} className="bg-white/5 border border-white/10 rounded-2xl p-3 sm:p-4 flex items-center gap-3 hover:border-white/20 transition-colors">
                       <div className="w-10 h-10 rounded-full overflow-hidden bg-white/10 flex-shrink-0">
                         {m.user1_photos?.[0] ? (
-                          <img src={m.user1_photos[0]} alt={m.user1_name} className="w-full h-full object-cover" />
+                          <img src={resolvePhoto(m.user1_photos[0])} alt={m.user1_name} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-white/40 font-black">{m.user1_name[0]}</div>
                         )}
                       </div>
-
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-bold truncate">
                           {m.user1_name} <span className="text-[#FFCD00]">↔</span> {m.user2_name}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-white/30 text-xs">{timeAgo(m.created_at)}</span>
+                          <span className="text-white/30 text-xs flex items-center gap-1">
+                            <Clock className="w-3 h-3" />{timeAgo(m.created_at)}
+                          </span>
                           <span className="text-purple-400/70 text-xs">{m.message_count} msgs</span>
                         </div>
                       </div>
-
-                      {/* User 2 avatar */}
                       <div className="w-10 h-10 rounded-full overflow-hidden bg-white/10 flex-shrink-0">
                         {m.user2_photos?.[0] ? (
-                          <img src={m.user2_photos[0]} alt={m.user2_name} className="w-full h-full object-cover" />
+                          <img src={resolvePhoto(m.user2_photos[0])} alt={m.user2_name} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-white/40 font-black">{m.user2_name[0]}</div>
                         )}
                       </div>
+                      <button
+                        onClick={() => handleDeleteMatch(m.id)}
+                        disabled={actionLoading === m.id}
+                        title="Eliminar match"
+                        className="w-8 h-8 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 flex-shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))}
-
                   {matchesData?.matches.length === 0 && (
-                    <p className="text-center text-white/30 py-12">Nenhum match ainda.</p>
+                    <p className="text-center text-white/30 py-12 text-sm">Nenhum match ainda.</p>
                   )}
                 </div>
-
                 {matchesData && matchesData.pages > 1 && (
                   <Pagination
-                    page={matchesPage}
-                    pages={matchesData.pages}
+                    page={matchesPage} pages={matchesData.pages}
                     onPrev={() => { const p = matchesPage - 1; setMatchesPage(p); loadMatches(p); }}
                     onNext={() => { const p = matchesPage + 1; setMatchesPage(p); loadMatches(p); }}
                   />
@@ -736,23 +796,20 @@ export function TelaAdmin() {
         {activeTab === "activity" && (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-black text-white">Atividade Recente</h2>
-              <button
-                onClick={loadActivity}
-                disabled={activityLoading}
-                className="flex items-center gap-1.5 text-white/50 hover:text-white text-sm transition-colors"
-              >
-                <RefreshCw className={`w-4 h-4 ${activityLoading ? "animate-spin" : ""}`} />
+              <div>
+                <h2 className="text-base font-black text-white">Atividade Recente</h2>
+                <p className="text-white/30 text-xs mt-0.5">Auto-atualiza de 20 em 20 segundos</p>
+              </div>
+              <button onClick={() => loadActivity()} disabled={activityLoading}
+                className="flex items-center gap-1.5 text-white/40 hover:text-white text-xs transition-colors">
+                <RefreshCw className={`w-3.5 h-3.5 ${activityLoading ? "animate-spin" : ""}`} />
                 Atualizar
               </button>
             </div>
-
-            {activityLoading ? (
-              <LoadingSpinner />
-            ) : (
+            {activityLoading && activity.length === 0 ? <LoadingSpinner /> : (
               <div className="space-y-2">
                 {activity.map((ev, i) => (
-                  <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-3">
+                  <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center gap-3 hover:border-white/20 transition-colors">
                     <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
                       ev.type === "register" ? "bg-blue-500/20 text-blue-400"
                       : ev.type === "match" ? "bg-rose-500/20 text-rose-400"
@@ -764,26 +821,22 @@ export function TelaAdmin() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white text-sm font-medium truncate">{ev.name}</p>
-                      {ev.email && <p className="text-white/40 text-xs truncate">{ev.email}</p>}
+                      {ev.email && <p className="text-white/30 text-xs truncate">{ev.email}</p>}
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
                         ev.type === "register" ? "bg-blue-500/20 text-blue-300"
                         : ev.type === "match" ? "bg-rose-500/20 text-rose-300"
                         : "bg-purple-500/20 text-purple-300"
                       }`}>
                         {ev.type === "register" ? "Registo" : ev.type === "match" ? "Match" : "Mensagem"}
                       </span>
-                      <p className="text-white/30 text-xs mt-1 flex items-center gap-1 justify-end">
-                        <Clock className="w-3 h-3" />
-                        {timeAgo(ev.ts)}
-                      </p>
+                      <p className="text-white/25 text-[10px] mt-1">{timeAgo(ev.ts)}</p>
                     </div>
                   </div>
                 ))}
-
-                {activity.length === 0 && (
-                  <p className="text-center text-white/30 py-12">Nenhuma atividade recente.</p>
+                {activity.length === 0 && !activityLoading && (
+                  <p className="text-center text-white/30 py-12 text-sm">Nenhuma atividade recente.</p>
                 )}
               </div>
             )}
@@ -791,35 +844,30 @@ export function TelaAdmin() {
         )}
       </div>
 
-      {/* User Detail Modal */}
+      {/* ── User Detail Modal ── */}
       {(userDetailLoading || selectedUser) && (
-        <div
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setSelectedUser(null); }}
-        >
-          <div className="bg-gray-900 border border-white/20 rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedUser(null); }}>
+          <div className="bg-gray-900 border border-white/20 rounded-2xl w-full max-w-md max-h-[90dvh] overflow-y-auto">
             {userDetailLoading ? (
               <div className="flex justify-center py-16"><LoadingSpinner /></div>
             ) : selectedUser && (
               <>
-                {/* Modal header */}
                 <div className="relative">
-                  <div className="h-32 bg-gradient-to-br from-[#CE1126]/40 to-black rounded-t-2xl" />
+                  <div className="h-28 bg-gradient-to-br from-[#CE1126]/50 to-black rounded-t-2xl" />
                   <div className="absolute bottom-0 left-4 translate-y-1/2">
                     <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-gray-900 bg-white/10">
                       {selectedUser.photos?.[0] ? (
-                        <img src={selectedUser.photos[0]} alt={selectedUser.name} className="w-full h-full object-cover" />
+                        <img src={resolvePhoto(selectedUser.photos[0])} alt={selectedUser.name} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white/40">
-                          {selectedUser.name[0]}
+                          {selectedUser.name[0]?.toUpperCase()}
                         </div>
                       )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => setSelectedUser(null)}
-                    className="absolute top-3 right-3 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white/60 hover:text-white"
-                  >
+                  <button onClick={() => setSelectedUser(null)}
+                    className="absolute top-3 right-3 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white/60 hover:text-white">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -828,22 +876,20 @@ export function TelaAdmin() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <h3 className="text-xl font-black text-white">{selectedUser.name}</h3>
-                      <p className="text-white/50 text-sm">{selectedUser.email}</p>
+                      <p className="text-white/40 text-sm">{selectedUser.email}</p>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0 mt-1">
                       {selectedUser.is_online && (
                         <span className="flex items-center gap-1 bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-bold">
-                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                          Online
+                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" /> Online
                         </span>
                       )}
                       {selectedUser.is_verified === 1 && (
-                        <span className="bg-blue-500/20 text-blue-300 text-xs px-2 py-0.5 rounded-full font-bold">✓ Verificado</span>
+                        <span className="bg-blue-500/20 text-blue-300 text-xs px-2 py-0.5 rounded-full font-bold">✓ VIP</span>
                       )}
                     </div>
                   </div>
 
-                  {/* Stats row */}
                   <div className="grid grid-cols-3 gap-2">
                     {[
                       { label: "Matches", value: selectedUser.match_count ?? 0, color: "text-rose-400" },
@@ -852,17 +898,18 @@ export function TelaAdmin() {
                     ].map(s => (
                       <div key={s.label} className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
                         <div className={`text-xl font-black ${s.color}`}>{s.value}</div>
-                        <div className="text-white/40 text-xs">{s.label}</div>
+                        <div className="text-white/30 text-xs">{s.label}</div>
                       </div>
                     ))}
                   </div>
 
-                  {/* Info */}
-                  <div className="bg-white/5 rounded-xl p-3 space-y-1.5 text-sm">
+                  <div className="bg-white/5 rounded-xl p-3 space-y-2 text-sm">
                     <InfoRow label="Idade" value={`${selectedUser.age} anos`} />
                     <InfoRow label="Localização" value={selectedUser.location} />
                     <InfoRow label="Género" value={selectedUser.gender} />
                     {selectedUser.work && <InfoRow label="Trabalho" value={selectedUser.work} />}
+                    {selectedUser.education && <InfoRow label="Educação" value={selectedUser.education} />}
+                    {selectedUser.hometown && <InfoRow label="Cidade natal" value={selectedUser.hometown} />}
                     {selectedUser.bio && <InfoRow label="Bio" value={selectedUser.bio} />}
                     {selectedUser.interests?.length > 0 && (
                       <InfoRow label="Interesses" value={selectedUser.interests.join(", ")} />
@@ -870,45 +917,86 @@ export function TelaAdmin() {
                     <InfoRow label="Membro desde" value={selectedUser.created_at ? new Date(selectedUser.created_at).toLocaleDateString("pt-PT") : "-"} />
                   </div>
 
-                  {/* Photos strip */}
-                  {selectedUser.photos.length > 1 && (
+                  {selectedUser.photos.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto pb-1">
                       {selectedUser.photos.map((url, i) => (
-                        <img key={i} src={url} alt="" className="w-20 h-28 object-cover rounded-xl flex-shrink-0" />
+                        <img key={i} src={resolvePhoto(url)} alt="" className="w-20 h-28 object-cover rounded-xl flex-shrink-0" />
                       ))}
                     </div>
                   )}
 
-                  {/* Action buttons */}
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2 pt-1">
                     {selectedUser.is_verified === 1 ? (
-                      <button
-                        onClick={() => handleVerify(selectedUser.id, false)}
-                        disabled={actionLoading === selectedUser.id}
-                        className="flex-1 h-10 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
-                      >
-                        Remover verificação
+                      <button onClick={() => handleVerify(selectedUser.id, false)} disabled={actionLoading === selectedUser.id}
+                        className="flex-1 h-11 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+                        Remover VIP
                       </button>
                     ) : (
-                      <button
-                        onClick={() => handleVerify(selectedUser.id, true)}
-                        disabled={actionLoading === selectedUser.id}
-                        className="flex-1 h-10 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
-                      >
-                        Verificar
+                      <button onClick={() => handleVerify(selectedUser.id, true)} disabled={actionLoading === selectedUser.id}
+                        className="flex-1 h-11 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
+                        ✓ Dar VIP
                       </button>
                     )}
-                    <button
-                      onClick={() => handleDelete(selectedUser.id, selectedUser.name)}
-                      disabled={actionLoading === selectedUser.id}
-                      className="flex-1 h-10 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
-                    >
+                    <button onClick={() => handleDelete(selectedUser.id, selectedUser.name)} disabled={actionLoading === selectedUser.id}
+                      className="flex-1 h-11 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-xl text-sm font-bold transition-colors disabled:opacity-50">
                       Eliminar
                     </button>
                   </div>
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Broadcast Modal ── */}
+      {showBroadcast && (
+        <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowBroadcast(false); }}>
+          <div className="bg-gray-900 border border-[#FFCD00]/30 rounded-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-[#FFCD00]/15 rounded-lg flex items-center justify-center">
+                  <Megaphone className="w-4 h-4 text-[#FFCD00]" />
+                </div>
+                <h3 className="font-black text-white">Enviar Notificação</h3>
+              </div>
+              <button onClick={() => setShowBroadcast(false)} className="text-white/40 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-white/40 text-xs mb-4">
+              Será enviado a <span className="text-[#FFCD00] font-bold">{stats?.online_users ?? 0} utilizadores online</span> neste momento.
+            </p>
+            <form onSubmit={handleBroadcast} className="space-y-3">
+              <input
+                type="text" value={broadcastTitle} onChange={(e) => setBroadcastTitle(e.target.value)}
+                placeholder="Título (ex: Novidade AngoTinder!)"
+                maxLength={60}
+                className="w-full h-11 px-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder:text-white/30 text-sm focus:outline-none focus:border-[#FFCD00]"
+              />
+              <textarea
+                value={broadcastMsg} onChange={(e) => setBroadcastMsg(e.target.value)}
+                placeholder="Mensagem para todos os utilizadores..."
+                maxLength={200}
+                rows={3}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder:text-white/30 text-sm focus:outline-none focus:border-[#FFCD00] resize-none"
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowBroadcast(false)}
+                  className="flex-1 h-11 bg-white/10 hover:bg-white/15 text-white/60 rounded-xl text-sm font-bold transition-colors">
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={broadcastLoading || !broadcastTitle.trim() || !broadcastMsg.trim()}
+                  className="flex-1 h-11 bg-[#FFCD00] hover:bg-[#FFD700] text-black rounded-xl text-sm font-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  {broadcastLoading ? "A enviar..." : "Enviar"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -932,23 +1020,17 @@ const COLOR_MAP: Record<string, string> = {
   teal:   "bg-teal-500/10   text-teal-400   border-teal-500/20",
 };
 
-function StatCard({
-  icon, label, value, color, live,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  color: string;
-  live?: boolean;
+function StatCard({ icon, label, value, color, live }: {
+  icon: React.ReactNode; label: string; value: number; color: string; live?: boolean;
 }) {
   return (
     <div className={`rounded-2xl border p-3 sm:p-4 ${COLOR_MAP[color] ?? COLOR_MAP.blue}`}>
       <div className="flex items-start justify-between mb-2">
-        <div className="w-5 h-5">{icon}</div>
+        <div className="w-5 h-5 opacity-80">{icon}</div>
         {live && <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse mt-0.5" />}
       </div>
       <div className="text-xl sm:text-2xl font-black text-white">{value.toLocaleString()}</div>
-      <div className="text-xs text-white/50 mt-0.5 leading-tight">{label}</div>
+      <div className="text-xs text-white/40 mt-0.5 leading-tight">{label}</div>
     </div>
   );
 }
@@ -958,17 +1040,13 @@ function Pagination({ page, pages, onPrev, onNext }: {
 }) {
   return (
     <div className="flex justify-center items-center gap-3 mt-6">
-      <button
-        onClick={onPrev} disabled={page <= 1}
-        className="w-9 h-9 flex items-center justify-center bg-white/10 rounded-xl disabled:opacity-30 hover:bg-white/20 transition-colors"
-      >
+      <button onClick={onPrev} disabled={page <= 1}
+        className="w-9 h-9 flex items-center justify-center bg-white/10 rounded-xl disabled:opacity-30 hover:bg-white/20 transition-colors">
         <ChevronLeft className="w-4 h-4" />
       </button>
-      <span className="text-sm text-white/50">{page} / {pages}</span>
-      <button
-        onClick={onNext} disabled={page >= pages}
-        className="w-9 h-9 flex items-center justify-center bg-white/10 rounded-xl disabled:opacity-30 hover:bg-white/20 transition-colors"
-      >
+      <span className="text-sm text-white/40">{page} / {pages}</span>
+      <button onClick={onNext} disabled={page >= pages}
+        className="w-9 h-9 flex items-center justify-center bg-white/10 rounded-xl disabled:opacity-30 hover:bg-white/20 transition-colors">
         <ChevronRight className="w-4 h-4" />
       </button>
     </div>
@@ -986,8 +1064,8 @@ function LoadingSpinner() {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-2">
-      <span className="text-white/40 flex-shrink-0 w-24">{label}</span>
-      <span className="text-white/80 break-all">{value}</span>
+      <span className="text-white/35 flex-shrink-0 w-24 text-xs">{label}</span>
+      <span className="text-white/75 break-all text-xs">{value}</span>
     </div>
   );
 }

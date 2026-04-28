@@ -1,0 +1,190 @@
+import { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { Heart, X, MapPin, Briefcase, GraduationCap, Home, Star, ChevronLeft, ChevronRight } from "lucide-react";
+import { resolveMediaUrl, User as UserType } from "../api";
+
+interface ProfileModalProps {
+  profile: UserType | null;
+  onClose: () => void;
+  onLike?: () => void;
+  onPass?: () => void;
+  likeLabel?: string;
+}
+
+export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Dar Like" }: ProfileModalProps) {
+  const [photoIdx, setPhotoIdx] = useState(0);
+
+  if (!profile) return null;
+
+  const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400"];
+  const bg = colors[profile.name.charCodeAt(0) % colors.length];
+  const photos = profile.photos;
+  const safeIdx = photos.length > 0 ? Math.min(photoIdx, photos.length - 1) : 0;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+        onClick={onClose}
+      >
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+
+        <motion.div
+          initial={{ y: "100%", opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: "100%", opacity: 0 }}
+          transition={{ type: "spring", damping: 30, stiffness: 300 }}
+          className="relative w-full max-w-md max-h-[92dvh] bg-card rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Photo header */}
+          <div className="relative w-full aspect-[4/5] flex-shrink-0">
+            {photos.length > 0 ? (
+              <img
+                src={resolveMediaUrl(photos[safeIdx])}
+                alt={profile.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-6xl font-black text-white" style={{ backgroundColor: bg }}>
+                {profile.name[0].toUpperCase()}
+              </div>
+            )}
+
+            {/* Photo indicators */}
+            {photos.length > 1 && (
+              <div className="absolute top-3 left-0 right-0 flex gap-1 px-3">
+                {photos.map((_, i) => (
+                  <div key={i} className={`flex-1 h-1 rounded-full transition-all ${i === safeIdx ? "bg-white" : "bg-white/40"}`} />
+                ))}
+              </div>
+            )}
+
+            {/* Photo nav buttons */}
+            {photos.length > 1 && (
+              <>
+                <button
+                  onClick={() => setPhotoIdx(Math.max(0, safeIdx - 1))}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center"
+                >
+                  <ChevronLeft className="w-5 h-5 text-white" />
+                </button>
+                <button
+                  onClick={() => setPhotoIdx(Math.min(photos.length - 1, safeIdx + 1))}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center"
+                >
+                  <ChevronRight className="w-5 h-5 text-white" />
+                </button>
+              </>
+            )}
+
+            {/* Verified badge */}
+            {profile.is_verified === 1 && (
+              <div className="absolute top-4 left-4">
+                <div className="bg-gradient-to-r from-secondary to-[#FFD700] p-0.5 rounded-full">
+                  <div className="bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1">
+                    <Star className="w-3 h-3 text-secondary fill-secondary" />
+                    <span className="text-xs font-black text-secondary">VERIFICADO</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Close button */}
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 w-9 h-9 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+
+            {/* Bottom gradient */}
+            <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-card to-transparent pointer-events-none" />
+          </div>
+
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto px-5 pt-3 pb-24">
+            <div className="flex items-baseline gap-2 mb-1">
+              <h2 className="text-2xl font-black">{profile.name}</h2>
+              <span className="text-2xl font-bold text-muted-foreground">{profile.age}</span>
+            </div>
+
+            <div className="space-y-1.5 mb-4">
+              {profile.location && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-medium">{profile.location}</span>
+                </div>
+              )}
+              {profile.work && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Briefcase className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-medium">{profile.work}</span>
+                </div>
+              )}
+              {profile.education && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <GraduationCap className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-medium">{profile.education}</span>
+                </div>
+              )}
+              {profile.hometown && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Home className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-medium">{profile.hometown}</span>
+                </div>
+              )}
+            </div>
+
+            {profile.bio && (
+              <div className="mb-4">
+                <p className="text-sm leading-relaxed text-foreground/80">{profile.bio}</p>
+              </div>
+            )}
+
+            {profile.interests && profile.interests.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-2">Interesses</p>
+                <div className="flex flex-wrap gap-2">
+                  {profile.interests.map((interest) => (
+                    <span
+                      key={interest}
+                      className="px-3 py-1.5 bg-secondary/15 text-primary rounded-xl text-xs font-bold border-2 border-secondary/30"
+                    >
+                      {interest}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Fixed action buttons */}
+          <div className="absolute bottom-0 left-0 right-0 bg-card border-t border-primary/10 px-5 py-4 flex gap-3">
+            {onPass && (
+              <button
+                onClick={() => { onPass(); onClose(); }}
+                className="flex-1 h-14 rounded-2xl border-4 border-primary/20 hover:border-primary/50 flex items-center justify-center gap-2 font-black transition-all"
+              >
+                <X className="w-5 h-5 text-primary/60" />
+                <span className="text-primary/60">Passar</span>
+              </button>
+            )}
+            {onLike && (
+              <button
+                onClick={() => { onLike(); onClose(); }}
+                className="flex-1 h-14 rounded-2xl bg-gradient-to-r from-secondary to-[#FFD700] flex items-center justify-center gap-2 font-black shadow-lg hover:opacity-90 transition-all"
+              >
+                <Heart className="w-5 h-5 text-black fill-black" />
+                <span className="text-black">{likeLabel}</span>
+              </button>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}

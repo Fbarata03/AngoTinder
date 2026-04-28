@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+﻿import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import {
   Heart, User, MessageCircle, Send, ArrowLeft, Sparkles, Star,
   Phone, Video, PhoneOff, VideoOff, Mic, MicOff, PhoneCall, Trash2, ImageIcon,
+  CheckCheck, Smile, X as XIcon, Play, Pause,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -61,6 +62,101 @@ function markLastSeen(matchId: string, iso: string) {
   const prev = loadLastSeen();
   const next = { ...prev, [matchId]: maxIso(prev[matchId], iso) };
   writeLastSeen(next);
+}
+
+const QUICK_EMOJIS = ["😍","❤️","🔥","😂","😘","👋","💪","🙏","😊","🥰","😉","💯","🎉","✨","💕","😎","🤩","😇","🤗","💋","🌹","💖","👍","🏆","😅","🤣","😋","🥳","🫶","💃"];
+
+function formatDateSeparator(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Hoje";
+  if (d.toDateString() === yesterday.toDateString()) return "Ontem";
+  return d.toLocaleDateString("pt-PT", { weekday: "long", day: "2-digit", month: "long" });
+}
+
+function isSameDay(a: string, b: string): boolean {
+  return new Date(a).toDateString() === new Date(b).toDateString();
+}
+
+function isSameGroup(msg: Message, prev: Message): boolean {
+  if (prev.sender_id !== msg.sender_id) return false;
+  return Date.parse(msg.created_at) - Date.parse(prev.created_at) < 2 * 60 * 1000;
+}
+
+const WAVEFORM_HEIGHTS = [3,5,8,6,10,7,4,9,6,8,5,7,10,6,8,5,7,9,4,6,8,5,7,4,3,5,8,6];
+
+function VoiceMessage({ src, isOwn }: { src: string; isOwn: boolean }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [errored, setErrored] = useState(false);
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) audio.pause();
+    else audio.play().catch(() => {});
+  };
+
+  if (errored) {
+    return <p className="text-xs opacity-60 italic">Áudio expirado</p>;
+  }
+
+  return (
+    <div className="flex items-center gap-2 min-w-[190px] max-w-[220px]">
+      <audio
+        ref={audioRef}
+        src={src}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setProgress(0); }}
+        onTimeUpdate={() => {
+          const a = audioRef.current;
+          if (a && a.duration) setProgress(a.currentTime / a.duration);
+        }}
+        onLoadedMetadata={() => {
+          const a = audioRef.current;
+          if (a && isFinite(a.duration)) setDuration(a.duration);
+        }}
+        onError={() => setErrored(true)}
+        className="hidden"
+      />
+      <button
+        onClick={toggle}
+        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+          isOwn ? "bg-white/25 hover:bg-white/35" : "bg-primary/15 hover:bg-primary/25"
+        }`}
+      >
+        {playing
+          ? <Pause className={`w-4 h-4 ${isOwn ? "text-white" : "text-primary"}`} />
+          : <Play className={`w-4 h-4 ml-0.5 ${isOwn ? "text-white" : "text-primary"}`} />
+        }
+      </button>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-px h-6 mb-0.5">
+          {WAVEFORM_HEIGHTS.map((h, i) => {
+            const filled = progress > 0 && (i / WAVEFORM_HEIGHTS.length) <= progress;
+            return (
+              <div key={i} style={{ height: `${h * 1.9}px` }}
+                className={`w-[2px] rounded-full transition-colors ${filled
+                  ? isOwn ? "bg-white" : "bg-primary"
+                  : isOwn ? "bg-white/30" : "bg-primary/25"
+                }`}
+              />
+            );
+          })}
+        </div>
+        <p className="text-xs opacity-50 font-medium">
+          {duration > 0
+            ? `${Math.floor(duration / 60)}:${String(Math.round(duration % 60)).padStart(2,"0")}`
+            : "áudio"}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function Avatar({ photo, name }: { photo?: string; name: string }) {
@@ -273,7 +369,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
                     )}
                   </div>
                   <p className={`text-sm truncate ${isUnread(m) ? "text-foreground font-bold" : "text-muted-foreground"}`}>
-                    {m.last_message || "Diga olá! ð"}
+                    {m.last_message || "Diga olá! 👋"}
                   </p>
                 </div>
               </button>
@@ -300,6 +396,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
           <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
             <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={false} />
+            <NavBtn icon={<Heart className="w-6 h-6 fill-current" />} label="Likes" onClick={() => navigate("/likes")} active={false} />
             <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={true} />
             <NavBtn icon={<User className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} active={false} />
           </div>
@@ -318,6 +415,9 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadedOlderRef = useRef(false);
   const [connected, setConnected] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -330,6 +430,14 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [uploading, setUploading] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
+  const [showEmojis, setShowEmojis] = useState(false);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cancelRecordingRef = useRef(false);
+  const emojiContainerRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Call state
   const [callState, setCallState] = useState<CallState>("idle");
@@ -396,9 +504,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   }, [streamTick, callState, callType]);
 
   useEffect(() => {
-    messagesApi.getMessages(match.match_id)
+    messagesApi.getMessages(match.match_id, 120)
       .then((m) => {
         setMessages(m);
+        setHasMore(m.length >= 120);
         setLoading(false);
         const last = m.length ? m[m.length - 1].created_at : null;
         if (last) markLastSeen(match.match_id, last);
@@ -594,13 +703,32 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (wsPingRef.current) { clearInterval(wsPingRef.current); wsPingRef.current = null; }
       if (typingTimeoutRef.current) { clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }
+      if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
       wsRef.current?.close();
       endCall();
     };
   }, [match.match_id, endCall]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!showEmojis) return;
+    const handler = (e: PointerEvent) => {
+      if (emojiContainerRef.current && !emojiContainerRef.current.contains(e.target as Node)) {
+        setShowEmojis(false);
+      }
+    };
+    document.addEventListener("pointerdown", handler);
+    return () => document.removeEventListener("pointerdown", handler);
+  }, [showEmojis]);
+
+  useEffect(() => {
+    if (loadedOlderRef.current) { loadedOlderRef.current = false; return; }
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 160;
+    if (isNearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   const startCall = async (type: "audio" | "video") => {
@@ -687,7 +815,6 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     if (!newMessage.trim()) return;
     const text = newMessage.trim();
     setNewMessage("");
-    // Stop typing indicator
     myTypingRef.current = false;
     if (typingTimeoutRef.current) { clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -699,7 +826,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         setMessages((m) => [...m, msg]);
       } catch { /* ignore */ }
     }
-    setTimeout(() => inputRef.current?.focus(), 50);
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      inputRef.current?.focus();
+    }, 50);
   };
 
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -715,6 +845,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         const msg = await messagesApi.sendMessage(match.match_id, res.text);
         setMessages((m) => [...m, msg]);
       }
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } catch {
     } finally {
       setUploading(false);
@@ -726,13 +857,27 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     if (recorderRef.current && recorderRef.current.state !== "inactive") return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      const rec = new MediaRecorder(stream, { mimeType });
       recorderRef.current = rec;
       chunksRef.current = [];
+      cancelRecordingRef.current = false;
+      setIsRecording(true);
+      setRecordingTime(0);
+      recordingTimerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
       rec.ondataavailable = (ev) => { if (ev.data.size > 0) chunksRef.current.push(ev.data); };
       rec.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        const file = new File([blob], "voice.webm", { type: "audio/webm" });
+        setIsRecording(false);
+        if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+        if (cancelRecordingRef.current) {
+          cancelRecordingRef.current = false;
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        if (chunksRef.current.length === 0) { stream.getTracks().forEach((t) => t.stop()); return; }
+        const blob = new Blob(chunksRef.current, { type: mimeType });
+        const ext = mimeType.includes("webm") ? "webm" : "mp4";
+        const file = new File([blob], `voice.${ext}`, { type: mimeType });
         setUploading(true);
         try {
           const res = await messagesApi.uploadMedia(file, "audio", 24);
@@ -742,6 +887,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             const msg = await messagesApi.sendMessage(match.match_id, res.text);
             setMessages((m) => [...m, msg]);
           }
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         } catch {
         } finally {
           setUploading(false);
@@ -750,6 +896,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       };
       rec.start();
     } catch {
+      setIsRecording(false);
       alert("Permita acesso ao microfone para gravar áudio.");
     }
   };
@@ -758,6 +905,8 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     if (recorderRef.current && recorderRef.current.state !== "inactive") {
       recorderRef.current.stop();
     }
+    setIsRecording(false);
+    if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
   };
 
   return (
@@ -823,7 +972,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       </div>
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 relative z-10">
+      <div ref={messagesContainerRef} className="flex-1 min-h-0 overflow-y-auto p-4 relative z-10">
         <div className="max-w-4xl mx-auto space-y-3">
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-center py-4">
             <div className="inline-flex items-center gap-2 bg-gradient-to-r from-secondary via-[#FFD700] to-secondary p-0.5 rounded-full shadow-xl">
@@ -836,41 +985,85 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
           {loading && <p className="text-center text-muted-foreground font-medium text-sm">A carregar mensagens...</p>}
 
-          {messages.map((msg, i) => {
+          {hasMore && !loading && (
+            <div className="text-center py-2">
+              <button
+                onClick={async () => {
+                  if (loadingMore || !messages.length) return;
+                  setLoadingMore(true);
+                  try {
+                    const older = await messagesApi.getMessages(match.match_id, 60, messages[0].id);
+                    setHasMore(older.length >= 60);
+                    loadedOlderRef.current = true;
+                    setMessages((prev) => [...older, ...prev]);
+                  } catch { /* ignore */ } finally { setLoadingMore(false); }
+                }}
+                disabled={loadingMore}
+                className="text-xs text-muted-foreground hover:text-primary font-bold px-4 py-2 rounded-full hover:bg-primary/10 transition-all disabled:opacity-50"
+              >
+                {loadingMore ? "A carregar..." : "↑ Mensagens anteriores"}
+              </button>
+            </div>
+          )}
+
+          {messages.map((msg, idx) => {
             const t = msg.text || "";
             const isImg = t.startsWith("img:");
             const isAud = t.startsWith("aud:");
             const raw = isImg || isAud ? t.slice(4) : t;
             const content = resolveMediaUrl(raw);
+            const isOwn = msg.sender_id === userId;
+
+            const prevMsg = idx > 0 ? messages[idx - 1] : null;
+            const nextMsg = idx < messages.length - 1 ? messages[idx + 1] : null;
+            const showDate = !prevMsg || !isSameDay(msg.created_at, prevMsg.created_at);
+            const grouped = !!prevMsg && isSameGroup(msg, prevMsg);
+            const isGroupEnd = !nextMsg || !isSameGroup(nextMsg, msg);
+
             return (
-            <motion.div key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}
-              className={`flex ${msg.sender_id === userId ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[78%] rounded-3xl px-4 py-2.5 shadow-md ${
-                msg.sender_id === userId
-                  ? "bg-gradient-to-r from-primary via-[#8B0000] to-black text-white rounded-br-sm"
-                  : "bg-card border-2 border-secondary/20 rounded-bl-sm"
-              }`}>
-                {isImg ? (
-                  <img src={content} alt="imagem" className="max-w-full rounded-xl"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                ) : isAud ? (
-                  <audio src={content} controls className="w-64"
-                    onError={(e) => {
-                      const el = e.target as HTMLAudioElement;
-                      el.style.display = "none";
-                      const p = document.createElement("p");
-                      p.textContent = "ðµ ›udio expirado";
-                      p.className = "text-xs opacity-60 italic";
-                      el.parentNode?.appendChild(p);
-                    }} />
-                ) : (
-                  <p className="font-medium leading-relaxed text-sm">{msg.text}</p>
+              <Fragment key={msg.id}>
+                {showDate && (
+                  <div className="text-center py-3">
+                    <span className="text-xs bg-black/15 dark:bg-white/10 text-muted-foreground px-3 py-1 rounded-full font-bold">
+                      {formatDateSeparator(msg.created_at)}
+                    </span>
+                  </div>
                 )}
-                <p className={`text-xs mt-1 font-bold ${msg.sender_id === userId ? "text-secondary/70" : "text-muted-foreground"}`}>
-                  {new Date(msg.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
-                </p>
-              </div>
-            </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(idx * 0.015, 0.25) }}
+                  className={`flex ${isOwn ? "justify-end" : "justify-start"} ${grouped ? "mt-0.5" : "mt-3"}`}
+                >
+                  <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 shadow-sm ${
+                    isOwn
+                      ? `bg-gradient-to-br from-primary via-[#8B0000] to-black text-white ${isGroupEnd ? "rounded-br-[4px]" : ""}`
+                      : `bg-card border border-secondary/25 ${isGroupEnd ? "rounded-bl-[4px]" : ""}`
+                  }`}>
+                    {isImg ? (
+                      <img
+                        src={content}
+                        alt="imagem"
+                        className="max-w-full rounded-xl cursor-pointer hover:opacity-90 active:opacity-80 transition-opacity"
+                        onClick={() => setPreviewImg(content)}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    ) : isAud ? (
+                      <VoiceMessage src={content} isOwn={isOwn} />
+                    ) : (
+                      <p className="font-medium leading-relaxed text-sm break-words">{msg.text}</p>
+                    )}
+                    {isGroupEnd && (
+                      <div className={`flex items-center gap-1 mt-0.5 ${isOwn ? "justify-end" : "justify-start"}`}>
+                        <span className={`text-[10px] font-bold ${isOwn ? "text-white/55" : "text-muted-foreground"}`}>
+                          {new Date(msg.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                        {isOwn && <CheckCheck className="w-3.5 h-3.5 text-secondary/70" />}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              </Fragment>
             );
           })}
           {/* Typing indicator */}
@@ -901,14 +1094,79 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       </div>
 
       {/* Message Input */}
-      <div className="relative border-t-4 border-secondary/30 p-3 bg-card/95 backdrop-blur-xl shadow-2xl z-10 flex-shrink-0">
-        <div className="max-w-4xl mx-auto flex items-center gap-2">
+      <div className="relative border-t border-secondary/20 bg-card/95 backdrop-blur-xl shadow-2xl z-10 flex-shrink-0">
+        {/* Recording banner */}
+        <AnimatePresence>
+          {isRecording && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              className="flex items-center gap-3 px-4 py-2 bg-red-500/95 border-b border-red-400/30"
+            >
+              <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse flex-shrink-0" />
+              <span className="text-white font-bold text-sm flex-1">
+                A gravar... {Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, "0")}
+              </span>
+              <span className="text-white/70 text-xs">Solte para enviar</span>
+              <button
+                onPointerDown={(e) => { e.stopPropagation(); cancelRecordingRef.current = true; stopRecording(); }}
+                className="w-7 h-7 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="max-w-4xl mx-auto flex items-center gap-1.5 p-2.5">
+          {/* Emoji button */}
+          <div className="relative" ref={emojiContainerRef}>
+            <button
+              onClick={() => setShowEmojis((v) => !v)}
+              className="w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-secondary transition-colors rounded-full hover:bg-secondary/10"
+            >
+              <Smile className="w-5 h-5" />
+            </button>
+            <AnimatePresence>
+              {showEmojis && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.93 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.93 }}
+                  className="absolute bottom-12 left-0 bg-card rounded-2xl shadow-2xl border-2 border-primary/15 p-3 grid grid-cols-6 gap-1 z-30 w-60"
+                >
+                  {QUICK_EMOJIS.map((em) => (
+                    <button
+                      key={em}
+                      onClick={() => { setNewMessage((m) => m + em); setShowEmojis(false); setTimeout(() => inputRef.current?.focus(), 30); }}
+                      className="text-xl p-1.5 hover:bg-secondary/15 rounded-xl transition-colors text-center"
+                    >
+                      {em}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Image button */}
+          <button
+            onClick={() => document.getElementById("chatPhotoInput")?.click()}
+            disabled={uploading}
+            className="w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-secondary transition-colors rounded-full hover:bg-secondary/10 disabled:opacity-40 flex-shrink-0"
+          >
+            <ImageIcon className="w-5 h-5" />
+          </button>
+          <input id="chatPhotoInput" type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
+
+          {/* Text input */}
           <Input
             ref={inputRef}
             value={newMessage}
             onChange={(e) => {
               setNewMessage(e.target.value);
-              // Send typing indicator
+              if (showEmojis) setShowEmojis(false);
               if (wsRef.current?.readyState === WebSocket.OPEN) {
                 if (!myTypingRef.current) {
                   myTypingRef.current = true;
@@ -925,41 +1183,81 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
-                // Stop typing indicator on send
                 myTypingRef.current = false;
                 if (typingTimeoutRef.current) { clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }
                 handleSend();
               }
             }}
-            placeholder={uploading ? "A enviar..." : "Escreva uma mensagem..."}
+            placeholder={uploading ? "A enviar..." : "Mensagem"}
             disabled={uploading}
-            className="flex-1 bg-input-background border-2 border-primary/20 focus:border-secondary rounded-2xl h-12 px-4 font-medium text-sm disabled:opacity-60"
+            className="flex-1 bg-input-background border border-primary/15 focus:border-secondary rounded-full h-11 px-4 font-medium text-sm disabled:opacity-60"
           />
-          <input id="photoInput" type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
-          <Button
-            onPointerDown={() => { if (!uploading) startRecording(); }}
-            onPointerUp={stopRecording}
-            onPointerCancel={stopRecording}
-            onPointerLeave={stopRecording}
-            disabled={uploading}
-            className="w-12 h-12 rounded-2xl bg-black/60 hover:bg-black/80 flex items-center justify-center p-0 shadow-xl flex-shrink-0"
-            title="Gravar áudio">
-            <Mic className="w-5 h-5" />
-          </Button>
-          <Button onClick={() => document.getElementById("photoInput")?.click()}
-            disabled={uploading}
-            className="w-12 h-12 rounded-2xl bg-black/60 hover:bg-black/80 flex items-center justify-center p-0 shadow-xl flex-shrink-0"
-            title="Enviar imagem">
-            <ImageIcon className="w-5 h-5" />
-          </Button>
-          <Button onClick={handleSend} disabled={uploading}
-            className="w-12 h-12 rounded-2xl bg-gradient-to-r from-primary via-[#8B0000] to-black hover:opacity-90 flex items-center justify-center p-0 shadow-xl flex-shrink-0">
-            <Send className="w-5 h-5" />
-          </Button>
+
+          {/* Send or Mic (dynamic) */}
+          <AnimatePresence mode="wait">
+            {newMessage.trim() ? (
+              <motion.button
+                key="send"
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.7, opacity: 0 }}
+                onClick={handleSend}
+                disabled={uploading}
+                className="w-11 h-11 rounded-full bg-gradient-to-br from-primary to-[#8B0000] flex items-center justify-center shadow-lg flex-shrink-0 disabled:opacity-60"
+              >
+                <Send className="w-5 h-5 text-white" />
+              </motion.button>
+            ) : (
+              <motion.button
+                key="mic"
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.7, opacity: 0 }}
+                onPointerDown={() => { if (!uploading) startRecording(); }}
+                onPointerUp={stopRecording}
+                onPointerCancel={stopRecording}
+                onPointerLeave={stopRecording}
+                disabled={uploading}
+                className={`w-11 h-11 rounded-full flex items-center justify-center shadow-lg flex-shrink-0 transition-colors ${
+                  isRecording ? "bg-red-500 animate-pulse" : "bg-gradient-to-br from-primary to-[#8B0000]"
+                } disabled:opacity-60`}
+              >
+                <Mic className="w-5 h-5 text-white" />
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
       <ProfileModal open={showProfile} onClose={() => setShowProfile(false)} match={match} />
+
+      {/* Image fullscreen preview */}
+      <AnimatePresence>
+        {previewImg && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/96 flex items-center justify-center p-4"
+            onClick={() => setPreviewImg(null)}
+          >
+            <button
+              className="absolute top-4 right-4 w-10 h-10 bg-white/15 hover:bg-white/25 rounded-full flex items-center justify-center transition-colors"
+              onClick={() => setPreviewImg(null)}
+            >
+              <XIcon className="w-5 h-5 text-white" />
+            </button>
+            <motion.img
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              src={previewImg}
+              alt="preview"
+              className="max-w-full max-h-[88dvh] object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ââ Incoming Call overlay ââ */}
       <AnimatePresence>
@@ -971,7 +1269,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             </div>
             <div className="text-center">
               <p className="text-white/60 text-sm font-bold mb-2">
-                {callType === "video" ? "ð¹ Chamada de vídeo" : "ð Chamada de voz"}
+                {callType === "video" ? "📹 Chamada de vídeo" : "📞 Chamada de voz"}
               </p>
               <h2 className="text-3xl font-black text-white">{match.name}</h2>
               <p className="text-secondary font-bold mt-2 animate-pulse">Chamada recebida...</p>
@@ -1006,7 +1304,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             </div>
             <div className="text-center">
               <p className="text-white/60 text-sm font-bold mb-1">
-                {callType === "video" ? "ð¹ Chamada de vídeo" : "ð Chamada de voz"}
+                {callType === "video" ? "📹 Chamada de vídeo" : "📞 Chamada de voz"}
               </p>
               <h2 className="text-3xl font-black text-white">{match.name}</h2>
               <p className="text-secondary font-bold mt-2 animate-pulse">A chamar...</p>
@@ -1025,7 +1323,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="absolute inset-0 z-50 bg-black flex flex-col">
 
-            {/* ›rea principal: vídeo remoto ou avatar para chamada de voz */}
+            {/* Área principal: vídeo remoto ou avatar para chamada de voz */}
             <div className="flex-1 relative bg-gray-950 overflow-hidden">
               {callType === "audio" && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
@@ -1120,7 +1418,7 @@ function ProfileModal({ open, onClose, match }: { open: boolean; onClose: () => 
             </>
           )}
           {/* Close */}
-          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white font-black text-lg">›</button>
+          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 bg-black/60 rounded-full flex items-center justify-center text-white font-black text-lg">×</button>
           {match.is_verified === 1 && (
             <div className="absolute top-3 left-3 bg-gradient-to-r from-secondary to-[#FFD700] px-2 py-0.5 rounded-full flex items-center gap-1">
               <Star className="w-3 h-3 text-black fill-black" />
@@ -1129,26 +1427,26 @@ function ProfileModal({ open, onClose, match }: { open: boolean; onClose: () => 
           )}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
             <h3 className="font-black text-2xl text-white">{match.name}{match.age ? `, ${match.age}` : ""}</h3>
-            {match.location && <p className="text-white/70 text-sm flex items-center gap-1">ð {match.location}</p>}
+            {match.location && <p className="text-white/70 text-sm flex items-center gap-1">📍 {match.location}</p>}
           </div>
         </div>
         {/* Info */}
         <div className="overflow-y-auto flex-1 p-5 space-y-3">
           {match.work && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-base">ð¼</span>
+              <span className="text-base">💼</span>
               <span className="font-bold">{match.work}</span>
             </div>
           )}
           {match.education && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-base">ð</span>
+              <span className="text-base">🎓</span>
               <span className="font-bold">{match.education}</span>
             </div>
           )}
           {match.hometown && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-base">ð </span>
+              <span className="text-base">🏠</span>
               <span className="font-bold">De {match.hometown}</span>
             </div>
           )}
@@ -1191,7 +1489,7 @@ function DesktopPlaceholder() {
           </div>
         </div>
         <h2 className="text-2xl font-black text-foreground mb-2">Seleciona uma conversa</h2>
-        <p className="text-muted-foreground font-medium mb-8">Escolhe um match à  esquerda para começar a falar</p>
+        <p className="text-muted-foreground font-medium mb-8">Escolhe um match à esquerda para começar a falar</p>
         <button
           onClick={() => navigate("/discover")}
           className="px-6 py-3 bg-gradient-to-r from-primary to-[#8B0000] text-white font-black rounded-2xl shadow-lg hover:opacity-90 transition-opacity"

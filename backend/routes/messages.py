@@ -119,7 +119,7 @@ async def upload_chat_media(
     ext = (file.filename.split(".")[-1] if file.filename else "").lower()
     if type == "image" and ext not in {"jpg", "jpeg", "png", "webp"}:
         ext = "jpg"
-    if type == "audio" and ext not in {"webm", "ogg", "mp3", "m4a"}:
+    if type == "audio" and ext not in {"webm", "ogg", "mp3", "m4a", "mp4"}:
         ext = "webm"
     token = "img:" if type == "image" else "aud:"
 

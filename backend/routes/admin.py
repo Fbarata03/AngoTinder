@@ -37,6 +37,11 @@ class AdminLoginRequest(BaseModel):
     password: str
 
 
+class BroadcastRequest(BaseModel):
+    title: str
+    message: str
+
+
 @router.post("/login")
 async def admin_login(req: AdminLoginRequest):
     if req.username != ADMIN_USERNAME or req.password != ADMIN_PASSWORD:
@@ -62,6 +67,7 @@ async def get_stats(
         total_matches,
         total_messages,
         total_swipes,
+        right_swipes,
         users_today,
         matches_today,
         messages_today,
@@ -74,6 +80,7 @@ async def get_stats(
         db.fetchval("SELECT COUNT(*) FROM matches"),
         db.fetchval("SELECT COUNT(*) FROM messages"),
         db.fetchval("SELECT COUNT(*) FROM swipes"),
+        db.fetchval("SELECT COUNT(*) FROM swipes WHERE direction IN ('right','super')"),
         db.fetchval("SELECT COUNT(*) FROM users WHERE created_at >= NOW() - INTERVAL '24 hours'"),
         db.fetchval("SELECT COUNT(*) FROM matches WHERE created_at >= NOW() - INTERVAL '24 hours'"),
         db.fetchval("SELECT COUNT(*) FROM messages WHERE created_at >= NOW() - INTERVAL '24 hours'"),
@@ -90,12 +97,18 @@ async def get_stats(
 
     online_users = notif_manager.online_count()
 
+    right_rate = round((right_swipes / total_swipes * 100) if total_swipes else 0, 1)
+    match_rate = round((total_matches / (right_swipes / 2) * 100) if right_swipes >= 2 else 0, 1)
+
     return {
         "total_users": total_users,
         "verified_users": verified_users,
         "total_matches": total_matches,
         "total_messages": total_messages,
         "total_swipes": total_swipes,
+        "right_swipes": right_swipes,
+        "right_swipe_rate": right_rate,
+        "match_rate": match_rate,
         "users_today": users_today,
         "matches_today": matches_today,
         "messages_today": messages_today,
@@ -242,6 +255,33 @@ async def delete_user(
     await db.execute("DELETE FROM matches WHERE user1_id = $1 OR user2_id = $1", user_id)
     await db.execute("DELETE FROM swipes WHERE swiper_id = $1 OR swiped_id = $1", user_id)
     await db.execute("DELETE FROM users WHERE id = $1", user_id)
+    return {"success": True}
+
+
+@router.delete("/matches/{match_id}")
+async def delete_match(
+    match_id: str,
+    db: asyncpg.Connection = Depends(get_db),
+    _admin=Depends(get_admin_user),
+):
+    row = await db.fetchrow("SELECT id FROM matches WHERE id = $1", match_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Match não encontrado")
+    await db.execute("DELETE FROM messages WHERE match_id = $1", match_id)
+    await db.execute("DELETE FROM matches WHERE id = $1", match_id)
+    return {"success": True}
+
+
+@router.post("/broadcast")
+async def send_broadcast(
+    req: BroadcastRequest,
+    _admin=Depends(get_admin_user),
+):
+    await notif_manager.broadcast_all({
+        "type": "admin_broadcast",
+        "title": req.title,
+        "message": req.message,
+    })
     return {"success": True}
 
 

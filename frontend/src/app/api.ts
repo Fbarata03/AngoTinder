@@ -235,8 +235,11 @@ export interface Message {
 }
 
 export const messagesApi = {
-  getMessages: (matchId: string) =>
-    request<Message[]>(`/messages/${matchId}`),
+  getMessages: (matchId: string, limit = 120, beforeId?: number) => {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (beforeId != null) q.set("before_id", String(beforeId));
+    return request<Message[]>(`/messages/${matchId}?${q}`);
+  },
 
   sendMessage: (matchId: string, text: string) =>
     request<Message>(`/messages/${matchId}`, {
