@@ -1,4 +1,4 @@
-﻿﻿import { useState, useEffect, useRef, useCallback, Fragment } from "react";
+﻿﻿﻿import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import {
   Heart, User, MessageCircle, Send, ArrowLeft, Sparkles, Star,
   Phone, Video, PhoneOff, VideoOff, Mic, MicOff, PhoneCall, Trash2, ImageIcon,
@@ -490,6 +490,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const chunksRef = useRef<Blob[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const recordingTimeRef = useRef(0);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const [showEmojis, setShowEmojis] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
@@ -529,6 +530,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
   useEffect(() => { callStateRef.current = callState; }, [callState]);
   useEffect(() => { callTypeRef.current = callType; }, [callType]);
+  useEffect(() => { recordingTimeRef.current = recordingTime; }, [recordingTime]);
 
   // Aplicação central de streams â dispara quando qualquer dependência muda,
   // com retries (200ms e 900ms) para cobrir timing issues em iOS/Safari/Firefox
@@ -912,6 +914,8 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const formatDuration = (s: number) =>
     `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
+  const MAX = { image: 10, video: 50, audio: 15, doc: 25 };
+
   const handleSend = async () => {
     if (!newMessage.trim()) return;
     const text = newMessage.trim();
@@ -920,13 +924,11 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     if (typingTimeoutRef.current) { clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: "typing-stop" }));
-      wsRef.current.send(JSON.stringify({ type: "text", text }));
-    } else {
-      try {
-        const msg = await messagesApi.sendMessage(match.match_id, text);
-        setMessages((m) => [...m, msg]);
-      } catch { /* ignore */ }
     }
+    try {
+      const msg = await messagesApi.sendMessage(match.match_id, text);
+      setMessages((m) => [...m, msg]);
+    } catch { /* ignore */ }
     setTimeout(() => {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
       inputRef.current?.focus();
@@ -936,18 +938,22 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX.image * 1024 * 1024) {
+      alert(`Imagem demasiado grande. Máximo ${MAX.image} MB.`);
+      e.currentTarget.value = "";
+      return;
+    }
     setUploading(true);
     try {
       const res = await messagesApi.uploadMedia(file, "image", 24);
       setNewMessage("");
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: "text", text: res.text }));
-      } else {
-        const msg = await messagesApi.sendMessage(match.match_id, res.text);
-        setMessages((m) => [...m, msg]);
-      }
+      const msg = await messagesApi.sendMessage(match.match_id, res.text);
+      setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-    } catch {
+    } catch (err: any) {
+      const msg = err?.message || "Erro ao enviar ficheiro";
+      alert(`Falha no envio: ${msg}`);
+      console.error("[upload]", err);
     } finally {
       setUploading(false);
       e.currentTarget.value = "";
@@ -957,17 +963,21 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const handleUploadVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX.video * 1024 * 1024) {
+      alert(`Vídeo demasiado grande. Máximo ${MAX.video} MB.`);
+      e.currentTarget.value = "";
+      return;
+    }
     setUploading(true);
     try {
       const res = await messagesApi.uploadMedia(file, "video", 48);
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: "text", text: res.text }));
-      } else {
-        const msg = await messagesApi.sendMessage(match.match_id, res.text);
-        setMessages((m) => [...m, msg]);
-      }
+      const msg = await messagesApi.sendMessage(match.match_id, res.text);
+      setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-    } catch {
+    } catch (err: any) {
+      const msg = err?.message || "Erro ao enviar ficheiro";
+      alert(`Falha no envio: ${msg}`);
+      console.error("[upload]", err);
     } finally {
       setUploading(false);
       e.currentTarget.value = "";
@@ -977,17 +987,21 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const handleUploadDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX.doc * 1024 * 1024) {
+      alert(`Documento demasiado grande. Máximo ${MAX.doc} MB.`);
+      e.currentTarget.value = "";
+      return;
+    }
     setUploading(true);
     try {
       const res = await messagesApi.uploadMedia(file, "doc", 168);
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: "text", text: res.text }));
-      } else {
-        const msg = await messagesApi.sendMessage(match.match_id, res.text);
-        setMessages((m) => [...m, msg]);
-      }
+      const msg = await messagesApi.sendMessage(match.match_id, res.text);
+      setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-    } catch {
+    } catch (err: any) {
+      const msg = err?.message || "Erro ao enviar ficheiro";
+      alert(`Falha no envio: ${msg}`);
+      console.error("[upload]", err);
     } finally {
       setUploading(false);
       e.currentTarget.value = "";
@@ -1015,21 +1029,30 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
+        if (recordingTimeRef.current < 1) {
+          alert("Gravação demasiado curta.");
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
         if (chunksRef.current.length === 0) { stream.getTracks().forEach((t) => t.stop()); return; }
         const blob = new Blob(chunksRef.current, { type: mimeType });
         const ext = mimeType.includes("webm") ? "webm" : "mp4";
         const file = new File([blob], `voice.${ext}`, { type: mimeType });
+        if (file.size > MAX.audio * 1024 * 1024) {
+          alert(`Áudio demasiado grande. Máximo ${MAX.audio} MB.`);
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
         setUploading(true);
         try {
           const res = await messagesApi.uploadMedia(file, "audio", 24);
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({ type: "text", text: res.text }));
-          } else {
-            const msg = await messagesApi.sendMessage(match.match_id, res.text);
-            setMessages((m) => [...m, msg]);
-          }
+          const msg = await messagesApi.sendMessage(match.match_id, res.text);
+          setMessages((m) => [...m, msg]);
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-        } catch {
+        } catch (err: any) {
+          const msg = err?.message || "Erro ao enviar ficheiro";
+          alert(`Falha no envio: ${msg}`);
+          console.error("[upload]", err);
         } finally {
           setUploading(false);
           stream.getTracks().forEach((t) => t.stop());
