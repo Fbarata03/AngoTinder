@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-from database import init_db, cleanup_old_data, get_pool, PG_EVENTS_CHANNEL, INSTANCE_ID
+from database import init_db, cleanup_old_data, cleanup_chat_files, get_pool, PG_EVENTS_CHANNEL, INSTANCE_ID
 from routes import auth, profiles, matches, messages, admin, notifications
 from notif_manager import notif_manager
 
@@ -53,6 +53,17 @@ async def daily_cleanup_task():
             print("[cleanup] Limpeza automática concluída")
         except Exception as e:
             print(f"[cleanup] Erro na limpeza: {e}")
+
+
+async def hourly_chat_files_cleanup_task():
+    while True:
+        await asyncio.sleep(60 * 60)
+        try:
+            deleted = await cleanup_chat_files()
+            if deleted:
+                print(f"[cleanup-chat] Apagados {deleted} ficheiros expirados")
+        except Exception as e:
+            print(f"[cleanup-chat] Erro na limpeza: {e}")
 
 
 async def pg_events_task():
@@ -130,6 +141,7 @@ async def startup():
         print(f"[cleanup] Erro na limpeza inicial: {e}")
     # Inicia tarefa de limpeza periódica
     asyncio.create_task(daily_cleanup_task())
+    asyncio.create_task(hourly_chat_files_cleanup_task())
     asyncio.create_task(pg_events_task())
 
 

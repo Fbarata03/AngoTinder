@@ -110,28 +110,43 @@ async def upload_chat_media(
     user_id: str = Depends(get_current_user_id),
 ):
     contents = await file.read()
-    if type not in ("image", "audio"):
+    if type not in ("image", "audio", "video", "doc"):
         raise HTTPException(status_code=400, detail="Tipo inválido")
-    if type == "image" and len(contents) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Imagem muito grande")
-    if type == "audio" and len(contents) > 20 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Áudio muito grande")
-    ext = (file.filename.split(".")[-1] if file.filename else "").lower()
-    if type == "image" and ext not in {"jpg", "jpeg", "png", "webp"}:
-        ext = "jpg"
-    if type == "audio" and ext not in {"webm", "ogg", "mp3", "m4a", "mp4"}:
-        ext = "webm"
-    token = "img:" if type == "image" else "aud:"
 
-    if CLOUDINARY_ENABLED:
-        resource_type = "image" if type == "image" else "video"  # Cloudinary uses "video" for audio
+    size_limits = {
+        "image": 10 * 1024 * 1024,
+        "audio": 20 * 1024 * 1024,
+        "video": 50 * 1024 * 1024,
+        "doc":   20 * 1024 * 1024,
+    }
+    if len(contents) > size_limits[type]:
+        limit_mb = size_limits[type] // (1024 * 1024)
+        raise HTTPException(status_code=400, detail=f"Ficheiro demasiado grande (máx. {limit_mb} MB)")
+
+    ext = (file.filename.split(".")[-1] if file.filename else "").lower()
+    valid_exts = {
+        "image": {"jpg", "jpeg", "png", "webp", "gif"},
+        "audio": {"webm", "ogg", "mp3", "m4a", "mp4"},
+        "video": {"mp4", "webm", "mov", "m4v", "3gp"},
+        "doc":   {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "zip"},
+    }
+    default_exts = {"image": "jpg", "audio": "webm", "video": "mp4", "doc": "bin"}
+    if ext not in valid_exts.get(type, set()):
+        ext = default_exts[type]
+
+    tokens = {"image": "img:", "audio": "aud:", "video": "vid:", "doc": "doc:"}
+    token = tokens[type]
+    original_filename = os.path.basename(file.filename) if file.filename else f"ficheiro.{ext}"
+
+    if CLOUDINARY_ENABLED and type != "doc":
+        resource_type = "image" if type == "image" else "video"
         result = cloudinary.uploader.upload(
             contents,
             folder="angotinder/chat",
             resource_type=resource_type,
         )
         url = result["secure_url"]
-        return {"url": url, "text": f"{token}{url}"}
+        return {"url": url, "text": f"{token}{url}", "filename": original_filename}
 
     exp = int(time.time()) + max(1, ttl_hours) * 3600
     filename = f"{uuid.uuid4()}__exp{exp}.{ext}"
@@ -139,7 +154,8 @@ async def upload_chat_media(
     with open(path, "wb") as f:
         f.write(contents)
     url = f"/static/chat/{filename}"
-    return {"url": url, "text": f"{token}{url}"}
+    text = f"{token}{url}|{original_filename}" if type == "doc" else f"{token}{url}"
+    return {"url": url, "text": text, "filename": original_filename}
 
 
 @router.get("/{match_id}")

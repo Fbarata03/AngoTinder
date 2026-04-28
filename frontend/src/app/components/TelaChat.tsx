@@ -1,8 +1,9 @@
-﻿import { useState, useEffect, useRef, useCallback, Fragment } from "react";
+﻿﻿import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import {
   Heart, User, MessageCircle, Send, ArrowLeft, Sparkles, Star,
   Phone, Video, PhoneOff, VideoOff, Mic, MicOff, PhoneCall, Trash2, ImageIcon,
   CheckCheck, Smile, X as XIcon, Play, Pause, Volume2, VolumeX, RefreshCw,
+  Paperclip, FileText, Film,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -159,6 +160,44 @@ function VoiceMessage({ src, isOwn }: { src: string; isOwn: boolean }) {
   );
 }
 
+function VideoMessage({ src, isOwn }: { src: string; isOwn: boolean }) {
+  const [errored, setErrored] = useState(false);
+  if (errored) return <p className="text-xs opacity-60 italic">Vídeo expirado</p>;
+  return (
+    <div className="max-w-[240px]">
+      <video
+        src={src}
+        controls
+        playsInline
+        className="w-full max-h-[200px] rounded-xl bg-black"
+        onError={() => setErrored(true)}
+      />
+    </div>
+  );
+}
+
+function DocMessage({ url, filename, isOwn }: { url: string; filename: string; isOwn: boolean }) {
+  const ext = (filename.split(".").pop() || "").toLowerCase();
+  const extColor: Record<string, string> = {
+    pdf: "bg-red-500", doc: "bg-blue-600", docx: "bg-blue-600",
+    xls: "bg-green-600", xlsx: "bg-green-600", ppt: "bg-orange-500",
+    pptx: "bg-orange-500", txt: "bg-gray-500", zip: "bg-yellow-600",
+  };
+  const color = extColor[ext] || "bg-gray-500";
+  return (
+    <a href={url} download={filename} target="_blank" rel="noopener noreferrer"
+      className="flex items-center gap-3 min-w-[180px] max-w-[240px] hover:opacity-75 transition-opacity">
+      <div className={`${color} w-10 h-12 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm`}>
+        <span className="text-white text-xs font-black uppercase">{ext.slice(0, 4) || "DOC"}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm font-bold truncate ${isOwn ? "text-white" : "text-foreground"}`}>{filename}</p>
+        <p className={`text-xs mt-0.5 ${isOwn ? "text-white/60" : "text-muted-foreground"}`}>Toque para abrir</p>
+      </div>
+    </a>
+  );
+}
+
 function Avatar({ photo, name }: { photo?: string; name: string }) {
   const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400"];
   const bg = colors[name.charCodeAt(0) % colors.length];
@@ -181,6 +220,19 @@ function Avatar({ photo, name }: { photo?: string; name: string }) {
   );
 }
 // âââ Chat List ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+function formatLastMessage(text: string): string {
+  if (!text) return "";
+  if (text.startsWith("img:")) return "📷 Imagem";
+  if (text.startsWith("aud:")) return "🎵 Áudio";
+  if (text.startsWith("vid:")) return "🎬 Vídeo";
+  if (text.startsWith("doc:")) {
+    const rest = text.slice(4);
+    const pipeIdx = rest.indexOf("|");
+    return `📄 ${pipeIdx >= 0 ? rest.slice(pipeIdx + 1) : "Documento"}`;
+  }
+  return text;
+}
+
 function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileNav }: { onSelectMatch: (m: Match) => void; autoOpenMatchId?: string; selectedMatchId?: string; hideMobileNav?: boolean }) {
   const navigate = useNavigate();
   const { isLoggedIn } = useApp();
@@ -375,7 +427,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
                     )}
                   </div>
                   <p className={`text-sm truncate ${isUnread(m) ? "text-foreground font-bold" : "text-muted-foreground"}`}>
-                    {m.last_message || "Diga olá! 👋"}
+                    {m.last_message ? formatLastMessage(m.last_message) : "Diga olá! 👋"}
                   </p>
                 </div>
               </button>
@@ -440,9 +492,13 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [recordingTime, setRecordingTime] = useState(0);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const [showEmojis, setShowEmojis] = useState(false);
+  const [showAttach, setShowAttach] = useState(false);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelRecordingRef = useRef(false);
   const emojiContainerRef = useRef<HTMLDivElement>(null);
+  const attachBtnRef = useRef<HTMLDivElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Call state
@@ -729,6 +785,17 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   }, [showEmojis]);
 
   useEffect(() => {
+    if (!showAttach) return;
+    const handler = (e: PointerEvent) => {
+      if (attachBtnRef.current && !attachBtnRef.current.contains(e.target as Node)) {
+        setShowAttach(false);
+      }
+    };
+    document.addEventListener("pointerdown", handler);
+    return () => document.removeEventListener("pointerdown", handler);
+  }, [showAttach]);
+
+  useEffect(() => {
     if (loadedOlderRef.current) { loadedOlderRef.current = false; return; }
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -873,6 +940,46 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     try {
       const res = await messagesApi.uploadMedia(file, "image", 24);
       setNewMessage("");
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: "text", text: res.text }));
+      } else {
+        const msg = await messagesApi.sendMessage(match.match_id, res.text);
+        setMessages((m) => [...m, msg]);
+      }
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch {
+    } finally {
+      setUploading(false);
+      e.currentTarget.value = "";
+    }
+  };
+
+  const handleUploadVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await messagesApi.uploadMedia(file, "video", 48);
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: "text", text: res.text }));
+      } else {
+        const msg = await messagesApi.sendMessage(match.match_id, res.text);
+        setMessages((m) => [...m, msg]);
+      }
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch {
+    } finally {
+      setUploading(false);
+      e.currentTarget.value = "";
+    }
+  };
+
+  const handleUploadDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await messagesApi.uploadMedia(file, "doc", 168);
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: "text", text: res.text }));
       } else {
@@ -1044,8 +1151,24 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             const t = msg.text || "";
             const isImg = t.startsWith("img:");
             const isAud = t.startsWith("aud:");
-            const raw = isImg || isAud ? t.slice(4) : t;
-            const content = resolveMediaUrl(raw);
+            const isVid = t.startsWith("vid:");
+            const isDoc = t.startsWith("doc:");
+            const isMedia = isImg || isAud || isVid || isDoc;
+            const rawStr = isMedia ? t.slice(4) : t;
+            let mediaUrl = "";
+            let docFilename = "documento";
+            if (isImg || isAud || isVid) {
+              mediaUrl = resolveMediaUrl(rawStr);
+            } else if (isDoc) {
+              const pipeIdx = rawStr.indexOf("|");
+              if (pipeIdx >= 0) {
+                mediaUrl = resolveMediaUrl(rawStr.slice(0, pipeIdx));
+                docFilename = rawStr.slice(pipeIdx + 1);
+              } else {
+                mediaUrl = resolveMediaUrl(rawStr);
+                docFilename = rawStr.split("/").pop() || "documento";
+              }
+            }
             const isOwn = msg.sender_id === userId;
 
             const prevMsg = idx > 0 ? messages[idx - 1] : null;
@@ -1076,14 +1199,18 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                   }`}>
                     {isImg ? (
                       <img
-                        src={content}
+                        src={mediaUrl}
                         alt="imagem"
                         className="max-w-full rounded-xl cursor-pointer hover:opacity-90 active:opacity-80 transition-opacity"
-                        onClick={() => setPreviewImg(content)}
+                        onClick={() => setPreviewImg(mediaUrl)}
                         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                       />
                     ) : isAud ? (
-                      <VoiceMessage src={content} isOwn={isOwn} />
+                      <VoiceMessage src={mediaUrl} isOwn={isOwn} />
+                    ) : isVid ? (
+                      <VideoMessage src={mediaUrl} isOwn={isOwn} />
+                    ) : isDoc ? (
+                      <DocMessage url={mediaUrl} filename={docFilename} isOwn={isOwn} />
                     ) : (
                       <p className="font-medium leading-relaxed text-sm break-words">{msg.text}</p>
                     )}
@@ -1184,15 +1311,57 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             </AnimatePresence>
           </div>
 
-          {/* Image button */}
-          <button
-            onClick={() => document.getElementById("chatPhotoInput")?.click()}
-            disabled={uploading}
-            className="w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-secondary transition-colors rounded-full hover:bg-secondary/10 disabled:opacity-40 flex-shrink-0"
-          >
-            <ImageIcon className="w-5 h-5" />
-          </button>
+          {/* Attach button */}
+          <div className="relative flex-shrink-0" ref={attachBtnRef}>
+            <button
+              onClick={() => setShowAttach((v) => !v)}
+              disabled={uploading}
+              className="w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-secondary transition-colors rounded-full hover:bg-secondary/10 disabled:opacity-40"
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
+            <AnimatePresence>
+              {showAttach && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.93 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.93 }}
+                  className="absolute bottom-12 left-0 bg-card rounded-2xl shadow-2xl border-2 border-primary/15 p-2 z-30 w-48"
+                >
+                  <button
+                    onClick={() => { setShowAttach(false); document.getElementById("chatPhotoInput")?.click(); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-secondary/10 rounded-xl transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <ImageIcon className="w-4 h-4 text-white" />
+                    </div>
+                    <span className="text-sm font-bold">Imagem</span>
+                  </button>
+                  <button
+                    onClick={() => { setShowAttach(false); videoInputRef.current?.click(); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-secondary/10 rounded-xl transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 bg-purple-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Film className="w-4 h-4 text-white" />
+                    </div>
+                    <span className="text-sm font-bold">Vídeo</span>
+                  </button>
+                  <button
+                    onClick={() => { setShowAttach(false); docInputRef.current?.click(); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-secondary/10 rounded-xl transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 bg-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-4 h-4 text-white" />
+                    </div>
+                    <span className="text-sm font-bold">Documento</span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
           <input id="chatPhotoInput" type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
+          <input ref={videoInputRef} type="file" accept="video/*" onChange={handleUploadVideo} className="hidden" />
+          <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" onChange={handleUploadDoc} className="hidden" />
 
           {/* Text input */}
           <Input

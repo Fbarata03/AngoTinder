@@ -250,11 +250,15 @@ export const messagesApi = {
   getTurnCredentials: () =>
     request<{ urls: string[]; username: string; credential: string; ttl: number }>("/messages/turn/credentials"),
 
-  uploadMedia: (file: File, type: "image" | "audio", ttlHours = 24) =>
-    upload<{ url: string; text: string }>(`/messages/upload?type=${type}&ttl_hours=${ttlHours}`, file).then((r) => {
+  uploadMedia: (file: File, type: "image" | "audio" | "video" | "doc", ttlHours = 24) =>
+    upload<{ url: string; text: string; filename?: string }>(`/messages/upload?type=${type}&ttl_hours=${ttlHours}`, file).then((r) => {
       const fixedUrl = resolveMediaUrl(r.url);
-      const prefix = type === "image" ? "img:" : "aud:";
-      return { url: fixedUrl, text: `${prefix}${fixedUrl}` };
+      if (type === "doc") {
+        const filename = r.filename || file.name;
+        return { url: fixedUrl, text: `doc:${fixedUrl}|${filename}`, filename };
+      }
+      const prefixes: Record<string, string> = { image: "img:", audio: "aud:", video: "vid:" };
+      return { url: fixedUrl, text: `${prefixes[type]}${fixedUrl}`, filename: r.filename };
     }),
 };
 

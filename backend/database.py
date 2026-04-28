@@ -1,4 +1,5 @@
 import asyncpg
+import asyncio
 import os
 import json
 import time
@@ -41,29 +42,79 @@ async def publish_event(event: dict):
         await conn.execute("SELECT pg_notify($1, $2)", PG_EVENTS_CHANNEL, payload)
 
 
+def _parse_chat_exp(name: str) -> int | None:
+    i = name.find("__exp")
+    if i < 0:
+        return None
+    start = i + 5
+    end = name.find(".", start)
+    if end < 0:
+        end = len(name)
+    part = name[start:end]
+    if not part.isdigit():
+        return None
+    return int(part)
+
+
+def cleanup_chat_files_sync() -> int:
+    """
+    Apaga ficheiros de chat expirados da pasta /static/chat/.
+    Função síncrona para poder ser chamada de tasks assíncronas via loop.run_in_executor.
+    Retorna o número de ficheiros apagados.
+    """
+    static_chat_dir = os.path.join(os.path.dirname(__file__), "static", "chat")
+    if not os.path.isdir(static_chat_dir):
+        return 0
+    deleted = 0
+    now = int(time.time())
+    try:
+        for entry in os.scandir(static_chat_dir):
+            if not entry.is_file():
+                continue
+            exp = _parse_chat_exp(entry.name)
+            if exp is None:
+                continue
+            if now <= exp:
+                continue
+            try:
+                os.remove(entry.path)
+                deleted += 1
+            except FileNotFoundError:
+                continue
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return deleted
+
+
+async def cleanup_chat_files() -> int:
+    """Limpeza assíncrona dos ficheiros de chat expirados. Roda o I/O bloqueante numa thread."""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, cleanup_chat_files_sync)
+
+
 async def cleanup_old_data():
     """
-    Limpa dados temporários sem eliminar utilizadores:
+    Limpeza completa (DB + ficheiros) — deve correr uma vez por dia:
     - OTPs expirados
-    - Swipes LEFT com mais de 60 dias (apenas para reduzir tabela, utilizadores não são afetados)
-    - Mensagens com mais de 1 ano (mantém as recentes)
-    - Fotos locais órfãs (ficheiros que já não estão referenciados por nenhum user)
+    - Swipes LEFT com mais de 60 dias
+    - Mensagens excedentes (mantém as 500 mais recentes por conversa)
+    - Fotos de perfil locais órfãs
+    - Ficheiros de chat expirados
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
-        # Remove OTPs expirados
         deleted_otps = await conn.execute(
             "DELETE FROM phone_otps WHERE expires_at < NOW()"
         )
 
-        # Remove swipes LEFT antigos (>60 dias) — só servem para não mostrar o perfil de novo,
-        # mas após 60 dias faz sentido mostrar outra vez
+        # Remove swipes LEFT antigos (>60 dias) — deixa mostrar o perfil de novo ao fim de 2 meses
         deleted_swipes = await conn.execute(
             "DELETE FROM swipes WHERE direction = 'left' AND created_at < NOW() - INTERVAL '60 days'"
         )
 
-        # Mantém apenas as últimas 500 mensagens por conversa (apaga as mais antigas)
-        # Nunca apaga utilizadores nem matches
+        # Mantém apenas as 500 mensagens mais recentes por conversa
         await conn.execute("""
             DELETE FROM messages
             WHERE id IN (
@@ -120,24 +171,8 @@ async def cleanup_old_data():
                 except OSError:
                     continue
 
-        static_chat_dir = os.path.join(os.path.dirname(__file__), "static", "chat")
-        if os.path.isdir(static_chat_dir):
-            now = time.time()
-            for entry in os.scandir(static_chat_dir):
-                if not entry.is_file():
-                    continue
-                name = entry.name
-                exp = None
-                if "__exp" in name:
-                    try:
-                        exp = int(name.split("__exp", 1)[1].split(".", 1)[0])
-                    except Exception:
-                        exp = None
-                if exp and now > exp:
-                    try:
-                        os.remove(entry.path)
-                    except Exception:
-                        pass
+    # Limpeza de ficheiros de chat (roda na thread pool para não bloquear)
+    await cleanup_chat_files()
 
     return {"otps": deleted_otps, "swipes": deleted_swipes}
 
