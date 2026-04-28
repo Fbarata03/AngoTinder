@@ -140,7 +140,9 @@ function timeAgo(ts: string): string {
 }
 
 export function TelaAdmin() {
-  const [loggedIn, setLoggedIn] = useState(!!localStorage.getItem("admin_token"));
+  const hasToken = !!localStorage.getItem("admin_token");
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [checking, setChecking] = useState(hasToken);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -201,10 +203,12 @@ export function TelaAdmin() {
       const data = await adminRequest<Stats>("/stats");
       setStats(data);
       setLastRefresh(new Date());
+      setLoggedIn(true);
     } catch (err) {
       handleAuthError(err);
     } finally {
       setStatsLoading(false);
+      setChecking(false);
     }
   }, [handleAuthError]);
 
@@ -260,11 +264,15 @@ export function TelaAdmin() {
   };
 
   useEffect(() => {
-    if (!loggedIn) return;
-    loadStats();
+    if (!loggedIn && !checking) return;
+    if (checking) {
+      // Validate existing token silently — don't flash the panel
+      loadStats(true);
+      return;
+    }
     refreshTimerRef.current = setInterval(() => loadStats(true), 30000);
     return () => { if (refreshTimerRef.current) clearInterval(refreshTimerRef.current); };
-  }, [loggedIn, loadStats]);
+  }, [loggedIn, checking, loadStats]);
 
   useEffect(() => {
     if (!loggedIn) return;
@@ -287,6 +295,7 @@ export function TelaAdmin() {
         body: JSON.stringify({ username, password }),
       });
       localStorage.setItem("admin_token", res.token);
+      setChecking(false);
       setLoggedIn(true);
     } catch {
       setLoginError("Credenciais inválidas");
@@ -368,6 +377,18 @@ export function TelaAdmin() {
     localStorage.removeItem("admin_token");
     setLoggedIn(false);
   };
+
+  // ── Token check (evita flash de login quando token existe mas ainda não foi validado) ──
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#CE1126] via-[#8B0000] to-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-[#FFCD00] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[#FFCD00] font-bold text-sm">A verificar sessão...</p>
+        </div>
+      </div>
+    );
+  }
 
   // ── Login ─────────────────────────────────────────────────────────────────
   if (!loggedIn) {
