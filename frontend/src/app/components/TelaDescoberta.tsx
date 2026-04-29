@@ -29,14 +29,37 @@ function saveSuperLikes(n: number) {
   try { localStorage.setItem(SUPER_KEY, String(n)); } catch { /* ignore */ }
 }
 
-// Placeholder colorido com iniciais quando não há foto
 function PhotoPlaceholder({ name, className = "" }: { name: string; className?: string }) {
-  const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400", "#00008B"];
-  const color = colors[name.charCodeAt(0) % colors.length];
+  const gradients = [
+    ["#CE1126", "#3D0000"],
+    ["#8B0000", "#1a0000"],
+    ["#D4A017", "#5c3a00"],
+    ["#006400", "#003200"],
+    ["#003E7E", "#001030"],
+  ];
+  const [from, to] = gradients[name.charCodeAt(0) % gradients.length];
   const initials = name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
   return (
-    <div className={`flex items-center justify-center ${className}`} style={{ backgroundColor: color }}>
-      <span className="text-white font-black" style={{ fontSize: "clamp(2rem, 8vw, 4rem)" }}>{initials}</span>
+    <div
+      className={`relative flex flex-col items-center justify-end ${className}`}
+      style={{ background: `linear-gradient(160deg, ${from}, ${to})` }}
+    >
+      <svg
+        className="absolute inset-0 w-full h-full opacity-[0.18] fill-white pointer-events-none"
+        viewBox="0 0 200 280"
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden="true"
+      >
+        <circle cx="100" cy="72" r="44" />
+        <path d="M22 290 Q22 162 100 162 Q178 162 178 290 Z" />
+      </svg>
+      <div className="relative z-10 mb-[18%]">
+        <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-sm border-4 border-white/35 flex items-center justify-center shadow-2xl">
+          <span className="text-white font-black drop-shadow-lg" style={{ fontSize: "clamp(1.5rem, 5vw, 2.2rem)" }}>
+            {initials}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -434,18 +457,24 @@ export function TelaDescoberta() {
           <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
             onClick={handleRewind}
             disabled={history.length === 0}
+            title="Voltar ao perfil anterior"
+            aria-label="Voltar"
             className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-white shadow-xl flex items-center justify-center border-4 border-secondary/30 hover:border-secondary transition-all disabled:opacity-40 disabled:cursor-not-allowed">
             <RotateCcw className="w-5 h-5 sm:w-7 sm:h-7 text-secondary" strokeWidth={2.5} />
           </motion.button>
 
           <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
             onClick={() => handleButtonSwipe("left")}
+            title="Não curtir (Nope)"
+            aria-label="Não curtir"
             className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white shadow-2xl flex items-center justify-center border-4 border-[#CE1126]/30 hover:border-[#CE1126] transition-all">
             <X className="w-8 h-8 sm:w-10 sm:h-10 text-[#CE1126]" strokeWidth={3} />
           </motion.button>
 
           <motion.button whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.95 }}
             onClick={() => handleButtonSwipe("right")}
+            title="Curtir"
+            aria-label="Curtir"
             className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-secondary via-[#FFD700] to-[#FFA500] shadow-2xl shadow-secondary/50 flex items-center justify-center">
             <div className="absolute inset-0 bg-secondary rounded-full blur-xl opacity-50 animate-pulse"></div>
             <Heart className="relative w-10 h-10 sm:w-12 sm:h-12 text-black fill-black drop-shadow-lg" strokeWidth={2.5} />
@@ -459,6 +488,8 @@ export function TelaDescoberta() {
               }
             }}
             disabled={superLikesLeft === 0}
+            title={superLikesLeft > 0 ? `Super Like (${superLikesLeft} restantes)` : "Sem Super Likes disponíveis"}
+            aria-label="Super Like"
             className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[#00C9FF] to-[#0080FF] shadow-2xl flex items-center justify-center border-4 border-blue-300/50 hover:border-blue-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
             <Star className="w-7 h-7 sm:w-9 sm:h-9 text-white fill-white" strokeWidth={2.5} />
             <div className="absolute -top-2 -right-2 w-6 h-6 sm:w-7 sm:h-7 bg-gradient-to-br from-secondary to-[#FFD700] rounded-full border-2 border-white flex items-center justify-center">
@@ -468,6 +499,8 @@ export function TelaDescoberta() {
 
           <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
             onClick={() => { setBoostActive(true); setTimeout(() => setBoostActive(false), 1800000); }}
+            title={boostActive ? "Boost ativo — o teu perfil está em destaque!" : "Ativar Boost — destaca o teu perfil por 30 min"}
+            aria-label="Boost"
             className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full shadow-xl flex items-center justify-center border-4 transition-all ${boostActive ? "bg-gradient-to-br from-secondary to-[#FFD700] border-secondary/50" : "bg-white border-purple-300 hover:border-purple-500"}`}>
             <Zap className={`w-5 h-5 sm:w-7 sm:h-7 ${boostActive ? "text-black fill-black" : "text-purple-600 fill-purple-600"}`} strokeWidth={2.5} />
           </motion.button>

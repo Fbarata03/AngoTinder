@@ -161,14 +161,14 @@ export function TelaPerfil() {
         <div className="mb-6">
           <label className="block mb-3 font-black text-lg">Nome</label>
           <Input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
+            className="bg-input-background border-4 border-black/10 dark:border-white/15 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
             placeholder="Seu nome" />
         </div>
 
         <div className="mb-6">
           <label className="block mb-3 font-black text-lg">Idade</label>
           <Input type="number" value={profile.age} onChange={(e) => setProfile({ ...profile, age: parseInt(e.target.value) || profile.age })}
-            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
+            className="bg-input-background border-4 border-black/10 dark:border-white/15 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
             placeholder="Sua idade" />
         </div>
 
@@ -181,7 +181,7 @@ export function TelaPerfil() {
             <select
               value={profile.location}
               onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-              className="w-full bg-input-background border-4 border-primary/20 h-16 rounded-2xl text-lg font-bold pl-5 pr-10 appearance-none cursor-pointer"
+              className="w-full bg-input-background border-4 border-black/10 dark:border-white/15 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5 pr-10 appearance-none cursor-pointer"
             >
               {ANGOLA_PROVINCES.map((p) => (
                 <option key={p} value={p}>{p}</option>
@@ -193,28 +193,28 @@ export function TelaPerfil() {
         <div className="mb-6">
           <label className="block mb-3 font-black text-lg">Profissão</label>
           <Input value={profile.work || ""} onChange={(e) => setProfile({ ...profile, work: e.target.value })}
-            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
+            className="bg-input-background border-4 border-black/10 dark:border-white/15 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
             placeholder="Ex: Engenheiro, Professor..." />
         </div>
 
         <div className="mb-6">
           <label className="block mb-3 font-black text-lg">Educação</label>
           <Input value={profile.education || ""} onChange={(e) => setProfile({ ...profile, education: e.target.value })}
-            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
+            className="bg-input-background border-4 border-black/10 dark:border-white/15 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
             placeholder="Ex: Universidade Agostinho Neto..." />
         </div>
 
         <div className="mb-6">
           <label className="block mb-3 font-black text-lg">Cidade natal</label>
           <Input value={profile.hometown || ""} onChange={(e) => setProfile({ ...profile, hometown: e.target.value })}
-            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
+            className="bg-input-background border-4 border-black/10 dark:border-white/15 focus:border-secondary h-16 rounded-2xl text-lg font-bold pl-5"
             placeholder="Ex: Luanda, Benguela..." />
         </div>
 
         <div className="mb-8">
           <label className="block mb-3 font-black text-lg">Sobre Mim</label>
           <Textarea value={profile.bio || ""} onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-            className="bg-input-background border-4 border-primary/20 focus:border-secondary rounded-2xl min-h-40 resize-none text-base p-5 font-medium"
+            className="bg-input-background border-4 border-black/10 dark:border-white/15 focus:border-secondary rounded-2xl min-h-40 resize-none text-base p-5 font-medium"
             placeholder="Conte um pouco sobre você..." />
           <div className="flex items-center justify-between mt-3">
             <p className="text-sm text-muted-foreground font-bold">{(profile.bio || "").length}/500 caracteres</p>
@@ -224,7 +224,7 @@ export function TelaPerfil() {
 
         <div className="mb-8">
           <label className="block mb-3 font-black text-lg">Interesses <span className="text-sm text-muted-foreground font-normal">({(profile.interests || []).length}/10)</span></label>
-          <div className="flex flex-wrap gap-2 min-h-[48px] p-3 bg-input-background rounded-2xl border-4 border-primary/20 mb-3">
+          <div className="flex flex-wrap gap-2 min-h-[48px] p-3 bg-input-background rounded-2xl border-4 border-black/10 dark:border-white/15 mb-3">
             {(profile.interests || []).map((interest) => (
               <span key={interest} className="inline-flex items-center gap-1 px-3 py-1.5 bg-secondary/20 text-primary rounded-xl text-sm font-bold border-2 border-secondary/30">
                 {interest}
@@ -253,7 +253,7 @@ export function TelaPerfil() {
               }
             }}
             placeholder="Escreve um interesse e prime Enter..."
-            className="bg-input-background border-4 border-primary/20 focus:border-secondary h-12 rounded-2xl font-medium pl-5 mb-3"
+            className="bg-input-background border-4 border-black/10 dark:border-white/15 focus:border-secondary h-12 rounded-2xl font-medium pl-5 mb-3"
           />
           <div className="flex flex-wrap gap-2">
             {["Música","Desporto","Viagens","Cozinha","Cinema","Arte","Leitura","Dança","Gaming","Natureza","Fotografia","Moda"]

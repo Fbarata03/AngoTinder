@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Heart, User, MessageCircle, Star, Sparkles, X } from "lucide-react";
+import { Heart, User, MessageCircle, Star, Sparkles, X, Search } from "lucide-react";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { motion, AnimatePresence } from "motion/react";
 import { profilesApi, matchesApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
 import { ProfileModal } from "./ProfileModal";
+import { Button } from "./ui/button";
 
 export function TelaLikes() {
   const navigate = useNavigate();
@@ -94,12 +95,26 @@ export function TelaLikes() {
             <p className="text-muted-foreground font-medium">A carregar likes...</p>
           </div>
         ) : likes.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Heart className="w-12 h-12 text-primary" />
-            </div>
-            <h3 className="text-xl font-black mb-2">Ainda sem likes</h3>
-            <p className="text-muted-foreground font-medium">Continue a deslizar para ganhar mais likes!</p>
+          <div className="text-center py-16 flex flex-col items-center">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
+              className="w-28 h-28 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-secondary/30"
+            >
+              <Heart className="w-14 h-14 text-primary" />
+            </motion.div>
+            <h3 className="text-2xl font-black mb-2">Ainda sem likes</h3>
+            <p className="text-muted-foreground font-medium mb-8 max-w-xs">
+              Vai descobrir pessoas e dá likes — elas podem curtir-te de volta!
+            </p>
+            <Button
+              onClick={() => navigate("/discover")}
+              className="bg-gradient-to-r from-primary via-[#8B0000] to-black hover:opacity-90 text-white rounded-2xl font-black text-base px-8 py-5 shadow-xl shadow-primary/30 border-2 border-secondary/40 flex items-center gap-2"
+            >
+              <Search className="w-5 h-5" />
+              Descobrir Pessoas
+            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4">
