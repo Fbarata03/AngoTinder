@@ -20,6 +20,7 @@ export default defineConfig({
         target: 'https://angotinder.onrender.com',
         changeOrigin: true,
         secure: true,
+        ws: true,
       },
     },
   },

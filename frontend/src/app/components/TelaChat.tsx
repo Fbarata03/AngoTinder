@@ -1663,7 +1663,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 320 }}
-              className="w-full bg-card rounded-t-3xl shadow-2xl pb-safe"
+              className="w-full bg-card rounded-t-3xl shadow-2xl safe-bottom"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="w-12 h-1.5 bg-muted-foreground/20 rounded-full mx-auto mt-3 mb-1" />
@@ -1833,7 +1833,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             </div>
 
             {/* Controlos estilo WhatsApp */}
-            <div className="bg-black/95 px-3 py-5 md:py-6 flex items-center justify-around flex-shrink-0 border-t border-white/10">
+            <div className="bg-black/95 px-3 py-5 md:py-6 flex items-center justify-around flex-shrink-0 border-t border-white/10 safe-bottom">
               <CallBtn onClick={toggleSpeaker} active={!speakerOn}
                 label={speakerOn ? "Altifalante" : "Auricular"}
                 icon={speakerOn ? <Volume2 className="w-6 h-6 text-white" /> : <VolumeX className="w-6 h-6 text-white" />} />

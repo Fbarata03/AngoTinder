@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, UploadFile, File, Request
 from pydantic import BaseModel
 import asyncpg
+import json as _json
 from database import get_db, get_pool, publish_event
 from auth_utils import get_current_user_id, decode_token
 from notif_manager import notif_manager
@@ -298,7 +299,11 @@ async def websocket_chat(
     await manager.connect(ws, match_id, user_id)
     try:
         while True:
-            data = await ws.receive_json()
+            try:
+                raw = await ws.receive_text()
+                data = _json.loads(raw)
+            except _json.JSONDecodeError:
+                continue
             msg_type = data.get("type", "text")
 
             # ── Call signaling: forward to the other user, do NOT store ──

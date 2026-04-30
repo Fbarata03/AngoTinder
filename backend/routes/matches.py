@@ -113,7 +113,7 @@ async def get_matches(
         JOIN users u ON u.id = CASE WHEN m.user1_id=$1 THEN m.user2_id ELSE m.user1_id END
         LEFT JOIN LATERAL (
             SELECT text, created_at FROM messages
-            WHERE match_id = m.id
+            WHERE match_id = m.id AND (deleted IS NULL OR deleted = FALSE)
             ORDER BY id DESC LIMIT 1
         ) last_msg ON true
         WHERE m.user1_id=$2 OR m.user2_id=$3

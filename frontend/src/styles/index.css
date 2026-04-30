@@ -22,6 +22,9 @@ html, body {
 /* Impede zoom no double-tap em iOS */
 button, input, select, textarea {
   touch-action: manipulation;
+}
+/* Impede zoom automático em iOS quando um input recebe foco */
+input, select, textarea {
   font-size: 16px;
 }
 
