@@ -293,3 +293,17 @@ async def init_db():
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks(blocker_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_reports_reported ON reports(reported_id)")
+        # Composite indexes for discover hot path
+        # (swiper_id, direction) → NOT IN subqueries on right/super swipes
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_swiper_dir ON swipes(swiper_id, direction)")
+        # (swiper_id, direction, created_at) → left-swipe cooldown filter
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_swiper_dir_created ON swipes(swiper_id, direction, created_at DESC)")
+        # (incognito_mode, age) → WHERE incognito_mode=0 AND age BETWEEN x AND y
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_incognito_age ON users(incognito_mode, age)")
+        # (gender, age) → gender+age filter combinations in discover
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_gender_age ON users(gender, age)")
+        # matches: fast lookup by either user (for exclusion subquery)
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_matches_user2 ON matches(user2_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_matches_user1 ON matches(user1_id)")
+        # messages: covering index for last-message lookup (avoids heap fetch)
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_match_id_desc ON messages(match_id, id DESC)")

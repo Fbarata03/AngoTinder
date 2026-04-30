@@ -291,8 +291,8 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
     loadMatches();
-    // Refresh every 8 seconds (catches matches from other users)
-    const interval = setInterval(loadMatches, 8000);
+    // Safety-net poll every 30s — WebSocket handles real-time updates
+    const interval = setInterval(loadMatches, 30000);
     // Also refresh when tab becomes visible again
     const onVisible = () => { if (document.visibilityState === "visible") loadMatches(); };
     document.addEventListener("visibilitychange", onVisible);

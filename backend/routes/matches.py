@@ -107,12 +107,17 @@ async def get_matches(
         """
         SELECT m.id as match_id, m.created_at as matched_at,
                u.*,
-               (SELECT text FROM messages WHERE match_id=m.id ORDER BY created_at DESC LIMIT 1) as last_message,
-               (SELECT created_at FROM messages WHERE match_id=m.id ORDER BY created_at DESC LIMIT 1) as last_message_at
+               last_msg.text as last_message,
+               last_msg.created_at as last_message_at
         FROM matches m
         JOIN users u ON u.id = CASE WHEN m.user1_id=$1 THEN m.user2_id ELSE m.user1_id END
+        LEFT JOIN LATERAL (
+            SELECT text, created_at FROM messages
+            WHERE match_id = m.id
+            ORDER BY id DESC LIMIT 1
+        ) last_msg ON true
         WHERE m.user1_id=$2 OR m.user2_id=$3
-        ORDER BY COALESCE(last_message_at, m.created_at) DESC
+        ORDER BY COALESCE(last_msg.created_at, m.created_at) DESC
         """,
         user_id, user_id, user_id,
     )

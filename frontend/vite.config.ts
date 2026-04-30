@@ -23,4 +23,20 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Target modern browsers — smaller/faster output
+    target: 'es2020',
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Framer Motion is large — isolate so it only loads when needed
+          if (id.includes('framer-motion') || id.includes('motion/react')) return 'motion';
+          // React core — always needed, cache aggressively
+          if (id.includes('react-dom') || id.includes('react-router')) return 'react';
+          // Everything else from node_modules in one vendor chunk
+          if (id.includes('node_modules')) return 'vendor';
+        },
+      },
+    },
+  },
 })
