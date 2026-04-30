@@ -237,6 +237,7 @@ async def discover(
               CASE WHEN u.last_active_at > NOW() - INTERVAL '1 day' THEN 0
                    WHEN u.last_active_at > NOW() - INTERVAL '7 days' THEN 1
                    ELSE 2 END,
+              COALESCE(u.last_active_at, u.created_at) DESC,
               RANDOM()
             LIMIT 50""",
         *base_params,

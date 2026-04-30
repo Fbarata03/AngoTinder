@@ -288,7 +288,9 @@ export function TelaDescoberta() {
           if (newOnes.length === 0) return prev;
           return [...prev, ...newOnes];
         });
-      }).catch(() => {});
+      }).catch((err) => {
+        console.error("[discover:new_user]", err);
+      });
     };
     window.addEventListener("angotinder:new_user", handler);
     return () => window.removeEventListener("angotinder:new_user", handler);
