@@ -229,7 +229,8 @@ export function TelaDescoberta() {
   const [matchedProfile, setMatchedProfile] = useState<UserType | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState<Filters>({ ageRange: [18, 99], distance: 50, showVerifiedOnly: false, gender: "all" });
+  const [filters, setFilters] = useState<Filters>({ ageRange: [18, 99], distance: 150, showVerifiedOnly: false, gender: "all", useGps: false, passportProvince: "" });
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [superLikesLeft, setSuperLikesLeft] = useState(() => getSuperLikesInitial());
   const [boostActive, setBoostActive] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -245,14 +246,16 @@ export function TelaDescoberta() {
     notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => {});
   }, []);
 
-  const loadProfiles = (f: Filters) => {
+  const loadProfiles = (f: Filters, coords?: { lat: number; lon: number } | null) => {
     setLoading(true);
     topCardXRef.current = null;
+    const activeCoords = coords !== undefined ? coords : gpsCoords;
     profilesApi.discover({
       min_age: f.ageRange[0],
       max_age: f.ageRange[1],
-      gender: f.gender,
+      gender: f.passportProvince ? "all" : f.gender,
       verified_only: f.showVerifiedOnly,
+      ...(f.useGps && activeCoords ? { lat: activeCoords.lat, lon: activeCoords.lon, max_distance_km: f.distance } : {}),
     })
       .then((p) => { setProfiles(p); setCurrentIndex(0); setHistory([]); setLoading(false); })
       .catch(() => setLoading(false));
@@ -269,8 +272,9 @@ export function TelaDescoberta() {
       profilesApi.discover({
         min_age: filters.ageRange[0],
         max_age: filters.ageRange[1],
-        gender: filters.gender,
+        gender: filters.passportProvince ? "all" : filters.gender,
         verified_only: filters.showVerifiedOnly,
+        ...(filters.useGps && gpsCoords ? { lat: gpsCoords.lat, lon: gpsCoords.lon, max_distance_km: filters.distance } : {}),
       }).then((fresh) => {
         setProfiles((prev) => {
           const existingIds = new Set(prev.map((p) => p.id));
@@ -530,7 +534,16 @@ export function TelaDescoberta() {
         matchedProfile={{ name: matchedProfile?.name || "", photo: resolveMediaUrl(matchedProfile?.photos[0] || "") }}
         userPhoto={resolveMediaUrl(currentUser?.photos[0] || "")}
       />
-      <FiltersModal isOpen={showFilters} onClose={() => setShowFilters(false)} onApply={(f) => { setFilters(f); loadProfiles(f); }} initial={filters} />
+      <FiltersModal
+    isOpen={showFilters}
+    onClose={() => setShowFilters(false)}
+    onApply={(f, coords) => {
+      setFilters(f);
+      if (coords) setGpsCoords(coords);
+      loadProfiles(f, coords);
+    }}
+    initial={filters}
+  />
     </div>
   );
 }

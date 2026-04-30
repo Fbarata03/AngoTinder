@@ -15,9 +15,10 @@ from notif_manager import notif_manager
 router = APIRouter()
 
 ANGOLA_PROVINCES = [
-    "Luanda", "Benguela", "Huambo", "Bié", "Malanje", "Huíla", "Cunene",
-    "Cuando Cubango", "Moxico", "Lunda Norte", "Lunda Sul", "Uíge",
-    "Cuanza Norte", "Cuanza Sul", "Bengo", "Zaire", "Cabinda", "Namibe"
+    "Cabinda", "Zaire", "Uíge", "Bengo", "Luanda", "Icolo e Bengo",
+    "Cuanza Norte", "Cuanza Sul", "Malanje", "Lunda Norte", "Lunda Sul",
+    "Moxico", "Moxico Leste", "Bié", "Huambo", "Benguela",
+    "Namibe", "Huíla", "Cunene", "Cubango", "Cuando",
 ]
 
 
@@ -115,6 +116,7 @@ async def login(req: LoginRequest, db: asyncpg.Connection = Depends(get_db)):
     if not user or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Email ou senha incorretos")
 
+    await db.execute("UPDATE users SET last_active_at = NOW() WHERE id = $1", user["id"])
     token = create_token(user["id"])
     return AuthResponse(token=token, user=parse_user(user))
 
@@ -124,6 +126,7 @@ async def get_me(user_id: str = Depends(get_current_user_id), db: asyncpg.Connec
     user = await db.fetchrow("SELECT * FROM users WHERE id = $1", user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Utilizador não encontrado")
+    await db.execute("UPDATE users SET last_active_at = NOW() WHERE id = $1", user_id)
     return parse_user(user)
 
 

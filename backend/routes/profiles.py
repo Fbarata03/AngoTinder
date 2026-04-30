@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -9,6 +10,15 @@ import cloudinary
 import cloudinary.uploader
 from database import get_db
 from auth_utils import get_current_user_id
+
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlam = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 router = APIRouter()
 
@@ -77,6 +87,9 @@ class ProfileUpdate(BaseModel):
     interests: Optional[list[str]] = None
     gender: Optional[str] = None
     looking_for: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    incognito_mode: Optional[int] = None
 
 
 def parse_user(row) -> dict:
@@ -95,165 +108,196 @@ async def discover(
     max_age: int = 99,
     gender: str = "",
     verified_only: bool = False,
+    lat: float | None = None,
+    lon: float | None = None,
+    max_distance_km: float | None = None,
 ):
-    # Only apply gender filter when explicitly requested (not "all")
-    # If gender="all" is passed from frontend, show everyone regardless of looking_for
     target_gender = ""
     if gender and gender not in ("all", ""):
         gender_map = {"women": "female", "men": "male", "female": "female", "male": "male"}
         target_gender = gender_map.get(gender, "")
-    # Do NOT auto-apply looking_for filter — let users see everyone by default
 
-    # Priority 1: show people who already liked you (higher chance of match)
-    liked_conditions = [
-        "u.id != $1",
-        "u.age >= $2",
-        "u.age <= $3",
-        """u.id NOT IN (
+    # Save user's coordinates if provided
+    if lat is not None and lon is not None:
+        try:
+            await db.execute(
+                "UPDATE users SET latitude=$1, longitude=$2, last_active_at=NOW() WHERE id=$3",
+                lat, lon, user_id,
+            )
+        except Exception:
+            pass
+
+    # Fetch IDs blocked by or blocking this user (mutual exclusion)
+    blocked_rows = await db.fetch(
+        "SELECT blocked_id FROM blocks WHERE blocker_id=$1 UNION SELECT blocker_id FROM blocks WHERE blocked_id=$1",
+        user_id,
+    )
+    blocked_ids = [r["blocked_id"] if r.get("blocked_id") else r["blocker_id"] for r in blocked_rows]
+    # Re-query more precisely
+    blocked_rows2 = await db.fetch(
+        "SELECT blocked_id AS uid FROM blocks WHERE blocker_id=$1 UNION SELECT blocker_id AS uid FROM blocks WHERE blocked_id=$1",
+        user_id,
+    )
+    blocked_ids = [r["uid"] for r in blocked_rows2]
+
+    def _common_conditions(param_list: list) -> list[str]:
+        pid = lambda: f"${len(param_list)}"
+        conds = [
+            f"u.id != ${_p(param_list, user_id)}",
+            f"u.incognito_mode = 0",
+            f"""u.id NOT IN (
+                SELECT swiped_id FROM swipes
+                WHERE swiper_id = ${_p(param_list, user_id)} AND direction IN ('right', 'super')
+            )""",
+            f"""u.id NOT IN (
+                SELECT CASE WHEN user1_id = ${_p(param_list, user_id)} THEN user2_id ELSE user1_id END
+                FROM matches WHERE user1_id = ${_p(param_list, user_id)} OR user2_id = ${_p(param_list, user_id)}
+            )""",
+        ]
+        if blocked_ids:
+            ph = ", ".join([f"${_p(param_list, bid)}" for bid in blocked_ids])
+            conds.append(f"u.id NOT IN ({ph})")
+        return conds
+
+    def _p(lst: list, val) -> int:
+        lst.append(val)
+        return len(lst)
+
+    # ── Priority 1: people who already liked you ──
+    liked_params: list = []
+    liked_conds = [
+        f"s.swiped_id = ${_p(liked_params, user_id)}",
+        f"s.direction IN ('right', 'super')",
+        f"u.id != ${_p(liked_params, user_id)}",
+        f"u.incognito_mode = 0",
+        f"u.age >= ${_p(liked_params, min_age)}",
+        f"u.age <= ${_p(liked_params, max_age)}",
+        f"""u.id NOT IN (
             SELECT swiped_id FROM swipes
-            WHERE swiper_id = $4 AND direction IN ('right', 'super')
+            WHERE swiper_id = ${_p(liked_params, user_id)} AND direction IN ('right', 'super')
         )""",
         f"""u.id NOT IN (
             SELECT swiped_id FROM swipes
-            WHERE swiper_id = $4 AND direction = 'left'
+            WHERE swiper_id = ${_p(liked_params, user_id)} AND direction = 'left'
               AND created_at > NOW() - INTERVAL '{LEFT_SWIPE_COOLDOWN_DAYS} days'
         )""",
-        """u.id NOT IN (
-            SELECT CASE WHEN user1_id = $5 THEN user2_id ELSE user1_id END
-            FROM matches WHERE user1_id = $6 OR user2_id = $7
+        f"""u.id NOT IN (
+            SELECT CASE WHEN user1_id = ${_p(liked_params, user_id)} THEN user2_id ELSE user1_id END
+            FROM matches WHERE user1_id = ${_p(liked_params, user_id)} OR user2_id = ${_p(liked_params, user_id)}
         )""",
     ]
-    liked_params: list = [user_id, min_age, max_age, user_id, user_id, user_id, user_id]
-
+    if blocked_ids:
+        ph = ", ".join([f"${_p(liked_params, bid)}" for bid in blocked_ids])
+        liked_conds.append(f"u.id NOT IN ({ph})")
     if target_gender:
-        liked_params.append(target_gender)
-        liked_conditions.append(f"u.gender = ${len(liked_params)}")
-
+        liked_conds.append(f"u.gender = ${_p(liked_params, target_gender)}")
     if verified_only:
-        liked_conditions.append("u.is_verified = 1")
+        liked_conds.append("u.is_verified = 1")
 
-    liked_where = " AND ".join(liked_conditions)
     liked_rows = await db.fetch(
-        f"""
-        SELECT u.*
-        FROM swipes s
-        JOIN users u ON u.id = s.swiper_id
-        WHERE s.swiped_id = $1
-          AND s.direction IN ('right', 'super')
-          AND {liked_where}
-        ORDER BY s.created_at DESC
-        LIMIT 25
-        """,
+        f"""SELECT u.* FROM swipes s
+            JOIN users u ON u.id = s.swiper_id
+            WHERE {' AND '.join(liked_conds)}
+            ORDER BY COALESCE(u.last_active_at, u.created_at) DESC
+            LIMIT 25""",
         *liked_params,
     )
+    liked_ids = [r["id"] for r in liked_rows]
 
-    liked_ids = [r["id"] for r in liked_rows] if liked_rows else []
-
-    # Base conditions (random fill):
-    # - Not yourself
-    # - Not already right/super swiped (pending like — no point showing again)
-    # - Not already matched
-    # Left swipes can reappear AFTER a cooldown to avoid showing the same profile all the time
-    base_conditions = [
-        "u.id != $1",
-        """u.id NOT IN (
+    # ── Priority 2: random fill ──
+    base_params: list = []
+    base_conds = [
+        f"u.id != ${_p(base_params, user_id)}",
+        f"u.incognito_mode = 0",
+        f"u.age >= ${_p(base_params, min_age)}",
+        f"u.age <= ${_p(base_params, max_age)}",
+        f"""u.id NOT IN (
             SELECT swiped_id FROM swipes
-            WHERE swiper_id = $2 AND direction IN ('right', 'super')
+            WHERE swiper_id = ${_p(base_params, user_id)} AND direction IN ('right', 'super')
         )""",
         f"""u.id NOT IN (
             SELECT swiped_id FROM swipes
-            WHERE swiper_id = $3 AND direction = 'left'
+            WHERE swiper_id = ${_p(base_params, user_id)} AND direction = 'left'
               AND created_at > NOW() - INTERVAL '{LEFT_SWIPE_COOLDOWN_DAYS} days'
         )""",
-        """u.id NOT IN (
-            SELECT CASE WHEN user1_id = $3 THEN user2_id ELSE user1_id END
-            FROM matches WHERE user1_id = $4 OR user2_id = $5
+        f"""u.id NOT IN (
+            SELECT CASE WHEN user1_id = ${_p(base_params, user_id)} THEN user2_id ELSE user1_id END
+            FROM matches WHERE user1_id = ${_p(base_params, user_id)} OR user2_id = ${_p(base_params, user_id)}
         )""",
-        "u.age >= $6",
-        "u.age <= $7",
     ]
-    params: list = [user_id, user_id, user_id, user_id, user_id, min_age, max_age]
-
-    if target_gender:
-        params.append(target_gender)
-        base_conditions.append(f"u.gender = ${len(params)}")
-
-    if verified_only:
-        base_conditions.append("u.is_verified = 1")
-
+    if blocked_ids:
+        ph = ", ".join([f"${_p(base_params, bid)}" for bid in blocked_ids])
+        base_conds.append(f"u.id NOT IN ({ph})")
     if liked_ids:
-        placeholders = ", ".join([f"${len(params) + i + 1}" for i in range(len(liked_ids))])
-        base_conditions.append(f"u.id NOT IN ({placeholders})")
-        params.extend(liked_ids)
+        ph = ", ".join([f"${_p(base_params, lid)}" for lid in liked_ids])
+        base_conds.append(f"u.id NOT IN ({ph})")
+    if target_gender:
+        base_conds.append(f"u.gender = ${_p(base_params, target_gender)}")
+    if verified_only:
+        base_conds.append("u.is_verified = 1")
 
-    where = " AND ".join(base_conditions)
+    # Order: recently active first, then random (Tinder-like freshness boost)
     rows = await db.fetch(
-        f"SELECT u.* FROM users u WHERE {where} ORDER BY RANDOM() LIMIT 50",
-        *params,
+        f"""SELECT u.* FROM users u
+            WHERE {' AND '.join(base_conds)}
+            ORDER BY
+              CASE WHEN u.last_active_at > NOW() - INTERVAL '1 day' THEN 0
+                   WHEN u.last_active_at > NOW() - INTERVAL '7 days' THEN 1
+                   ELSE 2 END,
+              RANDOM()
+            LIMIT 50""",
+        *base_params,
     )
 
-    # Fallback 1: ignore left-swipe cooldown but still respect age/gender filters
+    # Fallback: ignore cooldown
     if not rows and not liked_rows:
+        fb_params: list = []
         rows = await db.fetch(
             f"""SELECT u.* FROM users u
-               WHERE u.id != $1
+               WHERE u.id != ${_p(fb_params, user_id)}
+               AND u.incognito_mode = 0
                AND u.id NOT IN (
                    SELECT swiped_id FROM swipes
-                   WHERE swiper_id = $2 AND direction IN ('right', 'super')
+                   WHERE swiper_id = ${_p(fb_params, user_id)} AND direction IN ('right', 'super')
                )
                AND u.id NOT IN (
-                   SELECT swiped_id FROM swipes
-                   WHERE swiper_id = $3 AND direction = 'left'
-                     AND created_at > NOW() - INTERVAL '{LEFT_SWIPE_COOLDOWN_DAYS} days'
-               )
-               AND u.id NOT IN (
-                   SELECT CASE WHEN user1_id = $2 THEN user2_id ELSE user1_id END
-                   FROM matches WHERE user1_id = $3 OR user2_id = $4
+                   SELECT CASE WHEN user1_id = ${_p(fb_params, user_id)} THEN user2_id ELSE user1_id END
+                   FROM matches WHERE user1_id = ${_p(fb_params, user_id)} OR user2_id = ${_p(fb_params, user_id)}
                )
                ORDER BY RANDOM() LIMIT 50""",
-            user_id, user_id, user_id, user_id,
+            *fb_params,
         )
 
-    # Fallback 2: ignora cooldown de left — mostra todos que não foram right/super e não são match
-    if not rows and not liked_rows:
-        rows = await db.fetch(
-            """SELECT u.* FROM users u
-               WHERE u.id != $1
-               AND u.id NOT IN (
-                   SELECT swiped_id FROM swipes
-                   WHERE swiper_id = $2 AND direction IN ('right', 'super')
-               )
-               AND u.id NOT IN (
-                   SELECT CASE WHEN user1_id = $2 THEN user2_id ELSE user1_id END
-                   FROM matches WHERE user1_id = $3 OR user2_id = $4
-               )
-               ORDER BY RANDOM() LIMIT 50""",
-            user_id, user_id, user_id, user_id,
-        )
-
-    # Fallback 3 (nuclear): base com poucos users — mostra toda a gente exceto o próprio
-    # Inclui matches existentes para não deixar discover completamente vazio
+    # Fallback nuclear: show everyone except self
     if not rows and not liked_rows:
         rows = await db.fetch(
             "SELECT u.* FROM users u WHERE u.id != $1 ORDER BY RANDOM() LIMIT 50",
             user_id,
         )
 
+    # Merge + deduplicate
     combined = []
-    seen = set()
-    for r in liked_rows:
+    seen: set[str] = set()
+    for r in [*liked_rows, *rows]:
         rid = r["id"]
         if rid in seen:
             continue
         seen.add(rid)
         combined.append(r)
-    for r in rows:
-        rid = r["id"]
-        if rid in seen:
-            continue
-        seen.add(rid)
-        combined.append(r)
-    return [parse_user(r) for r in combined[:50]]
+
+    result = [parse_user(r) for r in combined[:80]]
+
+    # Distance filter (in-process Haversine) — only if caller provided GPS
+    if lat is not None and lon is not None and max_distance_km:
+        def within(u):
+            ulat = u.get("latitude")
+            ulon = u.get("longitude")
+            if ulat is None or ulon is None:
+                return True  # no GPS data → don't exclude
+            return haversine_km(lat, lon, ulat, ulon) <= max_distance_km
+        result = [u for u in result if within(u)]
+
+    return result[:50]
 
 
 @router.get("/me")

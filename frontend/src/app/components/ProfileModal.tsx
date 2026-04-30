@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Heart, X, MapPin, Briefcase, GraduationCap, Home, Star, ChevronLeft, ChevronRight } from "lucide-react";
-import { resolveMediaUrl, User as UserType } from "../api";
+import { Heart, X, MapPin, Briefcase, GraduationCap, Home, Star, ChevronLeft, ChevronRight, Flag, ShieldOff, AlertTriangle } from "lucide-react";
+import { resolveMediaUrl, User as UserType, safetyApi } from "../api";
 
 interface ProfileModalProps {
   profile: UserType | null;
@@ -9,10 +9,26 @@ interface ProfileModalProps {
   onLike?: () => void;
   onPass?: () => void;
   likeLabel?: string;
+  onBlocked?: (userId: string) => void;
 }
 
-export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Dar Like" }: ProfileModalProps) {
+const REPORT_OPTIONS = [
+  { value: "fake", label: "Perfil falso" },
+  { value: "spam", label: "Spam ou publicidade" },
+  { value: "inappropriate", label: "Conteúdo inapropriado" },
+  { value: "harassment", label: "Assédio ou ameaças" },
+  { value: "underage", label: "Menor de idade" },
+  { value: "other", label: "Outro motivo" },
+];
+
+export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Dar Like", onBlocked }: ProfileModalProps) {
   const [photoIdx, setPhotoIdx] = useState(0);
+  const [showSafetyMenu, setShowSafetyMenu] = useState(false);
+  const [showReportForm, setShowReportForm] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [safetyLoading, setSafetyLoading] = useState(false);
+  const [safetyDone, setSafetyDone] = useState<string | null>(null);
 
   if (!profile) return null;
 
@@ -20,6 +36,35 @@ export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Da
   const bg = colors[profile.name.charCodeAt(0) % colors.length];
   const photos = profile.photos;
   const safeIdx = photos.length > 0 ? Math.min(photoIdx, photos.length - 1) : 0;
+
+  const handleBlock = async () => {
+    setSafetyLoading(true);
+    try {
+      await safetyApi.block(profile.id);
+      setSafetyDone("Utilizador bloqueado. Não vai aparecer mais.");
+      onBlocked?.(profile.id);
+      setTimeout(() => { setSafetyDone(null); setShowSafetyMenu(false); onClose(); }, 2000);
+    } catch {
+      setSafetyDone("Erro ao bloquear. Tente novamente.");
+    } finally {
+      setSafetyLoading(false);
+    }
+  };
+
+  const handleReport = async () => {
+    if (!reportReason) return;
+    setSafetyLoading(true);
+    try {
+      await safetyApi.report(profile.id, reportReason, reportDetails);
+      setSafetyDone("Denúncia enviada. Obrigado por nos ajudar a manter a comunidade segura.");
+      onBlocked?.(profile.id);
+      setTimeout(() => { setSafetyDone(null); setShowReportForm(false); setShowSafetyMenu(false); onClose(); }, 2500);
+    } catch {
+      setSafetyDone("Erro ao enviar denúncia. Tente novamente.");
+    } finally {
+      setSafetyLoading(false);
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -54,7 +99,6 @@ export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Da
               </div>
             )}
 
-            {/* Photo indicators */}
             {photos.length > 1 && (
               <div className="absolute top-3 left-0 right-0 flex gap-1 px-3">
                 {photos.map((_, i) => (
@@ -63,25 +107,17 @@ export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Da
               </div>
             )}
 
-            {/* Photo nav buttons */}
             {photos.length > 1 && (
               <>
-                <button
-                  onClick={() => setPhotoIdx(Math.max(0, safeIdx - 1))}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center"
-                >
+                <button onClick={() => setPhotoIdx(Math.max(0, safeIdx - 1))} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center">
                   <ChevronLeft className="w-5 h-5 text-white" />
                 </button>
-                <button
-                  onClick={() => setPhotoIdx(Math.min(photos.length - 1, safeIdx + 1))}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center"
-                >
+                <button onClick={() => setPhotoIdx(Math.min(photos.length - 1, safeIdx + 1))} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center">
                   <ChevronRight className="w-5 h-5 text-white" />
                 </button>
               </>
             )}
 
-            {/* Verified badge */}
             {profile.is_verified === 1 && (
               <div className="absolute top-4 left-4">
                 <div className="bg-gradient-to-r from-secondary to-[#FFD700] p-0.5 rounded-full">
@@ -94,14 +130,104 @@ export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Da
             )}
 
             {/* Close button */}
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 w-9 h-9 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
-            >
+            <button onClick={onClose} className="absolute top-4 right-4 w-9 h-9 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-colors">
               <X className="w-5 h-5 text-white" />
             </button>
 
-            {/* Bottom gradient */}
+            {/* Safety menu button */}
+            <button
+              onClick={() => setShowSafetyMenu(!showSafetyMenu)}
+              className="absolute top-4 right-16 w-9 h-9 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
+              title="Denunciar ou bloquear"
+            >
+              <Flag className="w-4 h-4 text-white" />
+            </button>
+
+            {/* Safety dropdown */}
+            <AnimatePresence>
+              {showSafetyMenu && !showReportForm && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="absolute top-16 right-4 bg-card rounded-2xl shadow-2xl border border-black/10 overflow-hidden z-10 min-w-[180px]"
+                >
+                  {safetyDone ? (
+                    <div className="p-4 text-sm font-bold text-center">{safetyDone}</div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => { setShowReportForm(true); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
+                      >
+                        <AlertTriangle className="w-4 h-4 text-red-500" />
+                        <span className="text-sm font-bold text-red-500">Denunciar</span>
+                      </button>
+                      <div className="border-t border-black/5" />
+                      <button
+                        onClick={handleBlock}
+                        disabled={safetyLoading}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left disabled:opacity-50"
+                      >
+                        <ShieldOff className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-bold">Bloquear</span>
+                      </button>
+                    </>
+                  )}
+                </motion.div>
+              )}
+
+              {showReportForm && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="absolute top-16 right-4 left-4 bg-card rounded-2xl shadow-2xl border border-black/10 overflow-hidden z-10"
+                >
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-black text-sm">Motivo da denúncia</p>
+                      <button onClick={() => setShowReportForm(false)} className="text-muted-foreground">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {safetyDone ? (
+                      <p className="text-sm font-bold text-center py-2">{safetyDone}</p>
+                    ) : (
+                      <>
+                        <div className="flex flex-col gap-1.5 mb-3">
+                          {REPORT_OPTIONS.map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setReportReason(opt.value)}
+                              className={`text-left px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                                reportReason === opt.value ? "bg-red-500 text-white" : "hover:bg-red-50 dark:hover:bg-red-900/20"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          value={reportDetails}
+                          onChange={(e) => setReportDetails(e.target.value)}
+                          placeholder="Detalhes adicionais (opcional)..."
+                          className="w-full text-xs p-2 rounded-xl bg-muted border border-black/10 resize-none h-16 mb-3 font-medium"
+                        />
+                        <button
+                          onClick={handleReport}
+                          disabled={!reportReason || safetyLoading}
+                          className="w-full py-2 bg-red-500 text-white rounded-xl text-sm font-black disabled:opacity-50 hover:bg-red-600 transition-colors"
+                        >
+                          {safetyLoading ? "A enviar..." : "Enviar Denúncia"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-card to-transparent pointer-events-none" />
           </div>
 
@@ -150,10 +276,7 @@ export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Da
                 <p className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-2">Interesses</p>
                 <div className="flex flex-wrap gap-2">
                   {profile.interests.map((interest) => (
-                    <span
-                      key={interest}
-                      className="px-3 py-1.5 bg-secondary/15 text-primary rounded-xl text-xs font-bold border-2 border-secondary/30"
-                    >
+                    <span key={interest} className="px-3 py-1.5 bg-secondary/15 text-primary rounded-xl text-xs font-bold border-2 border-secondary/30">
                       {interest}
                     </span>
                   ))}
@@ -167,7 +290,7 @@ export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Da
             {onPass && (
               <button
                 onClick={() => { onPass(); onClose(); }}
-                className="flex-1 h-14 rounded-2xl border-4 border-primary/20 hover:border-primary/50 flex items-center justify-center gap-2 font-black transition-all"
+                className="flex-1 h-14 rounded-2xl border-4 border-black/10 dark:border-white/15 hover:border-primary/50 flex items-center justify-center gap-2 font-black transition-all"
               >
                 <X className="w-5 h-5 text-primary/60" />
                 <span className="text-primary/60">Passar</span>

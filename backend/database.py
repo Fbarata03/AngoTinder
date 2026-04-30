@@ -197,9 +197,24 @@ async def init_db():
                 interests TEXT DEFAULT '[]',
                 gender TEXT DEFAULT 'other',
                 looking_for TEXT DEFAULT 'all',
-                created_at TIMESTAMP DEFAULT NOW()
+                created_at TIMESTAMP DEFAULT NOW(),
+                latitude FLOAT DEFAULT NULL,
+                longitude FLOAT DEFAULT NULL,
+                last_active_at TIMESTAMP DEFAULT NOW(),
+                incognito_mode INTEGER DEFAULT 0
             )
         """)
+        # Migrations: add columns if they don't exist yet (safe for existing DBs)
+        for col_sql in [
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS latitude FLOAT DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS longitude FLOAT DEFAULT NULL",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP DEFAULT NOW()",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS incognito_mode INTEGER DEFAULT 0",
+        ]:
+            try:
+                await conn.execute(col_sql)
+            except Exception:
+                pass
 
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS swipes (
@@ -239,6 +254,27 @@ async def init_db():
             )
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS blocks (
+                id SERIAL PRIMARY KEY,
+                blocker_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                blocked_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(blocker_id, blocked_id)
+            )
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS reports (
+                id SERIAL PRIMARY KEY,
+                reporter_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                reported_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                reason TEXT NOT NULL,
+                details TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
         # Índices para melhorar performance e reduzir uso de BD
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_swiper ON swipes(swiper_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_swiped ON swipes(swiped_id)")
@@ -253,3 +289,7 @@ async def init_db():
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_location ON users(location)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_verified ON users(is_verified)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_match_created ON messages(match_id, created_at DESC)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_users_last_active ON users(last_active_at DESC)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks(blocker_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_reports_reported ON reports(reported_id)")

@@ -1147,6 +1147,37 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             </div>
           </motion.div>
 
+          {/* Quebra-gelos — só aparecem quando a conversa está vazia */}
+          {!loading && messages.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center py-2 px-2"
+            >
+              <p className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-wider">💡 Quebra-gelos</p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {[
+                  `Olá ${match.name}! O que te trouxe ao AngoTinder? 😊`,
+                  `Oi! Qual é o teu lugar favorito em Angola? 🌍`,
+                  `Olá! Vi que tens interesses fixe. O que fazes nos fins de semana? ☀️`,
+                  `${match.name}! Se pudesses viajar agora, para onde ias? ✈️`,
+                  `Oi! Já fui ao match, agora preciso saber: qual é a tua música favorita? 🎵`,
+                ].map((text) => (
+                  <button
+                    key={text}
+                    onClick={() => {
+                      setNewMessage(text);
+                      setTimeout(() => inputRef.current?.focus(), 50);
+                    }}
+                    className="px-3 py-2 bg-white dark:bg-white/10 border-2 border-secondary/40 rounded-2xl text-xs font-bold text-left hover:border-secondary hover:bg-secondary/10 transition-all shadow-sm max-w-xs text-foreground/80"
+                  >
+                    {text}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
           {loading && <p className="text-center text-muted-foreground font-medium text-sm">A carregar mensagens...</p>}
 
           {hasMore && !loading && (

@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { Camera, User, Heart, MessageCircle, LogOut, Sparkles, MapPin, Star, Settings, Trash2, ChevronDown, X } from "lucide-react";
+import { Camera, User, Heart, MessageCircle, LogOut, Sparkles, MapPin, Star, Settings, Trash2, ChevronDown, X, EyeOff } from "lucide-react";
 import { ANGOLA_PROVINCES } from "./TelaRegisto";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
+import { Switch } from "./ui/switch";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { profilesApi, resolveMediaUrl, User as UserType } from "../api";
@@ -270,6 +271,27 @@ export function TelaPerfil() {
                 </button>
               ))}
           </div>
+        </div>
+
+        {/* Modo Incógnito */}
+        <div className="mb-8 p-5 bg-card rounded-2xl border-4 border-black/10 dark:border-white/10 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-gray-800 dark:bg-gray-700 p-2 rounded-xl">
+              <EyeOff className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="font-black text-base">Modo Incógnito</p>
+              <p className="text-sm text-muted-foreground font-medium">
+                {(profile.incognito_mode ?? 0) === 1
+                  ? "Só apareces para quem curtiste"
+                  : "Visível para todos na descoberta"}
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={(profile.incognito_mode ?? 0) === 1}
+            onCheckedChange={(c) => setProfile({ ...profile, incognito_mode: c ? 1 : 0 })}
+          />
         </div>
 
         <Button onClick={handleSave} disabled={saving}

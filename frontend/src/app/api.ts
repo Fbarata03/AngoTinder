@@ -86,6 +86,10 @@ export interface User {
   gender?: string;
   looking_for?: string;
   email?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  last_active_at?: string;
+  incognito_mode?: number;
 }
 
 export interface AuthResponse {
@@ -153,13 +157,23 @@ export const authApi = {
 
 // ---------- Profiles ----------
 export const profilesApi = {
-  discover: (params?: { min_age?: number; max_age?: number; gender?: string; verified_only?: boolean }) => {
+  discover: (params?: {
+    min_age?: number;
+    max_age?: number;
+    gender?: string;
+    verified_only?: boolean;
+    lat?: number;
+    lon?: number;
+    max_distance_km?: number;
+  }) => {
     const q = new URLSearchParams();
     if (params?.min_age != null) q.set("min_age", String(params.min_age));
     if (params?.max_age != null) q.set("max_age", String(params.max_age));
-    // Always send gender param so backend knows it was explicitly set
     q.set("gender", params?.gender || "all");
     if (params?.verified_only) q.set("verified_only", "true");
+    if (params?.lat != null) q.set("lat", String(params.lat));
+    if (params?.lon != null) q.set("lon", String(params.lon));
+    if (params?.max_distance_km != null) q.set("max_distance_km", String(params.max_distance_km));
     const qs = q.toString();
     return request<User[]>(`/profiles/discover${qs ? "?" + qs : ""}`);
   },
@@ -283,4 +297,21 @@ export function createNotificationSocket(): WebSocket {
 
 export const notificationsApi = {
   getOnlineCount: () => request<{ count: number }>("/notifications/online-count"),
+};
+
+// ---------- Safety ----------
+export const safetyApi = {
+  block: (targetId: string) =>
+    request<{ success: boolean }>(`/safety/block/${targetId}`, { method: "POST" }),
+
+  unblock: (targetId: string) =>
+    request<{ success: boolean }>(`/safety/block/${targetId}`, { method: "DELETE" }),
+
+  getBlocked: () => request<{ id: string; name: string }[]>("/safety/blocks"),
+
+  report: (reportedId: string, reason: string, details?: string) =>
+    request<{ success: boolean; message: string }>("/safety/report", {
+      method: "POST",
+      body: JSON.stringify({ reported_id: reportedId, reason, details: details || "" }),
+    }),
 };

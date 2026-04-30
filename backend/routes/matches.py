@@ -66,30 +66,32 @@ async def swipe(
             match_id, user_id, req.swiped_id,
         )
 
-        # Fetch both user profiles to send in notifications
+        # Fetch both user profiles to send in notifications (safe if row is missing)
         me_row = await db.fetchrow("SELECT id, name, photos FROM users WHERE id = $1", user_id)
         them_row = await db.fetchrow("SELECT id, name, photos FROM users WHERE id = $1", req.swiped_id)
 
         def user_preview(row):
+            if not row:
+                return {"id": "", "name": "Utilizador", "photos": []}
             return {
                 "id": row["id"],
                 "name": row["name"],
-                "photos": json.loads(row["photos"]) if row["photos"] else [],
+                "photos": json.loads(row["photos"]) if row.get("photos") else [],
             }
 
-        # Notify the OTHER user (they didn't see the match modal)
-        await notif_manager.notify(req.swiped_id, {
-            "type": "new_match",
-            "match_id": match_id,
-            "user": user_preview(me_row),
-        })
-
-        # Also notify current user (for multi-device sync)
-        await notif_manager.notify(user_id, {
-            "type": "new_match",
-            "match_id": match_id,
-            "user": user_preview(them_row),
-        })
+        try:
+            await notif_manager.notify(req.swiped_id, {
+                "type": "new_match",
+                "match_id": match_id,
+                "user": user_preview(me_row),
+            })
+            await notif_manager.notify(user_id, {
+                "type": "new_match",
+                "match_id": match_id,
+                "user": user_preview(them_row),
+            })
+        except Exception:
+            pass
 
         return {"is_match": True, "match_id": match_id}
 
@@ -139,12 +141,21 @@ async def unmatch(
     db: asyncpg.Connection = Depends(get_db),
 ):
     row = await db.fetchrow(
-        "SELECT id FROM matches WHERE id=$1 AND (user1_id=$2 OR user2_id=$3)",
+        "SELECT id, user1_id, user2_id FROM matches WHERE id=$1 AND (user1_id=$2 OR user2_id=$3)",
         match_id, user_id, user_id,
     )
     if not row:
         raise HTTPException(status_code=403, detail="Sem permissão")
 
+    other_id = row["user2_id"] if row["user1_id"] == user_id else row["user1_id"]
+
     await db.execute("DELETE FROM messages WHERE match_id=$1", match_id)
     await db.execute("DELETE FROM matches WHERE id=$1", match_id)
+
+    # Notify the other user so their chat list updates in real time
+    try:
+        await notif_manager.notify(other_id, {"type": "unmatch", "match_id": match_id})
+    except Exception:
+        pass
+
     return {"success": True}
