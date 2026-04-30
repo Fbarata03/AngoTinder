@@ -210,6 +210,7 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS longitude FLOAT DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP DEFAULT NOW()",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS incognito_mode INTEGER DEFAULT 0",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT FALSE",
         ]:
             try:
                 await conn.execute(col_sql)

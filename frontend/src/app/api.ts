@@ -268,6 +268,7 @@ export interface Message {
   text: string;
   created_at: string;
   sender_name?: string;
+  deleted?: boolean;
 }
 
 export const messagesApi = {
@@ -285,6 +286,9 @@ export const messagesApi = {
 
   getTurnCredentials: () =>
     request<{ urls: string[]; username: string; credential: string; ttl: number }>("/messages/turn/credentials"),
+
+  deleteMessage: (matchId: string, messageId: number) =>
+    request<{ success: boolean }>(`/messages/${matchId}/${messageId}`, { method: "DELETE" }),
 
   uploadMedia: (file: File, type: "image" | "audio" | "video" | "doc", ttlHours = 24) =>
     upload<{ url: string; text: string; filename?: string }>(`/messages/upload?type=${type}&ttl_hours=${ttlHours}`, file).then((r) => {

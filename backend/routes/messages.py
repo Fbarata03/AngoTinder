@@ -24,7 +24,7 @@ if CLOUDINARY_ENABLED:
 router = APIRouter()
 
 # Signaling message types (not stored in DB — just forwarded)
-SIGNAL_TYPES = {"call-offer", "call-answer", "ice-candidate", "call-end", "call-reject", "call-busy", "typing", "typing-stop"}
+SIGNAL_TYPES = {"call-offer", "call-answer", "ice-candidate", "call-end", "call-reject", "call-busy", "typing", "typing-stop", "mark_read"}
 TURN_URLS = [u.strip() for u in (os.getenv("TURN_URLS", "") or "").split(",") if u.strip()]
 TURN_SHARED_SECRET = os.getenv("TURN_SHARED_SECRET", "") or ""
 TURN_TTL_SECONDS = int(os.getenv("TURN_TTL_SECONDS", "3600") or "3600")
@@ -240,6 +240,30 @@ async def send_message(
     if other:
         await notif_manager.notify(other["other_id"], {"type": "new_message", "match_id": match_id, "preview": msg_dict.get("text", "")})
     return msg_dict
+
+
+@router.delete("/{match_id}/{message_id}")
+async def delete_message(
+    match_id: str,
+    message_id: int,
+    user_id: str = Depends(get_current_user_id),
+    db: asyncpg.Connection = Depends(get_db),
+):
+    row = await db.fetchrow(
+        "SELECT id, sender_id FROM messages WHERE id=$1 AND match_id=$2",
+        message_id, match_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Mensagem não encontrada")
+    if row["sender_id"] != user_id:
+        raise HTTPException(status_code=403, detail="Sem permissão")
+
+    await db.execute("UPDATE messages SET deleted=TRUE WHERE id=$1", message_id)
+
+    payload = {"type": "message_deleted", "message_id": message_id}
+    await manager.broadcast(match_id, payload)
+    await publish_event({"kind": "room_broadcast", "match_id": match_id, "message": payload})
+    return {"success": True}
 
 
 @router.websocket("/ws/{match_id}")

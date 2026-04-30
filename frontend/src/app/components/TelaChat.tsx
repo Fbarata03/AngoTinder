@@ -486,6 +486,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const myTypingRef = useRef(false);
   const [showProfile, setShowProfile] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [readUntilId, setReadUntilId] = useState(0);
+  const [contextMsg, setContextMsg] = useState<Message | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressActiveRef = useRef(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const sendErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showSendError = (msg: string) => {
@@ -716,6 +720,18 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             return;
           }
 
+          if (type === "mark_read") {
+            const lastId = (payload.last_id ?? payload.lastId) as number;
+            if (lastId) setReadUntilId((prev) => Math.max(prev, lastId));
+            return;
+          }
+
+          if (type === "message_deleted") {
+            const msgId = payload.message_id as number;
+            setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, deleted: true } : m));
+            return;
+          }
+
           if (type === "typing") {
             setPeerTyping(true);
             return;
@@ -789,6 +805,15 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     return () => document.removeEventListener("pointerdown", handler);
   }, [showEmojis]);
 
+
+  // Emite mark_read sempre que há mensagens novas e o WS está ligado
+  const lastMsgId = messages[messages.length - 1]?.id ?? 0;
+  useEffect(() => {
+    if (!connected || !lastMsgId) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "mark_read", last_id: lastMsgId }));
+    }
+  }, [connected, lastMsgId]);
 
   useEffect(() => {
     if (loadedOlderRef.current) { loadedOlderRef.current = false; return; }
@@ -908,6 +933,31 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
   const MAX = { image: 10, video: 50, audio: 15, doc: 25 };
+
+  const startLongPress = (msg: Message) => (e: React.PointerEvent) => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressActiveRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressActiveRef.current = true;
+      setContextMsg(msg);
+    }, 500);
+  };
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
+  };
+
+  const handleDeleteMessage = async () => {
+    if (!contextMsg) return;
+    const msg = contextMsg;
+    setContextMsg(null);
+    setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, deleted: true } : m));
+    try {
+      await messagesApi.deleteMessage(match.match_id, msg.id);
+    } catch {
+      setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, deleted: false } : m));
+      showSendError("Não foi possível apagar a mensagem.");
+    }
+  };
 
   const handleSend = async () => {
     if (!newMessage.trim()) return;
@@ -1258,13 +1308,20 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(idx * 0.015, 0.25) }}
                   className={`flex ${isOwn ? "justify-end" : "justify-start"} ${grouped ? "mt-0.5" : "mt-3"}`}
+                  onPointerDown={startLongPress(msg)}
+                  onPointerUp={cancelLongPress}
+                  onPointerMove={cancelLongPress}
+                  onPointerCancel={cancelLongPress}
+                  onContextMenu={(e) => { e.preventDefault(); setContextMsg(msg); }}
                 >
-                  <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 shadow-sm ${
+                  <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 shadow-sm select-none ${
                     isOwn
                       ? `bg-gradient-to-br from-primary via-[#8B0000] to-black text-white ${isGroupEnd ? "rounded-br-[4px]" : ""}`
                       : `bg-card border border-secondary/25 ${isGroupEnd ? "rounded-bl-[4px]" : ""}`
                   }`}>
-                    {isImg ? (
+                    {msg.deleted ? (
+                      <p className={`text-xs italic ${isOwn ? "text-white/50" : "text-muted-foreground/60"}`}>🚫 Mensagem apagada</p>
+                    ) : isImg ? (
                       <img
                         src={mediaUrl}
                         alt="imagem"
@@ -1286,7 +1343,9 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                         <span className={`text-[10px] font-bold ${isOwn ? "text-white/55" : "text-muted-foreground"}`}>
                           {new Date(msg.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
                         </span>
-                        {isOwn && <CheckCheck className="w-3.5 h-3.5 text-secondary/70" />}
+                        {isOwn && (
+                          <CheckCheck className={`w-3.5 h-3.5 transition-colors ${readUntilId > 0 && msg.id <= readUntilId ? "text-blue-400" : "text-white/35"}`} />
+                        )}
                       </div>
                     )}
                   </div>
@@ -1478,6 +1537,60 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           >
             <span>{sendError}</span>
             <button onClick={() => setSendError(null)} className="ml-1 opacity-70 hover:opacity-100"><XIcon className="w-4 h-4" /></button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Menu de contexto (apagar mensagem) */}
+      <AnimatePresence>
+        {contextMsg && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-black/40 flex items-end"
+            onClick={() => setContextMsg(null)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 320 }}
+              className="w-full bg-card rounded-t-3xl shadow-2xl pb-safe"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-12 h-1.5 bg-muted-foreground/20 rounded-full mx-auto mt-3 mb-1" />
+              <div className="p-3">
+                {contextMsg.sender_id === userId && !contextMsg.deleted && (
+                  <button
+                    onClick={handleDeleteMessage}
+                    className="w-full flex items-center gap-3 py-3.5 px-5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-2xl transition-colors font-bold text-left"
+                  >
+                    <Trash2 className="w-5 h-5 flex-shrink-0" />
+                    <span>Apagar para todos</span>
+                  </button>
+                )}
+                {!contextMsg.deleted && contextMsg.text && !contextMsg.text.startsWith("aud:") && !contextMsg.text.startsWith("vid:") && !contextMsg.text.startsWith("doc:") && (
+                  <button
+                    onClick={() => {
+                      const t = contextMsg.text.startsWith("img:") ? contextMsg.text.slice(4) : contextMsg.text;
+                      navigator.clipboard?.writeText(t).catch(() => {});
+                      setContextMsg(null);
+                    }}
+                    className="w-full flex items-center gap-3 py-3.5 px-5 text-foreground hover:bg-muted rounded-2xl transition-colors font-bold text-left"
+                  >
+                    <span className="text-lg">📋</span>
+                    <span>Copiar texto</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setContextMsg(null)}
+                  className="w-full py-3.5 px-5 text-muted-foreground hover:bg-muted rounded-2xl transition-colors font-bold text-sm mt-1"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
