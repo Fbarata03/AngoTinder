@@ -630,7 +630,7 @@ export function TelaDescoberta() {
         </div>
       </div>
 
-      <BottomNav navigate={navigate} active="discover" />
+      <BottomNav active="discover" />
 
       <MatchModal
         isOpen={showMatch}

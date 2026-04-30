@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Star, Sparkles } from "lucide-react";
+import { Heart, Star, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { BottomNav } from "./BottomNav";
