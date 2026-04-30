@@ -72,6 +72,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             if (payload.type === "new_user") {
               window.dispatchEvent(new CustomEvent("angotinder:new_user", { detail: { userId: payload.user_id } }));
             }
+            if (payload.type === "user_online") {
+              window.dispatchEvent(new CustomEvent("angotinder:user_online", { detail: { userId: payload.user_id } }));
+            }
+            if (payload.type === "user_offline") {
+              window.dispatchEvent(new CustomEvent("angotinder:user_offline", { detail: { userId: payload.user_id } }));
+            }
             if (payload.type === "admin_broadcast") {
               const notif: BroadcastNotif = {
                 id: `bc-${Date.now()}`,

@@ -23,7 +23,13 @@ async def notifications_ws(ws: WebSocket, token: str = Query(...)):
         await ws.close(code=4001)
         return
 
+    was_online = notif_manager.is_online(user_id)
     await notif_manager.connect(ws, user_id)
+    if not was_online:
+        try:
+            await notif_manager.broadcast_all({"type": "user_online", "user_id": user_id})
+        except Exception:
+            pass
     try:
         pool = await get_pool()
         async with pool.acquire() as db:
@@ -42,3 +48,8 @@ async def notifications_ws(ws: WebSocket, token: str = Query(...)):
                 pass
     except WebSocketDisconnect:
         notif_manager.disconnect(ws, user_id)
+        if not notif_manager.is_online(user_id):
+            try:
+                await notif_manager.broadcast_all({"type": "user_offline", "user_id": user_id})
+            except Exception:
+                pass

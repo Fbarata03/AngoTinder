@@ -166,6 +166,7 @@ export const profilesApi = {
     lon?: number;
     max_distance_km?: number;
     prioritize_user_id?: string;
+    online_only?: boolean;
   }) => {
     const q = new URLSearchParams();
     if (params?.min_age != null) q.set("min_age", String(params.min_age));
@@ -176,6 +177,7 @@ export const profilesApi = {
     if (params?.lon != null) q.set("lon", String(params.lon));
     if (params?.max_distance_km != null) q.set("max_distance_km", String(params.max_distance_km));
     if (params?.prioritize_user_id) q.set("prioritize_user_id", params.prioritize_user_id);
+    if (params?.online_only) q.set("online_only", "true");
     const qs = q.toString();
     return request<User[]>(`/profiles/discover${qs ? "?" + qs : ""}`);
   },

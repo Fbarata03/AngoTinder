@@ -261,6 +261,7 @@ export function TelaDescoberta() {
       max_age: f.ageRange[1],
       gender: resolveGender(f),
       verified_only: f.showVerifiedOnly,
+      online_only: true,
       ...(f.useGps && activeCoords ? { lat: activeCoords.lat, lon: activeCoords.lon, max_distance_km: f.distance } : {}),
     })
       .then((p) => { setProfiles(p); setCurrentIndex(0); setHistory([]); setLoading(false); })
@@ -281,6 +282,7 @@ export function TelaDescoberta() {
         max_age: filters.ageRange[1],
         gender: resolveGender(filters),
         verified_only: filters.showVerifiedOnly,
+        online_only: true,
         ...(filters.useGps && gpsCoords ? { lat: gpsCoords.lat, lon: gpsCoords.lon, max_distance_km: filters.distance } : {}),
         ...(userId ? { prioritize_user_id: userId } : {}),
       }).then((fresh) => {
@@ -296,6 +298,33 @@ export function TelaDescoberta() {
     };
     window.addEventListener("angotinder:new_user", handler);
     return () => window.removeEventListener("angotinder:new_user", handler);
+  }, [filters, gpsCoords]);
+
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const userId = (ev as CustomEvent<{ userId?: string }>).detail?.userId;
+      if (!userId) return;
+      profilesApi.discover({
+        min_age: filters.ageRange[0],
+        max_age: filters.ageRange[1],
+        gender: resolveGender(filters),
+        verified_only: filters.showVerifiedOnly,
+        online_only: true,
+        ...(filters.useGps && gpsCoords ? { lat: gpsCoords.lat, lon: gpsCoords.lon, max_distance_km: filters.distance } : {}),
+        prioritize_user_id: userId,
+      }).then((fresh) => {
+        setProfiles((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const newOnes = fresh.filter((p) => !existingIds.has(p.id));
+          if (newOnes.length === 0) return prev;
+          return [...prev, ...newOnes];
+        });
+      }).catch((err) => {
+        console.error("[discover:user_online]", err);
+      });
+    };
+    window.addEventListener("angotinder:user_online", handler);
+    return () => window.removeEventListener("angotinder:user_online", handler);
   }, [filters, gpsCoords]);
 
   /** Core swipe logic — called AFTER the card has already animated off-screen */

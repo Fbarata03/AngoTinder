@@ -112,6 +112,7 @@ async def discover(
     lon: float | None = None,
     max_distance_km: float | None = None,
     prioritize_user_id: str | None = None,
+    online_only: bool = False,
 ):
     target_gender = ""
     if gender and gender not in ("all", ""):
@@ -163,7 +164,7 @@ async def discover(
         f"s.swiped_id = ${_p(liked_params, user_id)}",
         f"s.direction IN ('right', 'super')",
         f"u.id != ${_p(liked_params, user_id)}",
-        f"COALESCE(u.incognito_mode, 0) IN (0, 1)",
+        f"COALESCE(u.incognito_mode, 0) = 0",
         f"u.age >= ${_p(liked_params, min_age)}",
         f"u.age <= ${_p(liked_params, max_age)}",
         f"""u.id NOT IN (
@@ -187,9 +188,11 @@ async def discover(
         liked_conds.append(f"u.gender = ${_p(liked_params, target_gender)}")
     if verified_only:
         liked_conds.append("u.is_verified = 1")
+    if online_only:
+        liked_conds.append("COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes'")
 
     liked_rows = await db.fetch(
-        f"""SELECT u.* FROM swipes s
+        f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM swipes s
             JOIN users u ON u.id = s.swiper_id
             WHERE {' AND '.join(liked_conds)}
             ORDER BY COALESCE(u.last_active_at, u.created_at) DESC
@@ -229,12 +232,15 @@ async def discover(
         base_conds.append(f"u.gender = ${_p(base_params, target_gender)}")
     if verified_only:
         base_conds.append("u.is_verified = 1")
+    if online_only:
+        base_conds.append("COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes'")
 
     # Order: recently active first, then random (Tinder-like freshness boost)
     rows = await db.fetch(
-        f"""SELECT u.* FROM users u
+        f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u
             WHERE {' AND '.join(base_conds)}
             ORDER BY
+              CASE WHEN COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes' THEN 0 ELSE 1 END,
               CASE WHEN u.last_active_at > NOW() - INTERVAL '1 day' THEN 0
                    WHEN u.last_active_at > NOW() - INTERVAL '7 days' THEN 1
                    ELSE 2 END,
@@ -246,27 +252,28 @@ async def discover(
 
     # Fallback: ignore cooldown
     if not rows and not liked_rows:
-        fb_params: list = []
-        rows = await db.fetch(
-            f"""SELECT u.* FROM users u
-               WHERE u.id != ${_p(fb_params, user_id)}
-               AND COALESCE(u.incognito_mode, 0) = 0
-               AND u.id NOT IN (
-                   SELECT swiped_id FROM swipes
-                   WHERE swiper_id = ${_p(fb_params, user_id)} AND direction IN ('right', 'super')
-               )
-               AND u.id NOT IN (
-                   SELECT CASE WHEN user1_id = ${_p(fb_params, user_id)} THEN user2_id ELSE user1_id END
-                   FROM matches WHERE user1_id = ${_p(fb_params, user_id)} OR user2_id = ${_p(fb_params, user_id)}
-               )
-               ORDER BY RANDOM() LIMIT 50""",
-            *fb_params,
-        )
+        if not online_only:
+            fb_params: list = []
+            rows = await db.fetch(
+                f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u
+                   WHERE u.id != ${_p(fb_params, user_id)}
+                   AND COALESCE(u.incognito_mode, 0) = 0
+                   AND u.id NOT IN (
+                       SELECT swiped_id FROM swipes
+                       WHERE swiper_id = ${_p(fb_params, user_id)} AND direction IN ('right', 'super')
+                   )
+                   AND u.id NOT IN (
+                       SELECT CASE WHEN user1_id = ${_p(fb_params, user_id)} THEN user2_id ELSE user1_id END
+                       FROM matches WHERE user1_id = ${_p(fb_params, user_id)} OR user2_id = ${_p(fb_params, user_id)}
+                   )
+                   ORDER BY RANDOM() LIMIT 50""",
+                *fb_params,
+            )
 
     # Fallback nuclear: show everyone except self
-    if not rows and not liked_rows:
+    if not online_only and not rows and not liked_rows:
         rows = await db.fetch(
-            "SELECT u.* FROM users u WHERE u.id != $1 ORDER BY RANDOM() LIMIT 50",
+            "SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u WHERE u.id != $1 ORDER BY RANDOM() LIMIT 50",
             user_id,
         )
 
@@ -310,9 +317,10 @@ async def discover(
                 p_conds.append(f"u.gender = ${_p(p_params, target_gender)}")
             if verified_only:
                 p_conds.append("u.is_verified = 1")
+            p_conds.append("COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes'")
 
             prow = await db.fetchrow(
-                f"""SELECT u.* FROM users u
+                f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u
                     WHERE {' AND '.join(p_conds)}
                     LIMIT 1""",
                 *p_params,
