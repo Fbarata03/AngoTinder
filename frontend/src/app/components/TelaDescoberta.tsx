@@ -245,9 +245,19 @@ export function TelaDescoberta() {
   const swipingRef = useRef(false);
   // x MotionValue of the top card — used to animate it away from buttons
   const topCardXRef = useRef<MotionValue<number> | null>(null);
+  // Debounce timer for user_online discover fetch
+  const onlineDiscoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => {});
+    const onOnline = () => setOnlineCount((n) => n + 1);
+    const onOffline = () => setOnlineCount((n) => Math.max(0, n - 1));
+    window.addEventListener("angotinder:user_online", onOnline);
+    window.addEventListener("angotinder:user_offline", onOffline);
+    return () => {
+      window.removeEventListener("angotinder:user_online", onOnline);
+      window.removeEventListener("angotinder:user_offline", onOffline);
+    };
   }, []);
 
   const resolveGender = (f: Filters) => ((f as any)?.passportProvince ? "all" : f.gender);
@@ -302,26 +312,34 @@ export function TelaDescoberta() {
     const handler = (ev: Event) => {
       const userId = (ev as CustomEvent<{ userId?: string }>).detail?.userId;
       if (!userId) return;
-      profilesApi.discover({
-        min_age: filters.ageRange[0],
-        max_age: filters.ageRange[1],
-        gender: resolveGender(filters),
-        verified_only: filters.showVerifiedOnly,
-        ...(filters.useGps && gpsCoords ? { lat: gpsCoords.lat, lon: gpsCoords.lon, max_distance_km: filters.distance } : {}),
-        prioritize_user_id: userId,
-      }).then((fresh) => {
-        setProfiles((prev) => {
-          const existingIds = new Set(prev.map((p) => p.id));
-          const newOnes = fresh.filter((p) => !existingIds.has(p.id));
-          if (newOnes.length === 0) return prev;
-          return [...prev, ...newOnes];
+      // Debounce: aguarda 2s após o último evento antes de fazer fetch
+      if (onlineDiscoverTimerRef.current) clearTimeout(onlineDiscoverTimerRef.current);
+      onlineDiscoverTimerRef.current = setTimeout(() => {
+        onlineDiscoverTimerRef.current = null;
+        profilesApi.discover({
+          min_age: filters.ageRange[0],
+          max_age: filters.ageRange[1],
+          gender: resolveGender(filters),
+          verified_only: filters.showVerifiedOnly,
+          ...(filters.useGps && gpsCoords ? { lat: gpsCoords.lat, lon: gpsCoords.lon, max_distance_km: filters.distance } : {}),
+          prioritize_user_id: userId,
+        }).then((fresh) => {
+          setProfiles((prev) => {
+            const existingIds = new Set(prev.map((p) => p.id));
+            const newOnes = fresh.filter((p) => !existingIds.has(p.id));
+            if (newOnes.length === 0) return prev;
+            return [...prev, ...newOnes];
+          });
+        }).catch((err) => {
+          console.error("[discover:user_online]", err);
         });
-      }).catch((err) => {
-        console.error("[discover:user_online]", err);
-      });
+      }, 2000);
     };
     window.addEventListener("angotinder:user_online", handler);
-    return () => window.removeEventListener("angotinder:user_online", handler);
+    return () => {
+      window.removeEventListener("angotinder:user_online", handler);
+      if (onlineDiscoverTimerRef.current) clearTimeout(onlineDiscoverTimerRef.current);
+    };
   }, [filters, gpsCoords]);
 
   /** Core swipe logic — called AFTER the card has already animated off-screen */

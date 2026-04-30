@@ -266,11 +266,26 @@ async def discover(
                 *fb_params,
             )
 
-    # Fallback nuclear: show everyone except self
+    # Fallback nuclear: show everyone respecting basic filters (no cooldown, no match exclusion)
     if not online_only and not rows and not liked_rows:
+        nuc_params: list = []
+        nuc_conds = [
+            f"u.id != ${_p(nuc_params, user_id)}",
+            f"COALESCE(u.incognito_mode, 0) = 0",
+            f"u.age >= ${_p(nuc_params, min_age)}",
+            f"u.age <= ${_p(nuc_params, max_age)}",
+        ]
+        if blocked_ids:
+            ph = ", ".join([f"${_p(nuc_params, bid)}" for bid in blocked_ids])
+            nuc_conds.append(f"u.id NOT IN ({ph})")
+        if target_gender:
+            nuc_conds.append(f"u.gender = ${_p(nuc_params, target_gender)}")
         rows = await db.fetch(
-            "SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u WHERE u.id != $1 ORDER BY RANDOM() LIMIT 50",
-            user_id,
+            f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u
+                WHERE {' AND '.join(nuc_conds)}
+                ORDER BY COALESCE(u.last_active_at, u.created_at) DESC, RANDOM()
+                LIMIT 50""",
+            *nuc_params,
         )
 
     # Merge + deduplicate
@@ -345,6 +360,11 @@ async def discover(
                 f"""u.id NOT IN (
                     SELECT swiped_id FROM swipes
                     WHERE swiper_id = ${_p(extra_params, user_id)} AND direction IN ('right', 'super')
+                )""",
+                f"""u.id NOT IN (
+                    SELECT swiped_id FROM swipes
+                    WHERE swiper_id = ${_p(extra_params, user_id)} AND direction = 'left'
+                      AND created_at > NOW() - INTERVAL '{LEFT_SWIPE_COOLDOWN_DAYS} days'
                 )""",
                 f"""u.id NOT IN (
                     SELECT CASE WHEN user1_id = ${_p(extra_params, user_id)} THEN user2_id ELSE user1_id END
