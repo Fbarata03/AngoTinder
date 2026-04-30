@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Heart, User, MessageCircle, Star, Sparkles, X, Search } from "lucide-react";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
@@ -17,10 +17,24 @@ export function TelaLikes() {
   const [toast, setToast] = useState<string | null>(null);
   const [viewProfile, setViewProfile] = useState<UserType | null>(null);
 
+  const refreshLikes = useCallback(() => {
+    profilesApi.getLikes().then((l) => { setLikes(l); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
-    profilesApi.getLikes().then((l) => { setLikes(l); setLoading(false); }).catch(() => setLoading(false));
-  }, [isLoggedIn]);
+    refreshLikes();
+    // Refresh when tab becomes visible (user returns from swipe)
+    const onVisible = () => { if (document.visibilityState === "visible") refreshLikes(); };
+    document.addEventListener("visibilitychange", onVisible);
+    // Refresh when a new match happens (someone liked back)
+    const onMatch = () => refreshLikes();
+    window.addEventListener("angotinder:new_match", onMatch);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("angotinder:new_match", onMatch);
+    };
+  }, [isLoggedIn, refreshLikes]);
 
   const showToast = (msg: string) => {
     setToast(msg);

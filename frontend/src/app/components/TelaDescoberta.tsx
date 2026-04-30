@@ -159,6 +159,16 @@ function SwipeCard({ profile, onSwipe, isTop, onXReady }: SwipeCardProps) {
           </div>
         )}
 
+        {/* Online badge */}
+        {isTop && profile.is_online && (
+          <div className="absolute top-5 right-4 z-20">
+            <div className="bg-black/70 backdrop-blur-sm px-2.5 py-1 rounded-full flex items-center gap-1.5 border border-green-400/40">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+              <span className="text-xs font-bold text-green-300">online</span>
+            </div>
+          </div>
+        )}
+
         {/* Bottom gradient — only on top card */}
         {isTop && (
           <div className="absolute bottom-0 left-0 right-0 h-3/5 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none z-10" />
@@ -247,6 +257,14 @@ export function TelaDescoberta() {
   const topCardXRef = useRef<MotionValue<number> | null>(null);
   // Debounce timer for user_online discover fetch
   const onlineDiscoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Auto-refresh timer and last-load timestamp
+  const autoRefreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastLoadRef = useRef<number>(0);
+  // Ref for currentIndex to use inside closures without stale values
+  const currentIndexRef = useRef(currentIndex);
+
+  // Keep currentIndexRef in sync so closures always see the latest index
+  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
 
   useEffect(() => {
     notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => {});
@@ -273,14 +291,58 @@ export function TelaDescoberta() {
       verified_only: f.showVerifiedOnly,
       ...(f.useGps && activeCoords ? { lat: activeCoords.lat, lon: activeCoords.lon, max_distance_km: f.distance } : {}),
     })
-      .then((p) => { setProfiles(p); setCurrentIndex(0); setHistory([]); setLoading(false); })
+      .then((p) => { lastLoadRef.current = Date.now(); setProfiles(p); setCurrentIndex(0); setHistory([]); setLoading(false); })
       .catch(() => setLoading(false));
   };
+
+  // Silent top-up: busca novos perfis e insere IMEDIATAMENTE APÓS a posição actual
+  const silentTopUp = useCallback((f: Filters, coords: { lat: number; lon: number } | null) => {
+    profilesApi.discover({
+      min_age: f.ageRange[0],
+      max_age: f.ageRange[1],
+      gender: resolveGender(f),
+      verified_only: f.showVerifiedOnly,
+      ...(f.useGps && coords ? { lat: coords.lat, lon: coords.lon, max_distance_km: f.distance } : {}),
+    }).then((fresh) => {
+      lastLoadRef.current = Date.now();
+      setProfiles((prev) => {
+        const existingIds = new Set(prev.map((p) => p.id));
+        const newOnes = fresh.filter((p) => !existingIds.has(p.id));
+        if (newOnes.length === 0) return prev;
+        const insertAt = currentIndexRef.current + 1;
+        return [...prev.slice(0, insertAt), ...newOnes, ...prev.slice(insertAt)];
+      });
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
     loadProfiles(filters);
   }, [isLoggedIn]);
+
+  // Auto-refresh a cada 3 minutos: silently adiciona novos perfis online ao deck
+  useEffect(() => {
+    if (autoRefreshTimerRef.current) clearInterval(autoRefreshTimerRef.current);
+    autoRefreshTimerRef.current = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        silentTopUp(filters, gpsCoords);
+      }
+    }, 3 * 60 * 1000);
+    return () => {
+      if (autoRefreshTimerRef.current) clearInterval(autoRefreshTimerRef.current);
+    };
+  }, [filters, gpsCoords, silentTopUp]);
+
+  // Refresh quando o utilizador volta ao tab após >3 min ausente
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() - lastLoadRef.current > 3 * 60 * 1000) {
+        silentTopUp(filters, gpsCoords);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [filters, gpsCoords, silentTopUp]);
 
   // Real-time: when a new user registers, silently fetch updated profiles and append new ones
   useEffect(() => {
@@ -328,7 +390,9 @@ export function TelaDescoberta() {
             const existingIds = new Set(prev.map((p) => p.id));
             const newOnes = fresh.filter((p) => !existingIds.has(p.id));
             if (newOnes.length === 0) return prev;
-            return [...prev, ...newOnes];
+            // Inserir imediatamente após a posição actual
+            const insertAt = currentIndexRef.current + 1;
+            return [...prev.slice(0, insertAt), ...newOnes, ...prev.slice(insertAt)];
           });
         }).catch((err) => {
           console.error("[discover:user_online]", err);

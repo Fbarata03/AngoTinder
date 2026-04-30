@@ -90,6 +90,7 @@ export interface User {
   longitude?: number | null;
   last_active_at?: string;
   incognito_mode?: number;
+  is_online?: boolean;
 }
 
 export interface AuthResponse {

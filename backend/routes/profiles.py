@@ -119,15 +119,20 @@ async def discover(
         gender_map = {"women": "female", "men": "male", "female": "female", "male": "male"}
         target_gender = gender_map.get(gender, "")
 
-    # Save user's coordinates if provided
-    if lat is not None and lon is not None:
-        try:
+    # Always mark user as active; optionally save GPS coords
+    try:
+        if lat is not None and lon is not None:
             await db.execute(
                 "UPDATE users SET latitude=$1, longitude=$2, last_active_at=NOW() WHERE id=$3",
                 lat, lon, user_id,
             )
-        except Exception:
-            pass
+        else:
+            await db.execute(
+                "UPDATE users SET last_active_at=NOW() WHERE id=$1",
+                user_id,
+            )
+    except Exception:
+        pass
 
     # Fetch IDs blocked by or blocking this user (mutual exclusion)
     blocked_rows = await db.fetch(
@@ -190,7 +195,7 @@ async def discover(
         liked_conds.append("u.is_verified = 1")
 
     liked_rows = await db.fetch(
-        f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM swipes s
+        f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '5 minutes') AS is_online FROM swipes s
             JOIN users u ON u.id = s.swiper_id
             WHERE {' AND '.join(liked_conds)}
             ORDER BY COALESCE(u.last_active_at, u.created_at) DESC
@@ -233,10 +238,10 @@ async def discover(
 
     # Order: recently active first, then random (Tinder-like freshness boost)
     rows = await db.fetch(
-        f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u
+        f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '5 minutes') AS is_online FROM users u
             WHERE {' AND '.join(base_conds)}
             ORDER BY
-              CASE WHEN (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') THEN 0 ELSE 1 END,
+              CASE WHEN (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '5 minutes') THEN 0 ELSE 1 END,
               CASE WHEN u.last_active_at > NOW() - INTERVAL '1 day' THEN 0
                    WHEN u.last_active_at > NOW() - INTERVAL '7 days' THEN 1
                    ELSE 2 END,
@@ -251,7 +256,7 @@ async def discover(
         if not online_only:
             fb_params: list = []
             rows = await db.fetch(
-                f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u
+                f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '5 minutes') AS is_online FROM users u
                    WHERE u.id != ${_p(fb_params, user_id)}
                    AND COALESCE(u.incognito_mode, 0) = 0
                    AND u.id NOT IN (
@@ -281,7 +286,7 @@ async def discover(
         if target_gender:
             nuc_conds.append(f"u.gender = ${_p(nuc_params, target_gender)}")
         rows = await db.fetch(
-            f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u
+            f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '5 minutes') AS is_online FROM users u
                 WHERE {' AND '.join(nuc_conds)}
                 ORDER BY COALESCE(u.last_active_at, u.created_at) DESC, RANDOM()
                 LIMIT 50""",
@@ -330,7 +335,7 @@ async def discover(
                 p_conds.append("u.is_verified = 1")
 
             prow = await db.fetchrow(
-                f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u
+                f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '5 minutes') AS is_online FROM users u
                     WHERE {' AND '.join(p_conds)}
                     LIMIT 1""",
                 *p_params,
@@ -386,11 +391,11 @@ async def discover(
                 extra_conds.append("u.is_verified = 1")
 
             extra_rows = await db.fetch(
-                f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online
+                f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '5 minutes') AS is_online
                     FROM users u
                     WHERE {' AND '.join(extra_conds)}
                     ORDER BY
-                      CASE WHEN (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') THEN 0 ELSE 1 END,
+                      CASE WHEN (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '5 minutes') THEN 0 ELSE 1 END,
                       COALESCE(u.last_active_at, u.created_at) DESC,
                       RANDOM()
                     LIMIT 80""",
