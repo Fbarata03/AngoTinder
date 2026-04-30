@@ -1,4 +1,4 @@
-﻿﻿import { useState, useEffect, useRef, useCallback, Fragment } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import {
   Heart, User, MessageCircle, Send, ArrowLeft, Sparkles, Star,
   Phone, Video, PhoneOff, VideoOff, Mic, MicOff, PhoneCall, Trash2, ImageIcon,
@@ -492,12 +492,14 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const longPressActiveRef = useRef(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const sendErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hiddenMsgIds, setHiddenMsgIds] = useState<Set<number>>(() => new Set());
   const showSendError = (msg: string) => {
     setSendError(msg);
     if (sendErrorTimerRef.current) clearTimeout(sendErrorTimerRef.current);
     sendErrorTimerRef.current = setTimeout(() => setSendError(null), 5000);
   };
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStartingRef = useRef(false);
   const chunksRef = useRef<Blob[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -538,6 +540,16 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   useEffect(() => { callStateRef.current = callState; }, [callState]);
   useEffect(() => { callTypeRef.current = callType; }, [callType]);
   useEffect(() => { recordingTimeRef.current = recordingTime; }, [recordingTime]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`angotinder_hidden_msgs_${match.match_id}`) || "[]";
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) setHiddenMsgIds(new Set(arr.filter((x) => typeof x === "number")));
+      else setHiddenMsgIds(new Set());
+    } catch {
+      setHiddenMsgIds(new Set());
+    }
+  }, [match.match_id]);
 
   // Aplicação central de streams â dispara quando qualquer dependência muda,
   // com retries (200ms e 900ms) para cobrir timing issues em iOS/Safari/Firefox
@@ -935,6 +947,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const MAX = { image: 10, video: 50, audio: 15, doc: 25 };
 
   const startLongPress = (msg: Message) => (e: React.PointerEvent) => {
+    if (e.pointerType === "touch") return;
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
     longPressActiveRef.current = false;
     longPressTimerRef.current = setTimeout(() => {
@@ -988,6 +1001,21 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, deleted: false } : m));
       showSendError("Não foi possível apagar a mensagem.");
     }
+  };
+
+  const handleDeleteForMe = () => {
+    if (!contextMsg) return;
+    const id = contextMsg.id;
+    setContextMsg(null);
+    setHiddenMsgIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        localStorage.setItem(`angotinder_hidden_msgs_${match.match_id}`, JSON.stringify(Array.from(next)));
+      } catch {
+      }
+      return next;
+    });
   };
 
   const handleSend = async () => {
@@ -1104,12 +1132,36 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     }
   };
 
+  const handleUploadAudioFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX.audio * 1024 * 1024) {
+      showSendError(`Áudio demasiado grande. Máximo ${MAX.audio} MB.`);
+      e.currentTarget.value = "";
+      return;
+    }
+    setUploading(true);
+    try {
+      const res = await messagesApi.uploadMedia(file, "audio", 24);
+      const msg = await messagesApi.sendMessage(match.match_id, res.text);
+      setMessages((m) => [...m, msg]);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch (err: any) {
+      showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
+    } finally {
+      setUploading(false);
+      e.currentTarget.value = "";
+    }
+  };
+
   const startRecording = async () => {
     if (recorderRef.current && recorderRef.current.state !== "inactive") return;
+    if (recordingStartingRef.current) return;
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       showSendError("O teu browser não suporta gravação de áudio.");
       return;
     }
+    recordingStartingRef.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg;codecs=opus"];
@@ -1158,8 +1210,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         }
       };
       rec.start();
+      recordingStartingRef.current = false;
     } catch {
       setIsRecording(false);
+      recordingStartingRef.current = false;
       showSendError("Permita acesso ao microfone para gravar áudio.");
     }
   };
@@ -1171,6 +1225,8 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     setIsRecording(false);
     if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
   };
+
+  const visibleMessages = messages.filter((m) => !hiddenMsgIds.has(m.id));
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] relative overflow-hidden">
@@ -1300,7 +1356,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             </div>
           )}
 
-          {messages.map((msg, idx) => {
+          {visibleMessages.map((msg, idx) => {
             const t = msg.text || "";
             const isImg = t.startsWith("img:");
             const isAud = t.startsWith("aud:");
@@ -1324,8 +1380,8 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             }
             const isOwn = msg.sender_id === userId;
 
-            const prevMsg = idx > 0 ? messages[idx - 1] : null;
-            const nextMsg = idx < messages.length - 1 ? messages[idx + 1] : null;
+            const prevMsg = idx > 0 ? visibleMessages[idx - 1] : null;
+            const nextMsg = idx < visibleMessages.length - 1 ? visibleMessages[idx + 1] : null;
             const showDate = !prevMsg || !isSameDay(msg.created_at, prevMsg.created_at);
             const grouped = !!prevMsg && isSameGroup(msg, prevMsg);
             const isGroupEnd = !nextMsg || !isSameGroup(nextMsg, msg);
@@ -1486,6 +1542,15 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           </label>
           <input id="chatMediaInput" type="file" accept="image/*,video/*" onChange={handleUploadMedia} className="hidden" />
 
+          <label
+            htmlFor="chatAudioInput"
+            className={`w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-secondary transition-colors rounded-full hover:bg-secondary/10 cursor-pointer flex-shrink-0 ${uploading ? "opacity-40 pointer-events-none" : ""}`}
+            title="Áudio"
+          >
+            <Volume2 className="w-5 h-5" />
+          </label>
+          <input id="chatAudioInput" type="file" accept="audio/*" onChange={handleUploadAudioFile} className="hidden" />
+
           {/* Documento — label direto */}
           <label
             htmlFor="chatDocInputDirect"
@@ -1603,6 +1668,13 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             >
               <div className="w-12 h-1.5 bg-muted-foreground/20 rounded-full mx-auto mt-3 mb-1" />
               <div className="p-3">
+                <button
+                  onClick={handleDeleteForMe}
+                  className="w-full flex items-center gap-3 py-3.5 px-5 text-foreground hover:bg-muted rounded-2xl transition-colors font-bold text-left"
+                >
+                  <Trash2 className="w-5 h-5 flex-shrink-0" />
+                  <span>Apagar para mim</span>
+                </button>
                 {contextMsg.sender_id === userId && !contextMsg.deleted && (
                   <button
                     onClick={handleDeleteMessage}

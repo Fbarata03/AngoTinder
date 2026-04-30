@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, UploadFile, File, Request
 from pydantic import BaseModel
 import asyncpg
 from database import get_db, get_pool, publish_event
@@ -104,6 +104,7 @@ async def turn_credentials(user_id: str = Depends(get_current_user_id)):
 
 @router.post("/upload")
 async def upload_chat_media(
+    request: Request,
     file: UploadFile = File(...),
     type: str = "image",
     ttl_hours: int = 24,
@@ -153,7 +154,9 @@ async def upload_chat_media(
     path = os.path.join(chat_media_dir(), filename)
     with open(path, "wb") as f:
         f.write(contents)
-    url = f"/static/chat/{filename}"
+    url_path = f"/static/chat/{filename}"
+    base = str(request.base_url).rstrip("/")
+    url = f"{base}{url_path}"
     text = f"{token}{url}|{original_filename}" if type == "doc" else f"{token}{url}"
     return {"url": url, "text": text, "filename": original_filename}
 
