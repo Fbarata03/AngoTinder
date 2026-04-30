@@ -110,9 +110,9 @@ function SwipeCard({ profile, onSwipe, isTop, onXReady }: SwipeCardProps) {
     <motion.div
       drag={isTop ? "x" : false}
       onDragEnd={handleDragEnd}
-      style={{ x, rotate, opacity }}
+      style={{ x, rotate, opacity, scale: isTop ? 1 : 0.94, y: isTop ? 0 : 16 }}
       whileDrag={{ scale: 1.02 }}
-      className={`absolute inset-0 ${isTop ? "cursor-grab active:cursor-grabbing" : "pointer-events-none"}`}
+      className={`absolute inset-0 ${isTop ? "cursor-grab active:cursor-grabbing z-10" : "pointer-events-none z-0"}`}
     >
       <div className="relative w-full h-full rounded-3xl overflow-hidden shadow-2xl">
         {/* Full-size photo background */}
@@ -127,16 +127,16 @@ function SwipeCard({ profile, onSwipe, isTop, onXReady }: SwipeCardProps) {
           <PhotoPlaceholder name={profile.name} className="absolute inset-0 w-full h-full" />
         )}
 
-        {/* Photo tap navigation zones */}
-        {hasPhotos && profile.photos.length > 1 && (
+        {/* Photo tap navigation zones — only on top card */}
+        {isTop && hasPhotos && profile.photos.length > 1 && (
           <div className="absolute inset-0 flex z-10">
             <button className="flex-1" onClick={() => setCurrentPhoto(Math.max(0, safeIndex - 1))} />
             <button className="flex-1" onClick={() => setCurrentPhoto(Math.min(profile.photos.length - 1, safeIndex + 1))} />
           </div>
         )}
 
-        {/* Photo progress indicators */}
-        {hasPhotos && profile.photos.length > 1 && (
+        {/* Photo progress indicators — only on top card */}
+        {isTop && hasPhotos && profile.photos.length > 1 && (
           <div className="absolute top-3 left-0 right-0 flex gap-1 px-3 z-20 pointer-events-none">
             {profile.photos.map((_, i) => (
               <div
@@ -147,8 +147,8 @@ function SwipeCard({ profile, onSwipe, isTop, onXReady }: SwipeCardProps) {
           </div>
         )}
 
-        {/* Verified badge */}
-        {profile.is_verified === 1 && (
+        {/* Verified badge — only on top card */}
+        {isTop && profile.is_verified === 1 && (
           <div className="absolute top-5 left-4 z-20">
             <div className="bg-gradient-to-r from-secondary to-[#FFD700] p-0.5 rounded-full">
               <div className="bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-1">
@@ -159,11 +159,13 @@ function SwipeCard({ profile, onSwipe, isTop, onXReady }: SwipeCardProps) {
           </div>
         )}
 
-        {/* Bottom gradient */}
-        <div className="absolute bottom-0 left-0 right-0 h-3/5 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none z-10" />
+        {/* Bottom gradient — only on top card */}
+        {isTop && (
+          <div className="absolute bottom-0 left-0 right-0 h-3/5 bg-gradient-to-t from-black/95 via-black/50 to-transparent pointer-events-none z-10" />
+        )}
 
-        {/* Interests tags */}
-        {profile.interests && profile.interests.length > 0 && (
+        {/* Interests tags — only on top card */}
+        {isTop && profile.interests && profile.interests.length > 0 && (
           <div className="absolute bottom-32 left-0 right-0 px-4 flex flex-wrap gap-1.5 pointer-events-none z-20">
             {profile.interests.slice(0, 3).map((interest) => (
               <span
@@ -176,7 +178,8 @@ function SwipeCard({ profile, onSwipe, isTop, onXReady }: SwipeCardProps) {
           </div>
         )}
 
-        {/* Info overlay */}
+        {/* Info overlay — only on top card */}
+        {isTop && (
         <div className="absolute bottom-0 left-0 right-0 px-5 pb-5 pointer-events-none z-20">
           <div className="flex items-baseline gap-2 mb-2">
             <h2 className="text-[clamp(1.6rem,5vw,2rem)] font-black text-white drop-shadow-lg leading-tight">{profile.name}</h2>
@@ -198,6 +201,7 @@ function SwipeCard({ profile, onSwipe, isTop, onXReady }: SwipeCardProps) {
             <p className="text-white/80 text-sm mt-2 line-clamp-2 leading-relaxed">{profile.bio}</p>
           )}
         </div>
+        )}
 
         {/* GOSTEI overlay */}
         <motion.div style={{ opacity: likeOpacity }}
@@ -229,7 +233,7 @@ export function TelaDescoberta() {
   const [matchedProfile, setMatchedProfile] = useState<UserType | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState<Filters>({ ageRange: [18, 99], distance: 150, showVerifiedOnly: false, gender: "all", useGps: false, passportProvince: "" });
+  const [filters, setFilters] = useState<Filters>({ ageRange: [18, 99], distance: 150, showVerifiedOnly: false, gender: "all", useGps: false });
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [superLikesLeft, setSuperLikesLeft] = useState(() => getSuperLikesInitial());
   const [boostActive, setBoostActive] = useState(false);
@@ -253,7 +257,7 @@ export function TelaDescoberta() {
     profilesApi.discover({
       min_age: f.ageRange[0],
       max_age: f.ageRange[1],
-      gender: f.passportProvince ? "all" : f.gender,
+      gender: f.gender,
       verified_only: f.showVerifiedOnly,
       ...(f.useGps && activeCoords ? { lat: activeCoords.lat, lon: activeCoords.lon, max_distance_km: f.distance } : {}),
     })

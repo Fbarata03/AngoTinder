@@ -129,7 +129,7 @@ async def get_all_users(
     verified: str = "",
     location: str = "",
 ):
-    limit = 30
+    limit = 50
     offset = (page - 1) * limit
 
     conditions = []
@@ -254,6 +254,9 @@ async def delete_user(
         await db.execute("DELETE FROM messages WHERE match_id = $1", m["id"])
     await db.execute("DELETE FROM matches WHERE user1_id = $1 OR user2_id = $1", user_id)
     await db.execute("DELETE FROM swipes WHERE swiper_id = $1 OR swiped_id = $1", user_id)
+    # Clean up blocks and reports involving this user
+    await db.execute("DELETE FROM blocks WHERE blocker_id = $1 OR blocked_id = $1", user_id)
+    await db.execute("DELETE FROM reports WHERE reporter_id = $1 OR reported_id = $1", user_id)
     await db.execute("DELETE FROM users WHERE id = $1", user_id)
     return {"success": True}
 

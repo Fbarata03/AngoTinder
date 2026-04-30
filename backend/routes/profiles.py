@@ -129,19 +129,12 @@ async def discover(
 
     # Fetch IDs blocked by or blocking this user (mutual exclusion)
     blocked_rows = await db.fetch(
-        "SELECT blocked_id FROM blocks WHERE blocker_id=$1 UNION SELECT blocker_id FROM blocks WHERE blocked_id=$1",
-        user_id,
-    )
-    blocked_ids = [r["blocked_id"] if r.get("blocked_id") else r["blocker_id"] for r in blocked_rows]
-    # Re-query more precisely
-    blocked_rows2 = await db.fetch(
         "SELECT blocked_id AS uid FROM blocks WHERE blocker_id=$1 UNION SELECT blocker_id AS uid FROM blocks WHERE blocked_id=$1",
         user_id,
     )
-    blocked_ids = [r["uid"] for r in blocked_rows2]
+    blocked_ids = [r["uid"] for r in blocked_rows]
 
     def _common_conditions(param_list: list) -> list[str]:
-        pid = lambda: f"${len(param_list)}"
         conds = [
             f"u.id != ${_p(param_list, user_id)}",
             f"u.incognito_mode = 0",

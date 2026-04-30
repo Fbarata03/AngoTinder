@@ -493,13 +493,9 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const recordingTimeRef = useRef(0);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const [showEmojis, setShowEmojis] = useState(false);
-  const [showAttach, setShowAttach] = useState(false);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelRecordingRef = useRef(false);
   const emojiContainerRef = useRef<HTMLDivElement>(null);
-  const attachBtnRef = useRef<HTMLDivElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
-  const docInputRef = useRef<HTMLInputElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Call state
@@ -786,16 +782,6 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     return () => document.removeEventListener("pointerdown", handler);
   }, [showEmojis]);
 
-  useEffect(() => {
-    if (!showAttach) return;
-    const handler = (e: PointerEvent) => {
-      if (attachBtnRef.current && !attachBtnRef.current.contains(e.target as Node)) {
-        setShowAttach(false);
-      }
-    };
-    document.addEventListener("pointerdown", handler);
-    return () => document.removeEventListener("pointerdown", handler);
-  }, [showAttach]);
 
   useEffect(() => {
     if (loadedOlderRef.current) { loadedOlderRef.current = false; return; }
@@ -1002,6 +988,31 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       const msg = err?.message || "Erro ao enviar ficheiro";
       alert(`Falha no envio: ${msg}`);
       console.error("[upload]", err);
+    } finally {
+      setUploading(false);
+      e.currentTarget.value = "";
+    }
+  };
+
+  const handleUploadMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const isVideo = file.type.startsWith("video/");
+    const type = isVideo ? "video" : "image";
+    const maxMB = isVideo ? MAX.video : MAX.image;
+    if (file.size > maxMB * 1024 * 1024) {
+      alert(`${isVideo ? "Vídeo" : "Imagem"} demasiado grande. Máximo ${maxMB} MB.`);
+      e.currentTarget.value = "";
+      return;
+    }
+    setUploading(true);
+    try {
+      const res = await messagesApi.uploadMedia(file, type, isVideo ? 48 : 24);
+      const msg = await messagesApi.sendMessage(match.match_id, res.text);
+      setMessages((m) => [...m, msg]);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch (err: any) {
+      alert(`Falha no envio: ${err?.message || "Erro desconhecido"}`);
     } finally {
       setUploading(false);
       e.currentTarget.value = "";
@@ -1365,57 +1376,25 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             </AnimatePresence>
           </div>
 
-          {/* Attach button */}
-          <div className="relative flex-shrink-0" ref={attachBtnRef}>
-            <button
-              onClick={() => setShowAttach((v) => !v)}
-              disabled={uploading}
-              className="w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-secondary transition-colors rounded-full hover:bg-secondary/10 disabled:opacity-40"
-            >
-              <Paperclip className="w-5 h-5" />
-            </button>
-            <AnimatePresence>
-              {showAttach && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.93 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.93 }}
-                  className="absolute bottom-12 left-0 bg-card rounded-2xl shadow-2xl border-2 border-primary/15 p-2 z-30 w-48"
-                >
-                  <button
-                    onClick={() => { setShowAttach(false); document.getElementById("chatPhotoInput")?.click(); }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-secondary/10 rounded-xl transition-colors text-left"
-                  >
-                    <div className="w-8 h-8 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <ImageIcon className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="text-sm font-bold">Imagem</span>
-                  </button>
-                  <button
-                    onClick={() => { setShowAttach(false); videoInputRef.current?.click(); }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-secondary/10 rounded-xl transition-colors text-left"
-                  >
-                    <div className="w-8 h-8 bg-purple-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Film className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="text-sm font-bold">Vídeo</span>
-                  </button>
-                  <button
-                    onClick={() => { setShowAttach(false); docInputRef.current?.click(); }}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-secondary/10 rounded-xl transition-colors text-left"
-                  >
-                    <div className="w-8 h-8 bg-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="text-sm font-bold">Documento</span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          <input id="chatPhotoInput" type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
-          <input ref={videoInputRef} type="file" accept="video/*" onChange={handleUploadVideo} className="hidden" />
-          <input ref={docInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" onChange={handleUploadDoc} className="hidden" />
+          {/* Gallery/Vídeo — label direto, sem popup (funciona em iOS/Android) */}
+          <label
+            htmlFor="chatMediaInput"
+            className={`w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-secondary transition-colors rounded-full hover:bg-secondary/10 cursor-pointer flex-shrink-0 ${uploading ? "opacity-40 pointer-events-none" : ""}`}
+            title="Foto ou Vídeo"
+          >
+            <ImageIcon className="w-5 h-5" />
+          </label>
+          <input id="chatMediaInput" type="file" accept="image/*,video/*" onChange={handleUploadMedia} className="hidden" />
+
+          {/* Documento — label direto */}
+          <label
+            htmlFor="chatDocInputDirect"
+            className={`w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-secondary transition-colors rounded-full hover:bg-secondary/10 cursor-pointer flex-shrink-0 ${uploading ? "opacity-40 pointer-events-none" : ""}`}
+            title="Documento"
+          >
+            <Paperclip className="w-5 h-5" />
+          </label>
+          <input id="chatDocInputDirect" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" onChange={handleUploadDoc} className="hidden" />
 
           {/* Text input */}
           <Input

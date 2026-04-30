@@ -38,6 +38,7 @@ export function TelaPerfil() {
         education: profile.education,
         hometown: profile.hometown,
         interests: profile.interests,
+        incognito_mode: profile.incognito_mode ?? 0,
       });
       updateUser(updated);
       setSaved(true);
@@ -140,18 +141,17 @@ export function TelaPerfil() {
               </div>
             ))}
             {profile.photos.length < 6 && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="aspect-square rounded-2xl bg-gradient-to-br from-secondary/20 to-[#FFD700]/20 border-4 border-dashed border-secondary/50 flex flex-col items-center justify-center hover:border-secondary hover:from-secondary/30 hover:to-[#FFD700]/30 transition-all"
+              <label
+                htmlFor="profilePhotoInput"
+                className={`aspect-square rounded-2xl bg-gradient-to-br from-secondary/20 to-[#FFD700]/20 border-4 border-dashed border-secondary/50 flex flex-col items-center justify-center hover:border-secondary hover:from-secondary/30 hover:to-[#FFD700]/30 transition-all cursor-pointer ${uploading ? "opacity-60 pointer-events-none" : ""}`}
               >
                 <Camera className="w-10 h-10 text-primary mb-2" />
                 <span className="text-sm font-bold text-primary">{uploading ? "A enviar..." : "Adicionar"}</span>
-              </button>
+              </label>
             )}
           </div>
           <input
-            ref={fileInputRef}
+            id="profilePhotoInput"
             type="file"
             accept="image/*"
             className="hidden"

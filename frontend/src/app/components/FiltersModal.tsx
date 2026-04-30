@@ -12,7 +12,6 @@ export interface Filters {
   showVerifiedOnly: boolean;
   gender: "all" | "women" | "men";
   useGps: boolean;
-  passportProvince: string;
 }
 
 interface FiltersModalProps {
@@ -26,7 +25,7 @@ type GpsStatus = "idle" | "requesting" | "granted" | "denied";
 
 export function FiltersModal({ isOpen, onClose, onApply, initial }: FiltersModalProps) {
   const [filters, setFilters] = useState<Filters>(
-    initial || { ageRange: [18, 99], distance: 150, showVerifiedOnly: false, gender: "all", useGps: false, passportProvince: "" }
+    initial || { ageRange: [18, 99], distance: 150, showVerifiedOnly: false, gender: "all", useGps: false }
   );
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("idle");
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lon: number } | null>(null);
