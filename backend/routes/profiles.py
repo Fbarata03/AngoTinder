@@ -334,6 +334,58 @@ async def discover(
         except Exception:
             pass
 
+    if len(combined) < 20:
+        try:
+            extra_params: list = []
+            extra_conds = [
+                f"u.id != ${_p(extra_params, user_id)}",
+                f"COALESCE(u.incognito_mode, 0) = 0",
+                f"u.age >= ${_p(extra_params, min_age)}",
+                f"u.age <= ${_p(extra_params, max_age)}",
+                f"""u.id NOT IN (
+                    SELECT swiped_id FROM swipes
+                    WHERE swiper_id = ${_p(extra_params, user_id)} AND direction IN ('right', 'super')
+                )""",
+                f"""u.id NOT IN (
+                    SELECT CASE WHEN user1_id = ${_p(extra_params, user_id)} THEN user2_id ELSE user1_id END
+                    FROM matches WHERE user1_id = ${_p(extra_params, user_id)} OR user2_id = ${_p(extra_params, user_id)}
+                )""",
+            ]
+            if blocked_ids:
+                ph = ", ".join([f"${_p(extra_params, bid)}" for bid in blocked_ids])
+                extra_conds.append(f"u.id NOT IN ({ph})")
+            if liked_ids:
+                ph = ", ".join([f"${_p(extra_params, lid)}" for lid in liked_ids])
+                extra_conds.append(f"u.id NOT IN ({ph})")
+            if seen:
+                ph = ", ".join([f"${_p(extra_params, sid)}" for sid in seen])
+                extra_conds.append(f"u.id NOT IN ({ph})")
+            if target_gender:
+                extra_conds.append(f"u.gender = ${_p(extra_params, target_gender)}")
+            if verified_only:
+                extra_conds.append("u.is_verified = 1")
+
+            extra_rows = await db.fetch(
+                f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online
+                    FROM users u
+                    WHERE {' AND '.join(extra_conds)}
+                    ORDER BY
+                      CASE WHEN (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') THEN 0 ELSE 1 END,
+                      COALESCE(u.last_active_at, u.created_at) DESC,
+                      RANDOM()
+                    LIMIT 80""",
+                *extra_params,
+            )
+
+            for r in extra_rows:
+                rid = r["id"]
+                if rid in seen:
+                    continue
+                seen.add(rid)
+                combined.append(r)
+        except Exception:
+            pass
+
     result = [parse_user(r) for r in combined[:80]]
 
     # Distance filter (in-process Haversine) — only if caller provided GPS
