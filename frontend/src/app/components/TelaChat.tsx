@@ -1,4 +1,4 @@
-﻿﻿﻿import { useState, useEffect, useRef, useCallback, Fragment } from "react";
+﻿﻿import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import {
   Heart, User, MessageCircle, Send, ArrowLeft, Sparkles, Star,
   Phone, Video, PhoneOff, VideoOff, Mic, MicOff, PhoneCall, Trash2, ImageIcon,
@@ -942,8 +942,39 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       setContextMsg(msg);
     }, 500);
   };
+  const startLongPressTouch = (msg: Message) => () => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressActiveRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressActiveRef.current = true;
+      setContextMsg(msg);
+    }, 500);
+  };
   const cancelLongPress = () => {
     if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
+  };
+
+  const copyText = async (text: string) => {
+    try {
+      await navigator.clipboard?.writeText(text);
+      return true;
+    } catch {
+    }
+    try {
+      const el = document.createElement("textarea");
+      el.value = text;
+      el.style.position = "fixed";
+      el.style.left = "-9999px";
+      el.style.top = "0";
+      document.body.appendChild(el);
+      el.focus();
+      el.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(el);
+      return ok;
+    } catch {
+      return false;
+    }
   };
 
   const handleDeleteMessage = async () => {
@@ -1075,10 +1106,15 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
   const startRecording = async () => {
     if (recorderRef.current && recorderRef.current.state !== "inactive") return;
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      showSendError("O teu browser não suporta gravação de áudio.");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
-      const rec = new MediaRecorder(stream, { mimeType });
+      const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg;codecs=opus"];
+      const mimeType = candidates.find((t) => MediaRecorder.isTypeSupported(t)) || "";
+      const rec = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       recorderRef.current = rec;
       chunksRef.current = [];
       cancelRecordingRef.current = false;
@@ -1312,6 +1348,9 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                   onPointerUp={cancelLongPress}
                   onPointerMove={cancelLongPress}
                   onPointerCancel={cancelLongPress}
+                  onTouchStart={startLongPressTouch(msg)}
+                  onTouchEnd={cancelLongPress}
+                  onTouchMove={cancelLongPress}
                   onContextMenu={(e) => { e.preventDefault(); setContextMsg(msg); }}
                 >
                   <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 shadow-sm select-none ${
@@ -1510,6 +1549,9 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                 initial={{ scale: 0.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.7, opacity: 0 }}
+                onTouchStart={(e) => { e.preventDefault(); if (!uploading) startRecording(); }}
+                onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
+                onTouchCancel={(e) => { e.preventDefault(); stopRecording(); }}
                 onPointerDown={() => { if (!uploading) startRecording(); }}
                 onPointerUp={stopRecording}
                 onPointerCancel={stopRecording}
@@ -1574,8 +1616,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                   <button
                     onClick={() => {
                       const t = contextMsg.text.startsWith("img:") ? contextMsg.text.slice(4) : contextMsg.text;
-                      navigator.clipboard?.writeText(t).catch(() => {});
-                      setContextMsg(null);
+                      copyText(t).then((ok) => {
+                        if (!ok) showSendError("Não foi possível copiar.");
+                        setContextMsg(null);
+                      });
                     }}
                     className="w-full flex items-center gap-3 py-3.5 px-5 text-foreground hover:bg-muted rounded-2xl transition-colors font-bold text-left"
                   >
