@@ -111,6 +111,7 @@ async def discover(
     lat: float | None = None,
     lon: float | None = None,
     max_distance_km: float | None = None,
+    prioritize_user_id: str | None = None,
 ):
     target_gender = ""
     if gender and gender not in ("all", ""):
@@ -278,6 +279,57 @@ async def discover(
             continue
         seen.add(rid)
         combined.append(r)
+
+    if prioritize_user_id and prioritize_user_id != user_id and prioritize_user_id not in seen:
+        try:
+            p_params: list = []
+            p_conds = [
+                f"u.id = ${_p(p_params, prioritize_user_id)}",
+                f"u.id != ${_p(p_params, user_id)}",
+                f"COALESCE(u.incognito_mode, 0) = 0",
+                f"u.age >= ${_p(p_params, min_age)}",
+                f"u.age <= ${_p(p_params, max_age)}",
+                f"""u.id NOT IN (
+                    SELECT swiped_id FROM swipes
+                    WHERE swiper_id = ${_p(p_params, user_id)} AND direction IN ('right', 'super')
+                )""",
+                f"""u.id NOT IN (
+                    SELECT swiped_id FROM swipes
+                    WHERE swiper_id = ${_p(p_params, user_id)} AND direction = 'left'
+                      AND created_at > NOW() - INTERVAL '{LEFT_SWIPE_COOLDOWN_DAYS} days'
+                )""",
+                f"""u.id NOT IN (
+                    SELECT CASE WHEN user1_id = ${_p(p_params, user_id)} THEN user2_id ELSE user1_id END
+                    FROM matches WHERE user1_id = ${_p(p_params, user_id)} OR user2_id = ${_p(p_params, user_id)}
+                )""",
+            ]
+            if blocked_ids:
+                ph = ", ".join([f"${_p(p_params, bid)}" for bid in blocked_ids])
+                p_conds.append(f"u.id NOT IN ({ph})")
+            if target_gender:
+                p_conds.append(f"u.gender = ${_p(p_params, target_gender)}")
+            if verified_only:
+                p_conds.append("u.is_verified = 1")
+
+            prow = await db.fetchrow(
+                f"""SELECT u.* FROM users u
+                    WHERE {' AND '.join(p_conds)}
+                    LIMIT 1""",
+                *p_params,
+            )
+            if prow:
+                parsed = parse_user(prow)
+                if lat is not None and lon is not None and max_distance_km:
+                    ulat = parsed.get("latitude")
+                    ulon = parsed.get("longitude")
+                    if ulat is not None and ulon is not None:
+                        if haversine_km(lat, lon, ulat, ulon) > max_distance_km:
+                            prow = None
+                if prow:
+                    combined.insert(0, prow)
+                    seen.add(prioritize_user_id)
+        except Exception:
+            pass
 
     result = [parse_user(r) for r in combined[:80]]
 

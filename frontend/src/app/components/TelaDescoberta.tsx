@@ -274,13 +274,15 @@ export function TelaDescoberta() {
 
   // Real-time: when a new user registers, silently fetch updated profiles and append new ones
   useEffect(() => {
-    const handler = () => {
+    const handler = (ev: Event) => {
+      const userId = (ev as CustomEvent<{ userId?: string }>).detail?.userId;
       profilesApi.discover({
         min_age: filters.ageRange[0],
         max_age: filters.ageRange[1],
         gender: resolveGender(filters),
         verified_only: filters.showVerifiedOnly,
         ...(filters.useGps && gpsCoords ? { lat: gpsCoords.lat, lon: gpsCoords.lon, max_distance_km: filters.distance } : {}),
+        ...(userId ? { prioritize_user_id: userId } : {}),
       }).then((fresh) => {
         setProfiles((prev) => {
           const existingIds = new Set(prev.map((p) => p.id));
@@ -294,7 +296,7 @@ export function TelaDescoberta() {
     };
     window.addEventListener("angotinder:new_user", handler);
     return () => window.removeEventListener("angotinder:new_user", handler);
-  }, [filters]);
+  }, [filters, gpsCoords]);
 
   /** Core swipe logic — called AFTER the card has already animated off-screen */
   const processSwipe = useCallback(async (profile: UserType, dir: "left" | "right" | "super") => {

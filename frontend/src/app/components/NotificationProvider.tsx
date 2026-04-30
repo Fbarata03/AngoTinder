@@ -70,7 +70,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
               window.dispatchEvent(new Event("angotinder:new_message"));
             }
             if (payload.type === "new_user") {
-              window.dispatchEvent(new Event("angotinder:new_user"));
+              window.dispatchEvent(new CustomEvent("angotinder:new_user", { detail: { userId: payload.user_id } }));
             }
             if (payload.type === "admin_broadcast") {
               const notif: BroadcastNotif = {
