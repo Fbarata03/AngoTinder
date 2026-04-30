@@ -188,8 +188,6 @@ async def discover(
         liked_conds.append(f"u.gender = ${_p(liked_params, target_gender)}")
     if verified_only:
         liked_conds.append("u.is_verified = 1")
-    if online_only:
-        liked_conds.append("COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes'")
 
     liked_rows = await db.fetch(
         f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM swipes s
@@ -232,15 +230,13 @@ async def discover(
         base_conds.append(f"u.gender = ${_p(base_params, target_gender)}")
     if verified_only:
         base_conds.append("u.is_verified = 1")
-    if online_only:
-        base_conds.append("COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes'")
 
     # Order: recently active first, then random (Tinder-like freshness boost)
     rows = await db.fetch(
         f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u
             WHERE {' AND '.join(base_conds)}
             ORDER BY
-              CASE WHEN COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes' THEN 0 ELSE 1 END,
+              CASE WHEN (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') THEN 0 ELSE 1 END,
               CASE WHEN u.last_active_at > NOW() - INTERVAL '1 day' THEN 0
                    WHEN u.last_active_at > NOW() - INTERVAL '7 days' THEN 1
                    ELSE 2 END,
@@ -317,7 +313,6 @@ async def discover(
                 p_conds.append(f"u.gender = ${_p(p_params, target_gender)}")
             if verified_only:
                 p_conds.append("u.is_verified = 1")
-            p_conds.append("COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes'")
 
             prow = await db.fetchrow(
                 f"""SELECT u.*, (COALESCE(u.last_active_at, u.created_at) > NOW() - INTERVAL '2 minutes') AS is_online FROM users u

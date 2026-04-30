@@ -261,7 +261,6 @@ export function TelaDescoberta() {
       max_age: f.ageRange[1],
       gender: resolveGender(f),
       verified_only: f.showVerifiedOnly,
-      online_only: true,
       ...(f.useGps && activeCoords ? { lat: activeCoords.lat, lon: activeCoords.lon, max_distance_km: f.distance } : {}),
     })
       .then((p) => { setProfiles(p); setCurrentIndex(0); setHistory([]); setLoading(false); })
@@ -282,7 +281,6 @@ export function TelaDescoberta() {
         max_age: filters.ageRange[1],
         gender: resolveGender(filters),
         verified_only: filters.showVerifiedOnly,
-        online_only: true,
         ...(filters.useGps && gpsCoords ? { lat: gpsCoords.lat, lon: gpsCoords.lon, max_distance_km: filters.distance } : {}),
         ...(userId ? { prioritize_user_id: userId } : {}),
       }).then((fresh) => {
@@ -309,7 +307,6 @@ export function TelaDescoberta() {
         max_age: filters.ageRange[1],
         gender: resolveGender(filters),
         verified_only: filters.showVerifiedOnly,
-        online_only: true,
         ...(filters.useGps && gpsCoords ? { lat: gpsCoords.lat, lon: gpsCoords.lon, max_distance_km: filters.distance } : {}),
         prioritize_user_id: userId,
       }).then((fresh) => {
