@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Camera, User, Heart, MessageCircle, LogOut, Sparkles, MapPin, Star, Settings, Trash2, ChevronDown, X, EyeOff } from "lucide-react";
+import { Camera, User, LogOut, Sparkles, MapPin, Star, Settings, Trash2, ChevronDown, X, EyeOff, Users } from "lucide-react";
 import { ANGOLA_PROVINCES } from "./TelaRegisto";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -7,7 +7,8 @@ import { Textarea } from "./ui/textarea";
 import { Switch } from "./ui/switch";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
-import { profilesApi, resolveMediaUrl, User as UserType } from "../api";
+import { BottomNav } from "./BottomNav";
+import { profilesApi, socialApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
 
 export function TelaPerfil() {
@@ -18,12 +19,20 @@ export function TelaPerfil() {
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [interestInput, setInterestInput] = useState("");
+  const [socialStats, setSocialStats] = useState<{ followers: number; following: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
     if (currentUser) setProfile(currentUser);
   }, [currentUser, isLoggedIn]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    socialApi.getStats(currentUser.id)
+      .then((s) => setSocialStats({ followers: s.followers, following: s.following }))
+      .catch(() => {});
+  }, [currentUser?.id]);
 
   const handleSave = async () => {
     if (!profile) return;
@@ -90,7 +99,20 @@ export function TelaPerfil() {
             </div>
             <div>
               <h1 className="text-2xl font-black">Meu Perfil</h1>
-              <p className="text-secondary text-sm font-bold">Edite suas informações</p>
+              {socialStats ? (
+                <div className="flex items-center gap-3 mt-0.5">
+                  <span className="text-white/80 text-xs font-bold flex items-center gap-1">
+                    <Users className="w-3 h-3" />
+                    <span className="text-secondary font-black">{socialStats.followers}</span> seguidores
+                  </span>
+                  <span className="text-white/60 text-xs">·</span>
+                  <span className="text-white/80 text-xs font-bold">
+                    <span className="text-secondary font-black">{socialStats.following}</span> a seguir
+                  </span>
+                </div>
+              ) : (
+                <p className="text-secondary text-sm font-bold">Edite suas informações</p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -300,23 +322,7 @@ export function TelaPerfil() {
         </Button>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
-        <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
-          <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={false} />
-          <NavBtn icon={<Heart className="w-6 h-6 fill-current" />} label="Likes" onClick={() => navigate("/likes")} active={false} />
-          <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={false} />
-          <NavBtn icon={<User className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} active={true} />
-        </div>
-      </div>
+      <BottomNav active="profile" />
     </div>
-  );
-}
-
-function NavBtn({ icon, label, onClick, active }: { icon: React.ReactNode; label: string; onClick: () => void; active: boolean }) {
-  return (
-    <button onClick={onClick} className={`flex flex-col items-center gap-1.5 transition-colors ${active ? "text-primary" : "text-muted-foreground hover:text-primary"}`}>
-      <div className={`p-3 rounded-2xl transition-colors ${active ? "bg-gradient-to-br from-primary/20 to-secondary/20" : "hover:bg-secondary/10"}`}>{icon}</div>
-      <span className="text-xs font-black">{label}</span>
-    </button>
   );
 }

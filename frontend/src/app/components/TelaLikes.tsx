@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { Heart, User, MessageCircle, Star, Sparkles, X, Search } from "lucide-react";
+import { Heart, Star, Sparkles, X, Search } from "lucide-react";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
+import { BottomNav } from "./BottomNav";
 import { motion, AnimatePresence } from "motion/react";
 import { profilesApi, matchesApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
@@ -215,30 +216,7 @@ export function TelaLikes() {
         )}
       </AnimatePresence>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
-        <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
-          <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={false} />
-          <NavBtn icon={<Heart className="w-6 h-6 fill-current" />} label="Likes" onClick={() => navigate("/likes")} active={true} badge={likes.length > 0 ? String(likes.length) : undefined} />
-          <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={false} />
-          <NavBtn icon={<User className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} active={false} />
-        </div>
-      </div>
+      <BottomNav active="likes" likesBadge={likes.length > 0 ? String(likes.length) : undefined} />
     </div>
-  );
-}
-
-function NavBtn({ icon, label, onClick, active, badge }: { icon: React.ReactNode; label: string; onClick: () => void; active: boolean; badge?: string }) {
-  return (
-    <button onClick={onClick} className={`flex flex-col items-center gap-1.5 transition-colors ${active ? "text-primary" : "text-muted-foreground hover:text-primary"}`}>
-      <div className={`p-3 rounded-2xl relative transition-colors ${active ? "bg-gradient-to-br from-primary/20 to-secondary/20" : "hover:bg-secondary/10"}`}>
-        {icon}
-        {badge && (
-          <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-primary to-[#8B0000] rounded-full border-2 border-white flex items-center justify-center">
-            <span className="text-xs font-black text-white">{badge}</span>
-          </div>
-        )}
-      </div>
-      <span className="text-xs font-black">{label}</span>
-    </button>
   );
 }

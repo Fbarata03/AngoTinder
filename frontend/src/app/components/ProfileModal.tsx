@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Heart, X, MapPin, Briefcase, GraduationCap, Home, Star, ChevronLeft, ChevronRight, Flag, ShieldOff, AlertTriangle } from "lucide-react";
-import { resolveMediaUrl, User as UserType, safetyApi } from "../api";
+import { Heart, X, MapPin, Briefcase, GraduationCap, Home, Star, ChevronLeft, ChevronRight, Flag, ShieldOff, AlertTriangle, UserPlus, UserMinus, Users } from "lucide-react";
+import { resolveMediaUrl, User as UserType, safetyApi, socialApi } from "../api";
+import { useApp } from "../context";
 
 interface ProfileModalProps {
   profile: UserType | null;
@@ -10,6 +11,8 @@ interface ProfileModalProps {
   onPass?: () => void;
   likeLabel?: string;
   onBlocked?: (userId: string) => void;
+  showFollow?: boolean;
+  onFollowChanged?: (targetId: string, nowFollowing: boolean) => void;
 }
 
 const REPORT_OPTIONS = [
@@ -21,7 +24,17 @@ const REPORT_OPTIONS = [
   { value: "other", label: "Outro motivo" },
 ];
 
-export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Dar Like", onBlocked }: ProfileModalProps) {
+export function ProfileModal({
+  profile,
+  onClose,
+  onLike,
+  onPass,
+  likeLabel = "Dar Like",
+  onBlocked,
+  showFollow = false,
+  onFollowChanged,
+}: ProfileModalProps) {
+  const { userId: currentUserId } = useApp();
   const [photoIdx, setPhotoIdx] = useState(0);
   const [showSafetyMenu, setShowSafetyMenu] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
@@ -29,6 +42,59 @@ export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Da
   const [reportDetails, setReportDetails] = useState("");
   const [safetyLoading, setSafetyLoading] = useState(false);
   const [safetyDone, setSafetyDone] = useState<string | null>(null);
+
+  // Social state
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followers, setFollowers] = useState(0);
+  const [following, setFollowing] = useState(0);
+  const [statsLoaded, setStatsLoaded] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  const isOwnProfile = profile?.id === currentUserId;
+  const showFollowBtn = showFollow && !isOwnProfile && !!profile;
+
+  useEffect(() => {
+    setPhotoIdx(0);
+    setStatsLoaded(false);
+    setIsFollowing(false);
+    setFollowers(0);
+    setFollowing(0);
+  }, [profile?.id]);
+
+  useEffect(() => {
+    if (!showFollowBtn || statsLoaded) return;
+    socialApi.getStats(profile!.id)
+      .then((s) => {
+        setIsFollowing(s.is_following);
+        setFollowers(s.followers);
+        setFollowing(s.following);
+        setStatsLoaded(true);
+      })
+      .catch(() => setStatsLoaded(true));
+  }, [showFollowBtn, statsLoaded, profile]);
+
+  const handleFollowToggle = async () => {
+    if (followLoading || !profile) return;
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        await socialApi.unfollow(profile.id);
+        setIsFollowing(false);
+        setFollowers((n) => Math.max(0, n - 1));
+        onFollowChanged?.(profile.id, false);
+      } else {
+        const res = await socialApi.follow(profile.id);
+        setIsFollowing(true);
+        setFollowers((n) => n + 1);
+        onFollowChanged?.(profile.id, true);
+        if (res.is_match) {
+          // Match created → close modal and navigate to chat is handled by NotificationProvider
+        }
+      }
+    } catch { /* ignore */ } finally {
+      setFollowLoading(false);
+    }
+  };
 
   if (!profile) return null;
 
@@ -129,19 +195,19 @@ export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Da
               </div>
             )}
 
-            {/* Close button */}
             <button onClick={onClose} className="absolute top-4 right-4 w-9 h-9 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-colors">
               <X className="w-5 h-5 text-white" />
             </button>
 
-            {/* Safety menu button */}
-            <button
-              onClick={() => setShowSafetyMenu(!showSafetyMenu)}
-              className="absolute top-4 right-16 w-9 h-9 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
-              title="Denunciar ou bloquear"
-            >
-              <Flag className="w-4 h-4 text-white" />
-            </button>
+            {!isOwnProfile && (
+              <button
+                onClick={() => setShowSafetyMenu(!showSafetyMenu)}
+                className="absolute top-4 right-16 w-9 h-9 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
+                title="Denunciar ou bloquear"
+              >
+                <Flag className="w-4 h-4 text-white" />
+              </button>
+            )}
 
             {/* Safety dropdown */}
             <AnimatePresence>
@@ -157,7 +223,7 @@ export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Da
                   ) : (
                     <>
                       <button
-                        onClick={() => { setShowReportForm(true); }}
+                        onClick={() => setShowReportForm(true)}
                         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left"
                       >
                         <AlertTriangle className="w-4 h-4 text-red-500" />
@@ -232,11 +298,28 @@ export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Da
           </div>
 
           {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto px-5 pt-3 pb-24">
+          <div className="flex-1 overflow-y-auto px-5 pt-3 pb-28">
             <div className="flex items-baseline gap-2 mb-1">
               <h2 className="text-2xl font-black">{profile.name}</h2>
               <span className="text-2xl font-bold text-muted-foreground">{profile.age}</span>
             </div>
+
+            {/* Social stats */}
+            {showFollowBtn && statsLoaded && (
+              <div className="flex items-center gap-4 mb-3">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Users className="w-3.5 h-3.5" />
+                  <span className="text-xs font-bold">
+                    <span className="text-foreground font-black">{followers}</span> seguidores
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <span className="text-xs font-bold">
+                    <span className="text-foreground font-black">{following}</span> a seguir
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1.5 mb-4">
               {profile.location && (
@@ -294,6 +377,31 @@ export function ProfileModal({ profile, onClose, onLike, onPass, likeLabel = "Da
               >
                 <X className="w-5 h-5 text-primary/60" />
                 <span className="text-primary/60">Passar</span>
+              </button>
+            )}
+            {showFollowBtn && (
+              <button
+                onClick={handleFollowToggle}
+                disabled={followLoading || !statsLoaded}
+                className={`flex-1 h-14 rounded-2xl flex items-center justify-center gap-2 font-black shadow-lg transition-all disabled:opacity-60 ${
+                  isFollowing
+                    ? "bg-white dark:bg-white/10 border-4 border-secondary/50 text-foreground hover:border-red-400"
+                    : "bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-black text-white hover:opacity-90"
+                }`}
+              >
+                {followLoading ? (
+                  <span className="text-sm">{isFollowing ? "A deixar..." : "A seguir..."}</span>
+                ) : isFollowing ? (
+                  <>
+                    <UserMinus className="w-5 h-5" />
+                    <span>Seguindo</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-5 h-5" />
+                    <span>Seguir</span>
+                  </>
+                )}
               </button>
             )}
             {onLike && (

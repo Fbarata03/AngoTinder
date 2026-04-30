@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Heart, X, MapPin, Briefcase, MessageCircle, Star, Sparkles, RotateCcw, Zap, Sliders, User } from "lucide-react";
+import { Heart, X, MapPin, Briefcase, Star, Sparkles, RotateCcw, Zap, Sliders } from "lucide-react";
 import { Button } from "./ui/button";
 import { useNavigate } from "react-router";
 import { motion, useMotionValue, useTransform, animate, MotionValue } from "motion/react";
 import { AfricanPattern } from "./AfricanPatterns";
+import { BottomNav } from "./BottomNav";
 import { MatchModal } from "./MatchModal";
 import { FiltersModal, Filters } from "./FiltersModal";
 import { profilesApi, matchesApi, notificationsApi, resolveMediaUrl, User as UserType } from "../api";
@@ -506,7 +507,7 @@ export function TelaDescoberta() {
             </Button>
           </div>
         </div>
-        <BottomNav navigate={navigate} active="discover" />
+        <BottomNav active="discover" />
       </div>
     );
   }
@@ -666,31 +667,3 @@ export function TelaDescoberta() {
   );
 }
 
-function BottomNav({ navigate, active }: { navigate: (path: string) => void; active: string }) {
-  return (
-    <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe">
-      <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-around">
-        <NavBtn icon={<Heart className="w-6 h-6" />} label="Descobrir" onClick={() => navigate("/discover")} active={active === "discover"} />
-        <NavBtn icon={<Heart className="w-6 h-6 fill-current" />} label="Likes" onClick={() => navigate("/likes")} active={active === "likes"} />
-        <NavBtn icon={<MessageCircle className="w-6 h-6" />} label="Chat" onClick={() => navigate("/chat")} active={active === "chat"} />
-        <NavBtn icon={<User className="w-6 h-6" />} label="Perfil" onClick={() => navigate("/profile")} active={active === "profile"} />
-      </div>
-    </div>
-  );
-}
-
-function NavBtn({ icon, label, onClick, active, badge }: { icon: React.ReactNode; label: string; onClick: () => void; active: boolean; badge?: string }) {
-  return (
-    <button onClick={onClick} className={`flex flex-col items-center gap-1.5 transition-colors ${active ? "text-primary" : "text-muted-foreground hover:text-primary"}`}>
-      <div className={`p-3 rounded-2xl relative transition-colors ${active ? "bg-gradient-to-br from-primary/20 to-secondary/20" : "hover:bg-secondary/10"}`}>
-        {icon}
-        {badge && (
-          <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-primary to-[#8B0000] rounded-full border-2 border-white flex items-center justify-center">
-            <span className="text-xs font-black text-white">{badge}</span>
-          </div>
-        )}
-      </div>
-      <span className="text-xs font-black">{label}</span>
-    </button>
-  );
-}

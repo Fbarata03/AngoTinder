@@ -276,6 +276,16 @@ async def init_db():
             )
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS follows (
+                id SERIAL PRIMARY KEY,
+                follower_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                following_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(follower_id, following_id)
+            )
+        """)
+
         # Índices para melhorar performance e reduzir uso de BD
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_swiper ON swipes(swiper_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_swiped ON swipes(swiped_id)")
@@ -308,3 +318,5 @@ async def init_db():
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_matches_user1 ON matches(user1_id)")
         # messages: covering index for last-message lookup (avoids heap fetch)
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_match_id_desc ON messages(match_id, id DESC)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following_id)")

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { Heart, MessageCircle, X, Megaphone } from "lucide-react";
+import { Heart, MessageCircle, X, Megaphone, UserPlus } from "lucide-react";
 import { createNotificationSocket, resolveMediaUrl } from "../api";
 import { useApp } from "../context";
 
@@ -17,6 +17,12 @@ interface BroadcastNotif {
   message: string;
 }
 
+interface FollowerNotif {
+  id: string;
+  userId: string;
+  name: string;
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, userId } = useApp();
   const navigate = useNavigate();
@@ -25,6 +31,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const pingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [matchNotifs, setMatchNotifs] = useState<MatchNotif[]>([]);
   const [broadcastNotif, setBroadcastNotif] = useState<BroadcastNotif | null>(null);
+  const [followerNotif, setFollowerNotif] = useState<FollowerNotif | null>(null);
 
   const dismiss = useCallback((id: string) => {
     setMatchNotifs((n) => n.filter((x) => x.id !== id));
@@ -82,6 +89,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             if (payload.type === "user_offline") {
               window.dispatchEvent(new CustomEvent("angotinder:user_offline", { detail: { userId: payload.user_id } }));
             }
+            if (payload.type === "new_follower") {
+              const notif: FollowerNotif = {
+                id: `fl-${Date.now()}`,
+                userId: payload.user_id,
+                name: payload.name || "Alguém",
+              };
+              setFollowerNotif(notif);
+              setTimeout(() => setFollowerNotif(null), 6000);
+            }
             if (payload.type === "admin_broadcast") {
               const notif: BroadcastNotif = {
                 id: `bc-${Date.now()}`,
@@ -138,6 +154,36 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
               </div>
               <button
                 onClick={() => setBroadcastNotif(null)}
+                className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Follower notification */}
+      <AnimatePresence>
+        {followerNotif && (
+          <motion.div
+            key={followerNotif.id}
+            initial={{ opacity: 0, y: -80 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -80 }}
+            transition={{ type: "spring", stiffness: 350, damping: 28 }}
+            className="fixed top-4 left-0 right-0 z-[202] flex justify-center px-4 pointer-events-auto"
+          >
+            <div className="w-full max-w-sm bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-black rounded-2xl shadow-2xl border border-secondary/30 px-4 py-3 flex items-center gap-3">
+              <div className="w-9 h-9 bg-secondary/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <UserPlus className="w-4 h-4 text-secondary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-secondary font-black text-sm">Novo seguidor!</p>
+                <p className="text-white/80 text-xs mt-0.5">{followerNotif.name} começou a seguir-te</p>
+              </div>
+              <button
+                onClick={() => setFollowerNotif(null)}
                 className="w-7 h-7 flex items-center justify-center text-white/40 hover:text-white flex-shrink-0"
               >
                 <X className="w-4 h-4" />

@@ -325,6 +325,27 @@ export const notificationsApi = {
   getOnlineCount: () => request<{ count: number }>("/notifications/online-count"),
 };
 
+// ---------- Social (follows) ----------
+export const socialApi = {
+  follow: (targetId: string) =>
+    request<{ success: boolean; is_match: boolean; match_id: string | null }>(`/social/follow/${targetId}`, { method: "POST" }),
+
+  unfollow: (targetId: string) =>
+    request<{ success: boolean }>(`/social/follow/${targetId}`, { method: "DELETE" }),
+
+  getStats: (targetId: string) =>
+    request<{ followers: number; following: number; is_following: boolean }>(`/social/stats/${targetId}`),
+
+  getFollowing: () => request<User[]>("/social/following"),
+
+  getFollowers: () => request<User[]>("/social/followers"),
+
+  search: (q: string) => {
+    const params = new URLSearchParams({ q });
+    return request<User[]>(`/social/search?${params}`);
+  },
+};
+
 // ---------- Safety ----------
 export const safetyApi = {
   block: (targetId: string) =>
