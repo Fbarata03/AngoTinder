@@ -33,6 +33,7 @@ if CLOUDINARY_ENABLED:
 
 LOCAL_PHOTOS_MAX_MB = int(os.getenv("LOCAL_PHOTOS_MAX_MB", "900") or "900")
 LEFT_SWIPE_COOLDOWN_DAYS = int(os.getenv("LEFT_SWIPE_COOLDOWN_DAYS", "7") or "7")
+SWIPE_RECYCLE_DAYS = int(os.getenv("SWIPE_RECYCLE_DAYS", "30") or "30")
 
 
 def get_local_photos_dir() -> str:
@@ -148,6 +149,7 @@ async def discover(
             f"""u.id NOT IN (
                 SELECT swiped_id FROM swipes
                 WHERE swiper_id = ${_p(param_list, user_id)} AND direction IN ('right', 'super')
+                  AND created_at > NOW() - INTERVAL '{SWIPE_RECYCLE_DAYS} days'
             )""",
             f"""u.id NOT IN (
                 SELECT CASE WHEN user1_id = ${_p(param_list, user_id)} THEN user2_id ELSE user1_id END
@@ -175,6 +177,7 @@ async def discover(
         f"""u.id NOT IN (
             SELECT swiped_id FROM swipes
             WHERE swiper_id = ${_p(liked_params, user_id)} AND direction IN ('right', 'super')
+              AND created_at > NOW() - INTERVAL '{SWIPE_RECYCLE_DAYS} days'
         )""",
         f"""u.id NOT IN (
             SELECT swiped_id FROM swipes
@@ -214,6 +217,7 @@ async def discover(
         f"""u.id NOT IN (
             SELECT swiped_id FROM swipes
             WHERE swiper_id = ${_p(base_params, user_id)} AND direction IN ('right', 'super')
+              AND created_at > NOW() - INTERVAL '{SWIPE_RECYCLE_DAYS} days'
         )""",
         f"""u.id NOT IN (
             SELECT swiped_id FROM swipes
@@ -261,7 +265,8 @@ async def discover(
                    AND COALESCE(u.incognito_mode, 0) = 0
                    AND u.id NOT IN (
                        SELECT swiped_id FROM swipes
-                       WHERE swiper_id = ${_p(fb_params, user_id)} AND direction IN ('right', 'super')
+                   WHERE swiper_id = ${_p(fb_params, user_id)} AND direction IN ('right', 'super')
+                     AND created_at > NOW() - INTERVAL '{SWIPE_RECYCLE_DAYS} days'
                    )
                    AND u.id NOT IN (
                        SELECT CASE WHEN user1_id = ${_p(fb_params, user_id)} THEN user2_id ELSE user1_id END
@@ -315,6 +320,7 @@ async def discover(
                 f"""u.id NOT IN (
                     SELECT swiped_id FROM swipes
                     WHERE swiper_id = ${_p(p_params, user_id)} AND direction IN ('right', 'super')
+                      AND created_at > NOW() - INTERVAL '{SWIPE_RECYCLE_DAYS} days'
                 )""",
                 f"""u.id NOT IN (
                     SELECT swiped_id FROM swipes
@@ -365,6 +371,7 @@ async def discover(
                 f"""u.id NOT IN (
                     SELECT swiped_id FROM swipes
                     WHERE swiper_id = ${_p(extra_params, user_id)} AND direction IN ('right', 'super')
+                      AND created_at > NOW() - INTERVAL '{SWIPE_RECYCLE_DAYS} days'
                 )""",
                 f"""u.id NOT IN (
                     SELECT swiped_id FROM swipes
