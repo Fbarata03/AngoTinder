@@ -38,36 +38,53 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders(),
-      ...(options?.headers as Record<string, string> | undefined),
-    },
-    ...options,
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || `HTTP ${res.status}`);
+async function withRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 5000): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    const isNetworkErr = err instanceof TypeError && /fetch|network/i.test(String(err));
+    if (retries > 0 && isNetworkErr) {
+      await new Promise((r) => setTimeout(r, delayMs));
+      return withRetry(fn, retries - 1, delayMs);
+    }
+    throw err;
   }
-  return res.json() as Promise<T>;
+}
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  return withRetry(async () => {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+        ...(options?.headers as Record<string, string> | undefined),
+      },
+      ...options,
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<T>;
+  });
 }
 
 async function upload<T>(path: string, file: File): Promise<T> {
-  const form = new FormData();
-  form.append("file", file);
-  const token = getToken();
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: form,
+  return withRetry(async () => {
+    const form = new FormData();
+    form.append("file", file);
+    const token = getToken();
+    const res = await fetch(`${BASE_URL}${path}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<T>;
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || `HTTP ${res.status}`);
-  }
-  return res.json() as Promise<T>;
 }
 
 // ---------- Auth ----------

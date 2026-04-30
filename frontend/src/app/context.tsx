@@ -54,7 +54,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const base = envBase || (isLocal ? "/api" : "https://angotinder.onrender.com/api");
     const ping = () => fetch(`${base}/health`).catch(() => {});
     ping(); // ping imediato ao carregar
-    const interval = setInterval(ping, 10 * 60 * 1000); // a cada 10 minutos
+    const interval = setInterval(ping, 4 * 60 * 1000); // a cada 4 minutos (evita sleep do Render)
     return () => clearInterval(interval);
   }, []);
 

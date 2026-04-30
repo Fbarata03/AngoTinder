@@ -486,6 +486,13 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const myTypingRef = useRef(false);
   const [showProfile, setShowProfile] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const sendErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showSendError = (msg: string) => {
+    setSendError(msg);
+    if (sendErrorTimerRef.current) clearTimeout(sendErrorTimerRef.current);
+    sendErrorTimerRef.current = setTimeout(() => setSendError(null), 5000);
+  };
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -914,7 +921,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     try {
       const msg = await messagesApi.sendMessage(match.match_id, text);
       setMessages((m) => [...m, msg]);
-    } catch { /* ignore */ }
+    } catch (err: any) {
+      setNewMessage(text);
+      showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
+    }
     setTimeout(() => {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
       inputRef.current?.focus();
@@ -925,7 +935,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX.image * 1024 * 1024) {
-      alert(`Imagem demasiado grande. Máximo ${MAX.image} MB.`);
+      showSendError(`Imagem demasiado grande. Máximo ${MAX.image} MB.`);
       e.currentTarget.value = "";
       return;
     }
@@ -937,9 +947,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } catch (err: any) {
-      const msg = err?.message || "Erro ao enviar ficheiro";
-      alert(`Falha no envio: ${msg}`);
-      console.error("[upload]", err);
+      showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
     } finally {
       setUploading(false);
       e.currentTarget.value = "";
@@ -950,7 +958,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX.video * 1024 * 1024) {
-      alert(`Vídeo demasiado grande. Máximo ${MAX.video} MB.`);
+      showSendError(`Vídeo demasiado grande. Máximo ${MAX.video} MB.`);
       e.currentTarget.value = "";
       return;
     }
@@ -961,9 +969,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } catch (err: any) {
-      const msg = err?.message || "Erro ao enviar ficheiro";
-      alert(`Falha no envio: ${msg}`);
-      console.error("[upload]", err);
+      showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
     } finally {
       setUploading(false);
       e.currentTarget.value = "";
@@ -974,7 +980,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX.doc * 1024 * 1024) {
-      alert(`Documento demasiado grande. Máximo ${MAX.doc} MB.`);
+      showSendError(`Documento demasiado grande. Máximo ${MAX.doc} MB.`);
       e.currentTarget.value = "";
       return;
     }
@@ -985,9 +991,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } catch (err: any) {
-      const msg = err?.message || "Erro ao enviar ficheiro";
-      alert(`Falha no envio: ${msg}`);
-      console.error("[upload]", err);
+      showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
     } finally {
       setUploading(false);
       e.currentTarget.value = "";
@@ -1001,7 +1005,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     const type = isVideo ? "video" : "image";
     const maxMB = isVideo ? MAX.video : MAX.image;
     if (file.size > maxMB * 1024 * 1024) {
-      alert(`${isVideo ? "Vídeo" : "Imagem"} demasiado grande. Máximo ${maxMB} MB.`);
+      showSendError(`${isVideo ? "Vídeo" : "Imagem"} demasiado grande. Máximo ${maxMB} MB.`);
       e.currentTarget.value = "";
       return;
     }
@@ -1012,7 +1016,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     } catch (err: any) {
-      alert(`Falha no envio: ${err?.message || "Erro desconhecido"}`);
+      showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
     } finally {
       setUploading(false);
       e.currentTarget.value = "";
@@ -1041,7 +1045,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           return;
         }
         if (recordingTimeRef.current < 1) {
-          alert("Gravação demasiado curta.");
+          showSendError("Gravação demasiado curta.");
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
@@ -1050,7 +1054,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         const ext = mimeType.includes("webm") ? "webm" : "mp4";
         const file = new File([blob], `voice.${ext}`, { type: mimeType });
         if (file.size > MAX.audio * 1024 * 1024) {
-          alert(`Áudio demasiado grande. Máximo ${MAX.audio} MB.`);
+          showSendError(`Áudio demasiado grande. Máximo ${MAX.audio} MB.`);
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
@@ -1061,9 +1065,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           setMessages((m) => [...m, msg]);
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         } catch (err: any) {
-          const msg = err?.message || "Erro ao enviar ficheiro";
-          alert(`Falha no envio: ${msg}`);
-          console.error("[upload]", err);
+          showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
         } finally {
           setUploading(false);
           stream.getTracks().forEach((t) => t.stop());
@@ -1072,7 +1074,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       rec.start();
     } catch {
       setIsRecording(false);
-      alert("Permita acesso ao microfone para gravar áudio.");
+      showSendError("Permita acesso ao microfone para gravar áudio.");
     }
   };
 
@@ -1118,7 +1120,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       <div className="relative bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-[#1a0000] px-6 py-4 text-white shadow-2xl z-10 flex-shrink-0 border-b-2 border-secondary/30">
         <div className="max-w-4xl mx-auto flex items-center gap-4">
           {/* Botão voltar apenas no mobile */}
-          <button onClick={onBack} className="md:hidden p-2 hover:bg-white/20 rounded-xl transition-colors flex-shrink-0">
+          <button onClick={onBack} className="p-2 hover:bg-white/20 rounded-xl transition-colors flex-shrink-0">
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-secondary shadow-xl flex-shrink-0 cursor-pointer ring-2 ring-secondary/50" onClick={() => setShowProfile(true)}>
@@ -1464,6 +1466,21 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Toast de erro de envio */}
+      <AnimatePresence>
+        {sendError && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 30 }}
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 text-sm font-bold max-w-xs text-center"
+          >
+            <span>{sendError}</span>
+            <button onClick={() => setSendError(null)} className="ml-1 opacity-70 hover:opacity-100"><XIcon className="w-4 h-4" /></button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <ProfileModal open={showProfile} onClose={() => setShowProfile(false)} match={match} />
 
