@@ -276,7 +276,7 @@ export function TelaDescoberta() {
       profilesApi.discover({
         min_age: filters.ageRange[0],
         max_age: filters.ageRange[1],
-        gender: filters.passportProvince ? "all" : filters.gender,
+        gender: filters.gender,
         verified_only: filters.showVerifiedOnly,
         ...(filters.useGps && gpsCoords ? { lat: gpsCoords.lat, lon: gpsCoords.lon, max_distance_km: filters.distance } : {}),
       }).then((fresh) => {
