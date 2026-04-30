@@ -33,7 +33,7 @@ if CLOUDINARY_ENABLED:
 
 LOCAL_PHOTOS_MAX_MB = int(os.getenv("LOCAL_PHOTOS_MAX_MB", "900") or "900")
 LEFT_SWIPE_COOLDOWN_DAYS = int(os.getenv("LEFT_SWIPE_COOLDOWN_DAYS", "7") or "7")
-SWIPE_RECYCLE_DAYS = int(os.getenv("SWIPE_RECYCLE_DAYS", "30") or "30")
+SWIPE_RECYCLE_DAYS = int(os.getenv("SWIPE_RECYCLE_DAYS", "0") or "0")
 
 
 def get_local_photos_dir() -> str:
