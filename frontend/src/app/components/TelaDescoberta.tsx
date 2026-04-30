@@ -250,6 +250,8 @@ export function TelaDescoberta() {
     notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => {});
   }, []);
 
+  const resolveGender = (f: Filters) => ((f as any)?.passportProvince ? "all" : f.gender);
+
   const loadProfiles = (f: Filters, coords?: { lat: number; lon: number } | null) => {
     setLoading(true);
     topCardXRef.current = null;
@@ -257,7 +259,7 @@ export function TelaDescoberta() {
     profilesApi.discover({
       min_age: f.ageRange[0],
       max_age: f.ageRange[1],
-      gender: f.gender,
+      gender: resolveGender(f),
       verified_only: f.showVerifiedOnly,
       ...(f.useGps && activeCoords ? { lat: activeCoords.lat, lon: activeCoords.lon, max_distance_km: f.distance } : {}),
     })
@@ -276,7 +278,7 @@ export function TelaDescoberta() {
       profilesApi.discover({
         min_age: filters.ageRange[0],
         max_age: filters.ageRange[1],
-        gender: filters.gender,
+        gender: resolveGender(filters),
         verified_only: filters.showVerifiedOnly,
         ...(filters.useGps && gpsCoords ? { lat: gpsCoords.lat, lon: gpsCoords.lon, max_distance_km: filters.distance } : {}),
       }).then((fresh) => {
