@@ -137,7 +137,7 @@ async def discover(
     def _common_conditions(param_list: list) -> list[str]:
         conds = [
             f"u.id != ${_p(param_list, user_id)}",
-            f"u.incognito_mode = 0",
+            f"COALESCE(u.incognito_mode, 0) = 0",
             f"""u.id NOT IN (
                 SELECT swiped_id FROM swipes
                 WHERE swiper_id = ${_p(param_list, user_id)} AND direction IN ('right', 'super')
@@ -162,7 +162,7 @@ async def discover(
         f"s.swiped_id = ${_p(liked_params, user_id)}",
         f"s.direction IN ('right', 'super')",
         f"u.id != ${_p(liked_params, user_id)}",
-        f"u.incognito_mode = 0",
+        f"COALESCE(u.incognito_mode, 0) IN (0, 1)",
         f"u.age >= ${_p(liked_params, min_age)}",
         f"u.age <= ${_p(liked_params, max_age)}",
         f"""u.id NOT IN (
@@ -201,7 +201,7 @@ async def discover(
     base_params: list = []
     base_conds = [
         f"u.id != ${_p(base_params, user_id)}",
-        f"u.incognito_mode = 0",
+        f"COALESCE(u.incognito_mode, 0) = 0",
         f"u.age >= ${_p(base_params, min_age)}",
         f"u.age <= ${_p(base_params, max_age)}",
         f"""u.id NOT IN (
@@ -248,7 +248,7 @@ async def discover(
         rows = await db.fetch(
             f"""SELECT u.* FROM users u
                WHERE u.id != ${_p(fb_params, user_id)}
-               AND u.incognito_mode = 0
+               AND COALESCE(u.incognito_mode, 0) = 0
                AND u.id NOT IN (
                    SELECT swiped_id FROM swipes
                    WHERE swiper_id = ${_p(fb_params, user_id)} AND direction IN ('right', 'super')

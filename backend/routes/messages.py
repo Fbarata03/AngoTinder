@@ -263,6 +263,10 @@ async def websocket_chat(
         if not row:
             await ws.close(code=4003)
             return
+        try:
+            await db.execute("UPDATE users SET last_active_at = NOW() WHERE id = $1", user_id)
+        except Exception:
+            pass
 
     await manager.connect(ws, match_id, user_id)
     try:
