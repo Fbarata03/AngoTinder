@@ -109,12 +109,17 @@ async def cleanup_old_data():
             "DELETE FROM phone_otps WHERE expires_at < NOW()"
         )
 
-        # Remove swipes LEFT antigos (>60 dias) — deixa mostrar o perfil de novo ao fim de 2 meses
+        # Remove swipes LEFT antigos (>30 dias)
         deleted_swipes = await conn.execute(
-            "DELETE FROM swipes WHERE direction = 'left' AND created_at < NOW() - INTERVAL '60 days'"
+            "DELETE FROM swipes WHERE direction = 'left' AND created_at < NOW() - INTERVAL '30 days'"
         )
 
-        # Mantém apenas as 500 mensagens mais recentes por conversa
+        # Apaga mensagens com mais de 60 dias
+        await conn.execute(
+            "DELETE FROM messages WHERE created_at < NOW() - INTERVAL '60 days'"
+        )
+
+        # Mantém apenas as 200 mensagens mais recentes por conversa
         await conn.execute("""
             DELETE FROM messages
             WHERE id IN (
@@ -123,8 +128,17 @@ async def cleanup_old_data():
                            ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY created_at DESC) AS rn
                     FROM messages
                 ) ranked
-                WHERE rn > 500
+                WHERE rn > 200
             )
+        """)
+
+        # Apaga fotos de utilizadores inativos há mais de 180 dias (só fotos locais)
+        await conn.execute("""
+            UPDATE users
+            SET photos = '[]'
+            WHERE last_active_at < NOW() - INTERVAL '180 days'
+              AND photos != '[]'
+              AND photos IS NOT NULL
         """)
 
         static_photos_dir = os.path.join(os.path.dirname(__file__), "static", "photos")

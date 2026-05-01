@@ -1,3 +1,4 @@
+import io
 import json
 import math
 import os
@@ -10,6 +11,30 @@ import cloudinary
 import cloudinary.uploader
 from database import get_db
 from auth_utils import get_current_user_id
+
+try:
+    from PIL import Image as _PILImage
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PIL_AVAILABLE = False
+
+
+def _compress_webp(raw: bytes, max_w: int = 600, max_h: int = 800, max_kb: int = 130) -> bytes:
+    """Redimensiona para máx 600×800 e converte para WebP ≤ max_kb KB.
+    Fallback silencioso: retorna os bytes originais se Pillow não estiver disponível."""
+    if not _PIL_AVAILABLE:
+        return raw
+    try:
+        img = _PILImage.open(io.BytesIO(raw)).convert("RGB")
+        img.thumbnail((max_w, max_h), _PILImage.LANCZOS)
+        for quality in (82, 72, 62, 52):
+            buf = io.BytesIO()
+            img.save(buf, "WEBP", quality=quality, method=4)
+            if buf.tell() <= max_kb * 1024:
+                return buf.getvalue()
+        return buf.getvalue()  # aceita o menor resultado mesmo acima do limite
+    except Exception:
+        return raw
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -31,7 +56,7 @@ if CLOUDINARY_ENABLED:
         api_secret=os.getenv("CLOUDINARY_API_SECRET"),
     )
 
-LOCAL_PHOTOS_MAX_MB = int(os.getenv("LOCAL_PHOTOS_MAX_MB", "900") or "900")
+LOCAL_PHOTOS_MAX_MB = int(os.getenv("LOCAL_PHOTOS_MAX_MB", "350") or "350")
 LEFT_SWIPE_COOLDOWN_DAYS = int(os.getenv("LEFT_SWIPE_COOLDOWN_DAYS", "7") or "7")
 SWIPE_RECYCLE_DAYS = int(os.getenv("SWIPE_RECYCLE_DAYS", "0") or "0")
 
@@ -491,29 +516,31 @@ async def upload_photo(
     if len(existing) >= 6:
         raise HTTPException(status_code=400, detail="Máximo de 6 fotos por perfil.")
 
+    # Comprimir SEMPRE antes de guardar (WebP ≤ 130 KB, máx 600×800)
+    compressed = _compress_webp(contents)
+
     if CLOUDINARY_ENABLED:
         result = cloudinary.uploader.upload(
-            contents,
+            compressed,
             folder="angotinder",
-            transformation=[{"width": 800, "height": 1000, "crop": "fill", "gravity": "face"}],
+            resource_type="image",
+            format="webp",
+            transformation=[{"width": 600, "height": 800, "crop": "fill", "gravity": "face", "quality": "auto:good"}],
         )
         photo_url = result["secure_url"]
     else:
         upload_dir = get_local_photos_dir()
         os.makedirs(upload_dir, exist_ok=True)
         max_bytes = max(0, LOCAL_PHOTOS_MAX_MB) * 1024 * 1024
-        if max_bytes and (local_photos_dir_size_bytes(upload_dir) + len(contents)) > max_bytes:
+        if max_bytes and (local_photos_dir_size_bytes(upload_dir) + len(compressed)) > max_bytes:
             raise HTTPException(
                 status_code=507,
-                detail="Armazenamento de fotos cheio no servidor. Ativa Cloudinary ou aumenta LOCAL_PHOTOS_MAX_MB.",
+                detail="Armazenamento de fotos cheio no servidor. Ativa Cloudinary ou reduz LOCAL_PHOTOS_MAX_MB.",
             )
-        ext = file.filename.split(".")[-1] if file.filename else "jpg"
-        if not ext or ext.lower() not in {"jpg", "jpeg", "png", "webp"}:
-            ext = "jpg"
-        filename = f"{uuid.uuid4()}.{ext}"
+        filename = f"{uuid.uuid4()}.webp"
         filepath = os.path.join(upload_dir, filename)
         with open(filepath, "wb") as f:
-            f.write(contents)
+            f.write(compressed)
         photo_url = f"/static/photos/{filename}"
 
     row = await db.fetchrow("SELECT photos FROM users WHERE id = $1", user_id)

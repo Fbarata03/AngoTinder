@@ -8,6 +8,7 @@ import { Switch } from "./ui/switch";
 import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { BottomNav } from "./BottomNav";
+import { compressImage } from "../utils/compressImage";
 import { profilesApi, socialApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
 
@@ -62,7 +63,8 @@ export function TelaPerfil() {
     if (!file || !profile) return;
     setUploading(true);
     try {
-      const res = await profilesApi.uploadPhoto(file);
+      const compressed = await compressImage(file);
+      const res = await profilesApi.uploadPhoto(compressed);
       const updated = { ...profile, photos: res.photos };
       setProfile(updated);
       updateUser(updated);
