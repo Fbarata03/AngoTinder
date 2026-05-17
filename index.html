@@ -73,7 +73,16 @@
       "publisher": { "@type": "Organization", "name": "AngoTinder", "url": "https://angotinder.bafly.net" }
     }
     </script>
-    <script type="module" crossorigin src="/AngoTinder/assets/index-IJ8BFeH9.js"></script>
+    <script>
+      (function(){
+        var redirect = sessionStorage.redirect;
+        delete sessionStorage.redirect;
+        if (redirect && redirect !== location.href) {
+          history.replaceState(null, null, redirect);
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/AngoTinder/assets/index-DPnc-0nx.js"></script>
     <link rel="stylesheet" crossorigin href="/AngoTinder/assets/index-DywiYEos.css">
   </head>
   <body>
