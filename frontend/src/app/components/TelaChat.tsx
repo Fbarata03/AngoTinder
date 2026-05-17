@@ -66,7 +66,7 @@ function markLastSeen(matchId: string, iso: string) {
   writeLastSeen(next);
 }
 
-const QUICK_EMOJIS = ["😍","❤️","🔥","😂","😘","👋","💪","🙏","😊","🥰","😉","💯","🎉","✨","💕","😎","🤩","😇","🤗","💋","🌹","💖","👍","🏆","😅","🤣","😋","🥳","🫶","💃"];
+const QUICK_EMOJIS = ["😍", "❤️", "🔥", "😂", "😘", "👋", "💪", "🙏", "😊", "🥰", "😉", "💯", "🎉", "✨", "💕", "😎", "🤩", "😇", "🤗", "💋", "🌹", "💖", "👍", "🏆", "😅", "🤣", "😋", "🥳", "🫶", "💃"];
 
 function formatDateSeparator(iso: string): string {
   const d = new Date(iso);
@@ -87,7 +87,7 @@ function isSameGroup(msg: Message, prev: Message): boolean {
   return Date.parse(msg.created_at) - Date.parse(prev.created_at) < 2 * 60 * 1000;
 }
 
-const WAVEFORM_HEIGHTS = [3,5,8,6,10,7,4,9,6,8,5,7,10,6,8,5,7,9,4,6,8,5,7,4,3,5,8,6];
+const WAVEFORM_HEIGHTS = [3, 5, 8, 6, 10, 7, 4, 9, 6, 8, 5, 7, 10, 6, 8, 5, 7, 9, 4, 6, 8, 5, 7, 4, 3, 5, 8, 6];
 
 function VoiceMessage({ src, isOwn }: { src: string; isOwn: boolean }) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -100,7 +100,7 @@ function VoiceMessage({ src, isOwn }: { src: string; isOwn: boolean }) {
     const audio = audioRef.current;
     if (!audio) return;
     if (playing) audio.pause();
-    else audio.play().catch(() => {});
+    else audio.play().catch(() => { });
   };
 
   if (errored) {
@@ -128,9 +128,8 @@ function VoiceMessage({ src, isOwn }: { src: string; isOwn: boolean }) {
       />
       <button
         onClick={toggle}
-        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
-          isOwn ? "bg-white/25 hover:bg-white/35" : "bg-primary/15 hover:bg-primary/25"
-        }`}
+        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${isOwn ? "bg-white/25 hover:bg-white/35" : "bg-primary/15 hover:bg-primary/25"
+          }`}
       >
         {playing
           ? <Pause className={`w-4 h-4 ${isOwn ? "text-white" : "text-primary"}`} />
@@ -146,14 +145,14 @@ function VoiceMessage({ src, isOwn }: { src: string; isOwn: boolean }) {
                 className={`w-[2px] rounded-full transition-colors ${filled
                   ? isOwn ? "bg-white" : "bg-primary"
                   : isOwn ? "bg-white/30" : "bg-primary/25"
-                }`}
+                  }`}
               />
             );
           })}
         </div>
         <p className="text-xs opacity-50 font-medium">
           {duration > 0
-            ? `${Math.floor(duration / 60)}:${String(Math.round(duration % 60)).padStart(2,"0")}`
+            ? `${Math.floor(duration / 60)}:${String(Math.round(duration % 60)).padStart(2, "0")}`
             : "áudio"}
         </p>
       </div>
@@ -282,9 +281,9 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
   }, [isLoggedIn, autoOpenMatchId, onSelectMatch, setSeen]);
 
   useEffect(() => {
-    notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => {});
+    notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => { });
     const onlineInterval = setInterval(() => {
-      notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => {});
+      notificationsApi.getOnlineCount().then((r) => setOnlineCount(r.count)).catch(() => { });
     }, 30000);
     return () => clearInterval(onlineInterval);
   }, []);
@@ -483,6 +482,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const [showProfile, setShowProfile] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [readUntilId, setReadUntilId] = useState(0);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [contextMsg, setContextMsg] = useState<Message | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressActiveRef = useRef(false);
@@ -556,7 +556,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
         if (localVideoRef.current.srcObject !== localStreamRef.current) {
           localVideoRef.current.srcObject = localStreamRef.current;
         }
-        localVideoRef.current.play().catch(() => {});
+        localVideoRef.current.play().catch(() => { });
       }
       // Stream remoto
       const remote = remoteStreamRef.current;
@@ -565,7 +565,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           if (remoteVideoRef.current.srcObject !== remote) {
             remoteVideoRef.current.srcObject = remote;
           }
-          remoteVideoRef.current.play().catch(() => {});
+          remoteVideoRef.current.play().catch(() => { });
         }
         // Evitar eco: limpar elemento de áudio em chamadas de vídeo
         if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
@@ -574,7 +574,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           if (remoteAudioRef.current.srcObject !== remote) {
             remoteAudioRef.current.srcObject = remote;
           }
-          remoteAudioRef.current.play().catch(() => {});
+          remoteAudioRef.current.play().catch(() => { });
         }
       }
     };
@@ -728,6 +728,13 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             return;
           }
 
+          if (type === "message_reaction") {
+            const msgId = payload.message_id as number;
+            const rx = payload.reaction as string | null;
+            setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, reaction: rx } : m));
+            return;
+          }
+
           if (type === "mark_read") {
             const lastId = (payload.last_id ?? payload.lastId) as number;
             if (lastId) setReadUntilId((prev) => Math.max(prev, lastId));
@@ -856,8 +863,8 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       const msg = err instanceof Error && err.name === "NotAllowedError"
         ? "Permissão negada. Ativa o microfone/câmara nas definições do browser."
         : type === "video"
-        ? "Não foi possível aceder à  câmara. Verifica as permissões."
-        : "Não foi possível aceder ao microfone. Verifica as permissões.";
+          ? "Não foi possível aceder à  câmara. Verifica as permissões."
+          : "Não foi possível aceder ao microfone. Verifica as permissões.";
       alert(msg);
     }
   };
@@ -914,7 +921,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
   const toggleSpeaker = () => {
     const audio = remoteAudioRef.current;
     if (audio && "setSinkId" in HTMLMediaElement.prototype) {
-      (audio as any).setSinkId(speakerOn ? "" : "default").catch(() => {});
+      (audio as any).setSinkId(speakerOn ? "" : "default").catch(() => { });
     }
     setSpeakerOn((s) => !s);
   };
@@ -1014,10 +1021,23 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     });
   };
 
+  const sendViaWsOrApi = async (textStr: string) => {
+    const replyId = replyingTo?.id;
+    setReplyingTo(null);
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "text", text: textStr, reply_to: replyId }));
+    } else {
+      const msg = await (messagesApi as any).sendMessage(match.match_id, textStr, replyId);
+      setMessages((m) => [...m, msg]);
+    }
+    setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, 50);
+  };
+
   const handleSend = async () => {
     if (!newMessage.trim()) return;
     const text = newMessage.trim();
     setNewMessage("");
+    setReplyingTo(null);
     myTypingRef.current = false;
     if (typingTimeoutRef.current) { clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -1026,6 +1046,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
     try {
       const msg = await messagesApi.sendMessage(match.match_id, text);
       setMessages((m) => [...m, msg]);
+      await sendViaWsOrApi(text);
     } catch (err: any) {
       setNewMessage(text);
       showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
@@ -1034,6 +1055,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
       inputRef.current?.focus();
     }, 50);
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1051,6 +1073,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       const msg = await messagesApi.sendMessage(match.match_id, res.text);
       setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      await sendViaWsOrApi(res.text);
     } catch (err: any) {
       showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
     } finally {
@@ -1073,6 +1096,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       const msg = await messagesApi.sendMessage(match.match_id, res.text);
       setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      await sendViaWsOrApi(res.text);
     } catch (err: any) {
       showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
     } finally {
@@ -1095,6 +1119,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       const msg = await messagesApi.sendMessage(match.match_id, res.text);
       setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      await sendViaWsOrApi(res.text);
     } catch (err: any) {
       showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
     } finally {
@@ -1120,6 +1145,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       const msg = await messagesApi.sendMessage(match.match_id, res.text);
       setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      await sendViaWsOrApi(res.text);
     } catch (err: any) {
       showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
     } finally {
@@ -1142,6 +1168,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
       const msg = await messagesApi.sendMessage(match.match_id, res.text);
       setMessages((m) => [...m, msg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      await sendViaWsOrApi(res.text);
     } catch (err: any) {
       showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
     } finally {
@@ -1198,6 +1225,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
           const msg = await messagesApi.sendMessage(match.match_id, res.text);
           setMessages((m) => [...m, msg]);
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+          await sendViaWsOrApi(res.text);
         } catch (err: any) {
           showSendError(err?.message?.includes("fetch") ? "Sem ligação. A tentar novamente..." : `Erro ao enviar: ${err?.message || "tenta de novo"}`);
         } finally {
@@ -1396,6 +1424,7 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(idx * 0.015, 0.25) }}
                   className={`flex ${isOwn ? "justify-end" : "justify-start"} ${grouped ? "mt-0.5" : "mt-3"}`}
+                  id={`msg-${msg.id}`}
                   onPointerDown={startLongPress(msg)}
                   onPointerUp={cancelLongPress}
                   onPointerMove={cancelLongPress}
@@ -1403,13 +1432,32 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                   onTouchStart={startLongPressTouch(msg)}
                   onTouchEnd={cancelLongPress}
                   onTouchMove={cancelLongPress}
+                  onDoubleClick={(e) => { e.preventDefault(); if (wsRef.current?.readyState === WebSocket.OPEN) { wsRef.current.send(JSON.stringify({ type: "reaction", message_id: msg.id, reaction: (msg as any).reaction === "❤️" ? null : "❤️" })); } }}
                   onContextMenu={(e) => { e.preventDefault(); setContextMsg(msg); }}
                 >
-                  <div className={`max-w-[78%] rounded-2xl px-3.5 py-2 shadow-sm select-none ${
-                    isOwn
-                      ? `bg-gradient-to-br from-primary via-[#8B0000] to-black text-white ${isGroupEnd ? "rounded-br-[4px]" : ""}`
-                      : `bg-card border border-secondary/25 ${isGroupEnd ? "rounded-bl-[4px]" : ""}`
-                  }`}>
+                  <motion.div
+                    drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.15} dragDirectionLock
+                    onDragEnd={(e, info) => { if (Math.abs(info.offset.x) > 50) { setReplyingTo(msg); setTimeout(() => inputRef.current?.focus(), 50); } }}
+                    className={`relative max-w-[78%] rounded-2xl px-3.5 py-2 shadow-sm select-none ${isOwn
+                        ? `bg-gradient-to-br from-primary via-[#8B0000] to-black text-white ${isGroupEnd ? "rounded-br-[4px]" : ""}`
+                        : `bg-card border border-secondary/25 ${isGroupEnd ? "rounded-bl-[4px]" : ""}`
+                      }`}>
+                    {(msg as any).reply_to && (
+                      <div
+                        className="mb-1.5 bg-black/20 dark:bg-white/10 rounded-lg p-2 border-l-4 border-secondary/70 text-xs opacity-90 cursor-pointer"
+                        onClick={() => document.getElementById(`msg-${(msg as any).reply_to}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                      >
+                        {(() => {
+                          const replied = messages.find(m => m.id === (msg as any).reply_to);
+                          return replied ? (
+                            <>
+                              <span className="font-bold block mb-0.5">{replied.sender_id === userId ? "Tu" : match.name}</span>
+                              <p className="truncate max-w-[200px]">{formatLastMessage(replied.text)}</p>
+                            </>
+                          ) : <span className="italic">Mensagem original</span>;
+                        })()}
+                      </div>
+                    )}
                     {msg.deleted ? (
                       <p className={`text-xs italic ${isOwn ? "text-white/50" : "text-muted-foreground/60"}`}>🚫 Mensagem apagada</p>
                     ) : isImg ? (
@@ -1436,10 +1484,16 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                         </span>
                         {isOwn && (
                           <CheckCheck className={`w-3.5 h-3.5 transition-colors ${readUntilId > 0 && msg.id <= readUntilId ? "text-blue-400" : "text-white/35"}`} />
+                          <CheckCheck className={`w-3.5 h-3.5 transition-colors ${((msg as any).read_at) || (readUntilId > 0 && msg.id <= readUntilId) ? "text-blue-400" : "text-white/35"}`} />
                         )}
                       </div>
                     )}
-                  </div>
+                    {(msg as any).reaction && (
+                      <div className={`absolute -bottom-3 ${isOwn ? "right-2" : "left-2"} bg-card border border-secondary/20 rounded-full px-1.5 py-0.5 text-[10px] shadow-sm z-10 animate-in zoom-in`}>
+                        {(msg as any).reaction}
+                      </div>
+                    )}
+                  </motion.div>
                 </motion.div>
               </Fragment>
             );
@@ -1473,6 +1527,30 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
 
       {/* Message Input */}
       <div className="relative border-t border-secondary/20 bg-card/95 backdrop-blur-xl shadow-2xl z-10 flex-shrink-0">
+        {/* Reply Preview Banner */}
+        <AnimatePresence>
+          {replyingTo && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-card/95 border-b border-secondary/20 px-4 py-2 flex items-center justify-between"
+            >
+              <div className="flex flex-col border-l-4 border-secondary pl-3 min-w-0">
+                <span className="text-xs font-black text-secondary">
+                  A responder a {replyingTo.sender_id === userId ? "ti mesmo" : match.name}
+                </span>
+                <span className="text-sm text-foreground/70 truncate max-w-[250px]">
+                  {formatLastMessage(replyingTo.text)}
+                </span>
+              </div>
+              <button onClick={() => setReplyingTo(null)} className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground rounded-full hover:bg-secondary/10">
+                <XIcon className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Recording banner */}
         <AnimatePresence>
           {isRecording && (
@@ -1618,9 +1696,8 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                 onPointerCancel={stopRecording}
                 onPointerLeave={stopRecording}
                 disabled={uploading}
-                className={`w-11 h-11 rounded-full flex items-center justify-center shadow-lg flex-shrink-0 transition-colors ${
-                  isRecording ? "bg-red-500 animate-pulse" : "bg-gradient-to-br from-primary to-[#8B0000]"
-                } disabled:opacity-60`}
+                className={`w-11 h-11 rounded-full flex items-center justify-center shadow-lg flex-shrink-0 transition-colors ${isRecording ? "bg-red-500 animate-pulse" : "bg-gradient-to-br from-primary to-[#8B0000]"
+                  } disabled:opacity-60`}
               >
                 <Mic className="w-5 h-5 text-white" />
               </motion.button>
@@ -1664,6 +1741,29 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
             >
               <div className="w-12 h-1.5 bg-muted-foreground/20 rounded-full mx-auto mt-3 mb-1" />
               <div className="p-3">
+                <div className="flex justify-between px-4 py-2 mb-3 bg-secondary/10 rounded-2xl">
+                  {["❤️", "😂", "😮", "😢", "😡", "👍"].map(rx => (
+                    <button key={rx} onClick={() => {
+                      if (wsRef.current?.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({ type: "reaction", message_id: contextMsg.id, reaction: (contextMsg as any).reaction === rx ? null : rx }));
+                      }
+                      setContextMsg(null);
+                    }}
+                      className={`text-2xl hover:scale-125 transition-transform ${(contextMsg as any).reaction === rx ? "scale-125 drop-shadow-md" : ""}`}
+                    >{rx}</button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => {
+                    setReplyingTo(contextMsg);
+                    setContextMsg(null);
+                    setTimeout(() => inputRef.current?.focus(), 50);
+                  }}
+                  className="w-full flex items-center gap-3 py-3.5 px-5 text-foreground hover:bg-muted rounded-2xl transition-colors font-bold text-left"
+                >
+                  <span className="text-lg">↩️</span>
+                  <span>Responder</span>
+                </button>
                 <button
                   onClick={handleDeleteForMe}
                   className="w-full flex items-center gap-3 py-3.5 px-5 text-foreground hover:bg-muted rounded-2xl transition-colors font-bold text-left"
@@ -1994,14 +2094,14 @@ export function TelaChat() {
 
   const initialMatch: Match | null = navState?.matchId && navState?.matchedProfile
     ? {
-        match_id: navState.matchId,
-        matched_at: new Date().toISOString(),
-        id: navState.matchedProfile.id,
-        name: navState.matchedProfile.name,
-        age: navState.matchedProfile.age || 0,
-        location: navState.matchedProfile.location || "",
-        photos: navState.matchedProfile.photos || [],
-      }
+      match_id: navState.matchId,
+      matched_at: new Date().toISOString(),
+      id: navState.matchedProfile.id,
+      name: navState.matchedProfile.name,
+      age: navState.matchedProfile.age || 0,
+      location: navState.matchedProfile.location || "",
+      photos: navState.matchedProfile.photos || [],
+    }
     : null;
 
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(initialMatch);

@@ -76,6 +76,7 @@ manager = ConnectionManager()
 
 class SendMessageRequest(BaseModel):
     text: str
+    reply_to: int | None = None
 
 
 def serialize_msg(row) -> dict:
@@ -223,8 +224,8 @@ async def send_message(
         raise HTTPException(status_code=403, detail="Sem permissão")
 
     await db.execute(
-        "INSERT INTO messages (match_id, sender_id, text) VALUES ($1, $2, $3)",
-        match_id, user_id, req.text.strip(),
+        "INSERT INTO messages (match_id, sender_id, text, reply_to) VALUES ($1, $2, $3, $4)",
+        match_id, user_id, req.text.strip(), req.reply_to,
     )
 
     msg = await db.fetchrow(
@@ -308,20 +309,44 @@ async def websocket_chat(
 
             # ── Call signaling: forward to the other user, do NOT store ──
             if msg_type in SIGNAL_TYPES:
+                if msg_type == "mark_read":
+                    last_id = data.get("last_id")
+                    if last_id:
+                        try:
+                            async with pool.acquire() as db:
+                                await db.execute(
+                                    "UPDATE messages SET read_at = NOW() WHERE match_id=$1 AND sender_id != $2 AND id <= $3 AND read_at IS NULL",
+                                    match_id, user_id, last_id
+                                )
+                        except Exception:
+                            pass
                 data["from"] = user_id
                 await manager.forward_to_others(match_id, user_id, data)
                 await publish_event({"kind": "room_signal", "match_id": match_id, "sender_id": user_id, "message": data})
                 continue
 
+            # ── Reactions ──
+            if msg_type == "reaction":
+                msg_id = data.get("message_id")
+                reaction = data.get("reaction")
+                if msg_id:
+                    async with pool.acquire() as db:
+                        await db.execute("UPDATE messages SET reaction=$1 WHERE id=$2", reaction, msg_id)
+                    payload = {"type": "message_reaction", "message_id": msg_id, "reaction": reaction}
+                    await manager.broadcast(match_id, payload)
+                    await publish_event({"kind": "room_broadcast", "match_id": match_id, "message": payload})
+                continue
+
             # ── Regular text message ──
             text = data.get("text", "").strip()
+            reply_to = data.get("reply_to")
             if not text:
                 continue
 
             async with pool.acquire() as db:
                 await db.execute(
-                    "INSERT INTO messages (match_id, sender_id, text) VALUES ($1, $2, $3)",
-                    match_id, user_id, text,
+                    "INSERT INTO messages (match_id, sender_id, text, reply_to) VALUES ($1, $2, $3, $4)",
+                    match_id, user_id, text, reply_to,
                 )
                 msg = await db.fetchrow(
                     """SELECT m.*, u.name as sender_name FROM messages m

@@ -225,6 +225,10 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP DEFAULT NOW()",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS incognito_mode INTEGER DEFAULT 0",
             "ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP DEFAULT NULL",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to INTEGER DEFAULT NULL",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_url TEXT DEFAULT NULL",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reaction TEXT DEFAULT NULL",
         ]:
             try:
                 await conn.execute(col_sql)
