@@ -12,4 +12,4 @@ jobs:
       - name: Ping Render health endpoint
         run: |
           echo "Pinging Render backend to keep it awake..."
-          curl -fsS https://angotinder.onrender.com/api/health
+          curl -fsS https://angotinder.onrender.com/api/health || echo "Render ping failed, continuing anyway."
