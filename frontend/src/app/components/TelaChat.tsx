@@ -1483,8 +1483,10 @@ function ChatConversation({ match, onBack }: { match: Match; onBack: () => void 
                           {new Date(msg.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
                         </span>
                         {isOwn && (
-                          <CheckCheck className={`w-3.5 h-3.5 transition-colors ${readUntilId > 0 && msg.id <= readUntilId ? "text-blue-400" : "text-white/35"}`} />
-                          <CheckCheck className={`w-3.5 h-3.5 transition-colors ${((msg as any).read_at) || (readUntilId > 0 && msg.id <= readUntilId) ? "text-blue-400" : "text-white/35"}`} />
+                          <>
+                            <CheckCheck className={`w-3.5 h-3.5 transition-colors ${readUntilId > 0 && msg.id <= readUntilId ? "text-blue-400" : "text-white/35"}`} />
+                            <CheckCheck className={`w-3.5 h-3.5 transition-colors ${((msg as any).read_at) || (readUntilId > 0 && msg.id <= readUntilId) ? "text-blue-400" : "text-white/35"}`} />
+                          </>
                         )}
                       </div>
                     )}

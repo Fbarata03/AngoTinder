@@ -261,6 +261,11 @@ async def init_db():
                 match_id TEXT NOT NULL REFERENCES matches(id),
                 sender_id TEXT NOT NULL REFERENCES users(id),
                 text TEXT NOT NULL,
+                deleted BOOLEAN DEFAULT FALSE,
+                read_at TIMESTAMP DEFAULT NULL,
+                reply_to INTEGER DEFAULT NULL,
+                media_url TEXT DEFAULT NULL,
+                reaction TEXT DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
