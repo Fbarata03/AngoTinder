@@ -1,31 +1,41 @@
-name: Deploy
+name: Deploy Frontend to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main # Altere para 'master' se for o nome da sua branch principal
+  # Permite correr o workflow manualmente no separador "Actions"
+  workflow_dispatch:
+
+permissions:
+  contents: write # Necessário para a action fazer push na branch gh-pages
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Build frontend
-        run: npm run build
+          node-version: '20'
+
+      - name: Instalar dependências
+        working-directory: ./frontend
+        run: npm install
+
+      - name: Compilar a aplicação (Build)
+        working-directory: ./frontend
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
           VITE_FACEBOOK_APP_ID: ${{ vars.VITE_FACEBOOK_APP_ID }}
-      - name: Deploy to gh-pages
+        run: npm run build
+
+      - name: Fazer Deploy na branch gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: frontend/dist
+          publish_dir: ./frontend/dist
           publish_branch: gh-pages
