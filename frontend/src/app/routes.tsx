@@ -38,5 +38,5 @@ export const router = createBrowserRouter(
       ],
     },
   ],
-  { basename: "/AngoTinder" }
+  { basename: "/" }
 );
