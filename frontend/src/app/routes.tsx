@@ -20,20 +20,23 @@ function RootLayout() {
   );
 }
 
-export const router = createBrowserRouter([
-  {
-    Component: RootLayout,
-    children: [
-      { path: "/",           Component: TelaInicial },
-      { path: "/register",   Component: TelaRegisto },
-      { path: "/profile",    Component: TelaPerfil },
-      { path: "/discover",   Component: TelaDescoberta },
-      { path: "/chat",       Component: TelaChat },
-      { path: "/likes",      Component: TelaLikes },
-      { path: "/top-picks",  Component: TelaTopPicks },
-      { path: "/settings",   Component: TelaConfiguracoes },
-      { path: "/admin",      Component: TelaAdmin },
-      { path: "/search",     Component: TelaPesquisa },
-    ],
-  },
-]);
+export const router = createBrowserRouter(
+  [
+    {
+      Component: RootLayout,
+      children: [
+        { path: "/", Component: TelaInicial },
+        { path: "/register", Component: TelaRegisto },
+        { path: "/profile", Component: TelaPerfil },
+        { path: "/discover", Component: TelaDescoberta },
+        { path: "/chat", Component: TelaChat },
+        { path: "/likes", Component: TelaLikes },
+        { path: "/top-picks", Component: TelaTopPicks },
+        { path: "/settings", Component: TelaConfiguracoes },
+        { path: "/admin", Component: TelaAdmin },
+        { path: "/search", Component: TelaPesquisa },
+      ],
+    },
+  ],
+  { basename: "/AngoTinder" }
+);
