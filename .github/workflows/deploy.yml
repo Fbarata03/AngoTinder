@@ -28,9 +28,6 @@ jobs:
 
       - name: Compilar a aplicação (Build)
         working-directory: ./frontend
-        env:
-          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
-          VITE_FACEBOOK_APP_ID: ${{ vars.VITE_FACEBOOK_APP_ID }}
         run: npm run build
 
       - name: Fazer Deploy na branch gh-pages
