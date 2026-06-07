@@ -41,4 +41,3 @@ Thumbs.db
 # Env files (keep examples, ignore real ones)
 .env
 .env.local
-.env.production
