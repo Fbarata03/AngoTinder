@@ -5,15 +5,22 @@ import { useNavigate } from "react-router";
 import { AfricanPattern } from "./AfricanPatterns";
 import { motion } from "motion/react";
 import { useApp } from "../context";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
-import FacebookLogin from "react-facebook-login/dist/facebook-login-render-props";
 import { authApi } from "../api";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || "";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const FACEBOOK_APP_ID = (import.meta as any).env?.VITE_FACEBOOK_APP_ID || "";
+
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    FB: any;
+    fbAsyncInit: () => void;
+  }
+}
 
 export function TelaInicial() {
   const navigate = useNavigate();
@@ -23,6 +30,27 @@ export function TelaInicial() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Carrega o Facebook JS SDK uma única vez
+  useEffect(() => {
+    if (!FACEBOOK_APP_ID || document.getElementById("facebook-jssdk")) return;
+
+    window.fbAsyncInit = () => {
+      window.FB.init({
+        appId: FACEBOOK_APP_ID,
+        cookie: true,
+        xfbml: false,
+        version: "v20.0",
+      });
+    };
+
+    const script = document.createElement("script");
+    script.id = "facebook-jssdk";
+    script.src = "https://connect.facebook.net/pt_PT/sdk.js";
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,54 +69,44 @@ export function TelaInicial() {
     }
   };
 
-  const GoogleLoginButton = ({ disabled }: { disabled: boolean }) => {
-    const googleLogin = useGoogleLogin({
-      onSuccess: async (tokenResponse) => {
-        setLoading(true);
-        setError("");
-        try {
-          const res = await authApi.googleAuth(tokenResponse.access_token);
-          loginWithToken(res.token, res.user);
-          navigate("/discover");
-        } catch {
-          setError("Erro ao entrar com Google. Tente novamente.");
-        } finally {
-          setLoading(false);
-        }
-      },
-      onError: () => setError("Login com Google cancelado."),
-    });
+  // useGoogleLogin chamado diretamente no componente (não dentro de um componente filho)
+  // Isto evita que o hook seja destruído a cada re-render de TelaInicial
+  const googleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await authApi.googleAuth(tokenResponse.access_token);
+        loginWithToken(res.token, res.user);
+        navigate("/discover");
+      } catch {
+        setError("Erro ao entrar com Google. Tente novamente.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    onError: () => setError("Login com Google cancelado."),
+  });
 
-    return (
-      <button
-        onClick={() => {
-          setError("");
-          googleLogin();
-        }}
-        disabled={disabled}
-        className="w-full h-14 bg-[#4285F4] hover:bg-[#3367D6] text-white rounded-2xl font-black text-base flex items-center gap-3 px-5 transition-colors shadow-lg mb-3 disabled:opacity-60"
-      >
-        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center flex-shrink-0">
-          <svg viewBox="0 0 24 24" className="w-5 h-5">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-          </svg>
-        </div>
-        <span className="flex-1 text-center">Continuar com a Google</span>
-      </button>
-    );
+  // Facebook OAuth via FB JS SDK
+  const handleFacebookLogin = () => {
+    if (!window.FB) {
+      setError("Facebook ainda a carregar. Aguarda um momento e tenta novamente.");
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    window.FB.login((response: any) => {
+      if (response?.authResponse?.accessToken) {
+        handleFacebookAuth(response.authResponse.accessToken);
+      }
+    }, { scope: "public_profile" });
   };
 
-  // Facebook OAuth
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleFacebookResponse = async (res: any) => {
-    if (!res?.accessToken) return;
+  const handleFacebookAuth = async (accessToken: string) => {
     setLoading(true);
     setError("");
     try {
-      const auth = await authApi.facebookAuth(res.accessToken);
+      const auth = await authApi.facebookAuth(accessToken);
       loginWithToken(auth.token, auth.user);
       navigate("/discover");
     } catch {
@@ -183,9 +201,26 @@ export function TelaInicial() {
                   <div className="flex-1 h-px bg-white/20" />
                 </div>
 
-                {/* Google Button */}
+                {/* Botão Google */}
                 {GOOGLE_CLIENT_ID ? (
-                  <GoogleLoginButton disabled={loading} />
+                  <button
+                    onClick={() => {
+                      setError("");
+                      googleLogin();
+                    }}
+                    disabled={loading}
+                    className="w-full h-14 bg-[#4285F4] hover:bg-[#3367D6] text-white rounded-2xl font-black text-base flex items-center gap-3 px-5 transition-colors shadow-lg mb-3 disabled:opacity-60"
+                  >
+                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg viewBox="0 0 24 24" className="w-5 h-5">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                      </svg>
+                    </div>
+                    <span className="flex-1 text-center">Continuar com a Google</span>
+                  </button>
                 ) : (
                   <button
                     onClick={() => setError("VITE_GOOGLE_CLIENT_ID não está configurado.")}
@@ -203,29 +238,20 @@ export function TelaInicial() {
                   </button>
                 )}
 
-                {/* Facebook Button */}
+                {/* Botão Facebook */}
                 {FACEBOOK_APP_ID ? (
-                  <FacebookLogin
-                    appId={FACEBOOK_APP_ID}
-                    autoLoad={false}
-                    scope="public_profile"
-                    fields="name,picture"
-                    callback={handleFacebookResponse}
-                    render={(renderProps: { onClick: () => void; isDisabled?: boolean }) => (
-                      <button
-                        onClick={renderProps.onClick}
-                        disabled={loading || renderProps.isDisabled}
-                        className="w-full h-14 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-2xl font-black text-base flex items-center gap-3 px-5 transition-colors shadow-lg disabled:opacity-60"
-                      >
-                        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center flex-shrink-0">
-                          <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#1877F2">
-                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                          </svg>
-                        </div>
-                        <span className="flex-1 text-center">Continuar com o Facebook</span>
-                      </button>
-                    )}
-                  />
+                  <button
+                    onClick={handleFacebookLogin}
+                    disabled={loading}
+                    className="w-full h-14 bg-[#1877F2] hover:bg-[#166FE5] text-white rounded-2xl font-black text-base flex items-center gap-3 px-5 transition-colors shadow-lg disabled:opacity-60"
+                  >
+                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#1877F2">
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                      </svg>
+                    </div>
+                    <span className="flex-1 text-center">Continuar com o Facebook</span>
+                  </button>
                 ) : (
                   <button
                     onClick={() => setError("VITE_FACEBOOK_APP_ID não está configurado.")}
