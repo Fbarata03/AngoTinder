@@ -38,8 +38,8 @@ function PhotoPlaceholder({ name, className = "" }: { name: string; className?: 
     ["#006400", "#003200"],
     ["#003E7E", "#001030"],
   ];
-  const [from, to] = gradients[name.charCodeAt(0) % gradients.length];
-  const initials = name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
+  const [from, to] = gradients[(name.charCodeAt(0) || 0) % gradients.length];
+  const initials = name.split(" ").filter(Boolean).slice(0, 2).map((n) => n[0]).join("").toUpperCase() || "?";
   return (
     <div
       className={`relative flex flex-col items-center justify-end ${className}`}

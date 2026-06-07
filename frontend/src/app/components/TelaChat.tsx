@@ -200,7 +200,7 @@ function DocMessage({ url, filename, isOwn }: { url: string; filename: string; i
 
 function Avatar({ photo, name }: { photo?: string; name: string }) {
   const colors = ["#CE1126", "#8B0000", "#D4A017", "#006400"];
-  const bg = colors[name.charCodeAt(0) % colors.length];
+  const bg = colors[(name.charCodeAt(0) || 0) % colors.length];
   const initials = name
     .split(" ")
     .filter(Boolean)
