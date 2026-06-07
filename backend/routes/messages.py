@@ -325,7 +325,7 @@ async def websocket_chat(
                 await publish_event({"kind": "room_signal", "match_id": match_id, "sender_id": user_id, "message": data})
                 continue
 
-            # ── Reactions ──
+              # ── Reactions ──
             if msg_type == "reaction":
                 msg_id = data.get("message_id")
                 reaction = data.get("reaction")
