@@ -164,7 +164,7 @@ function UserPlaceholder({ name }: { name: string }) {
     ["#D4A017", "#5c3a00"],
     ["#006400", "#003200"],
   ];
-  const [from, to] = gradients[name.charCodeAt(0) % gradients.length];
+  const [from, to] = gradients[(name.charCodeAt(0) || 0) % gradients.length];
   return (
     <div
       className="w-full h-full flex items-center justify-center text-2xl font-black text-white"

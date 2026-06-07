@@ -9,14 +9,17 @@ import { TelaTopPicks } from "./components/TelaTopPicks";
 import { TelaConfiguracoes } from "./components/TelaConfiguracoes";
 import { TelaAdmin } from "./components/TelaAdmin";
 import { TelaPesquisa } from "./components/TelaPesquisa";
+import { TelaAmigos } from "./components/TelaAmigos";
 import { NotificationProvider } from "./components/NotificationProvider";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
-// Root layout — wraps every route with real-time notification support
 function RootLayout() {
   return (
-    <NotificationProvider>
-      <Outlet />
-    </NotificationProvider>
+    <ErrorBoundary>
+      <NotificationProvider>
+        <Outlet />
+      </NotificationProvider>
+    </ErrorBoundary>
   );
 }
 
@@ -35,6 +38,7 @@ export const router = createBrowserRouter(
         { path: "/settings", Component: TelaConfiguracoes },
         { path: "/admin", Component: TelaAdmin },
         { path: "/search", Component: TelaPesquisa },
+        { path: "/friends", Component: TelaAmigos },
       ],
     },
   ],

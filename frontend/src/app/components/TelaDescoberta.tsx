@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Heart, X, MapPin, Briefcase, Star, Sparkles, RotateCcw, Zap, Sliders } from "lucide-react";
+import { Heart, X, MapPin, Briefcase, Star, Sparkles, RotateCcw, Zap, Sliders, UserPlus, UserCheck } from "lucide-react";
 import { Button } from "./ui/button";
 import { useNavigate } from "react-router";
 import { motion, useMotionValue, useTransform, animate, MotionValue } from "motion/react";
@@ -7,7 +7,7 @@ import { AfricanPattern } from "./AfricanPatterns";
 import { BottomNav } from "./BottomNav";
 import { MatchModal } from "./MatchModal";
 import { FiltersModal, Filters } from "./FiltersModal";
-import { profilesApi, matchesApi, notificationsApi, resolveMediaUrl, User as UserType } from "../api";
+import { profilesApi, matchesApi, notificationsApi, friendsApi, resolveMediaUrl, User as UserType } from "../api";
 import { useApp } from "../context";
 
 const SUPER_KEY = "angotinder_super_likes";
@@ -73,9 +73,13 @@ interface SwipeCardProps {
   isTop: boolean;
   /** Parent uses this to animate the card away imperatively (button swipes) */
   onXReady?: (x: MotionValue<number>) => void;
+  /** Called when the "Add Friend" button is pressed */
+  onAddFriend?: () => void;
+  /** Whether a friend request was already sent */
+  friendSent?: boolean;
 }
 
-function SwipeCard({ profile, onSwipe, isTop, onXReady }: SwipeCardProps) {
+function SwipeCard({ profile, onSwipe, isTop, onXReady, onAddFriend, friendSent }: SwipeCardProps) {
   const [currentPhoto, setCurrentPhoto] = useState(0);
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-220, 220], [-28, 28]);
@@ -191,26 +195,46 @@ function SwipeCard({ profile, onSwipe, isTop, onXReady }: SwipeCardProps) {
 
         {/* Info overlay — only on top card */}
         {isTop && (
-        <div className="absolute bottom-0 left-0 right-0 px-5 pb-5 pointer-events-none z-20">
-          <div className="flex items-baseline gap-2 mb-2">
-            <h2 className="text-[clamp(1.6rem,5vw,2rem)] font-black text-white drop-shadow-lg leading-tight">{profile.name}</h2>
-            <span className="text-2xl font-black text-white/90">{profile.age}</span>
-          </div>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-white/90">
-              <MapPin className="w-3.5 h-3.5 text-secondary flex-shrink-0" />
-              <span className="font-medium text-sm">{profile.location}</span>
-            </div>
-            {profile.work && (
-              <div className="flex items-center gap-2 text-white/80">
-                <Briefcase className="w-3.5 h-3.5 text-secondary/80 flex-shrink-0" />
-                <span className="font-medium text-sm">{profile.work}</span>
+        <div className="absolute bottom-0 left-0 right-0 px-5 pb-5 z-20">
+          <div className="flex items-end justify-between gap-2">
+            <div className="pointer-events-none flex-1 min-w-0">
+              <div className="flex items-baseline gap-2 mb-2">
+                <h2 className="text-[clamp(1.6rem,5vw,2rem)] font-black text-white drop-shadow-lg leading-tight">{profile.name}</h2>
+                <span className="text-2xl font-black text-white/90">{profile.age}</span>
               </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-white/90">
+                  <MapPin className="w-3.5 h-3.5 text-secondary flex-shrink-0" />
+                  <span className="font-medium text-sm">{profile.location}</span>
+                </div>
+                {profile.work && (
+                  <div className="flex items-center gap-2 text-white/80">
+                    <Briefcase className="w-3.5 h-3.5 text-secondary/80 flex-shrink-0" />
+                    <span className="font-medium text-sm">{profile.work}</span>
+                  </div>
+                )}
+              </div>
+              {profile.bio && (
+                <p className="text-white/80 text-sm mt-2 line-clamp-2 leading-relaxed">{profile.bio}</p>
+              )}
+            </div>
+            {onAddFriend && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onAddFriend(); }}
+                title={friendSent ? "Pedido enviado" : "Adicionar como amigo"}
+                className={`flex-shrink-0 w-11 h-11 rounded-full backdrop-blur-sm border flex items-center justify-center transition-all shadow-lg ${
+                  friendSent
+                    ? "bg-green-500/80 border-green-400/60"
+                    : "bg-white/20 border-white/40 hover:bg-white/35 active:scale-95"
+                }`}
+              >
+                {friendSent
+                  ? <UserCheck className="w-5 h-5 text-white" />
+                  : <UserPlus className="w-5 h-5 text-white" />
+                }
+              </button>
             )}
           </div>
-          {profile.bio && (
-            <p className="text-white/80 text-sm mt-2 line-clamp-2 leading-relaxed">{profile.bio}</p>
-          )}
         </div>
         )}
 
@@ -251,6 +275,7 @@ export function TelaDescoberta() {
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
   const [onlineCount, setOnlineCount] = useState(0);
+  const [sentFriendIds, setSentFriendIds] = useState<Set<string>>(new Set());
 
   // Swipe locking to prevent double-swipes
   const swipingRef = useRef(false);
@@ -459,6 +484,16 @@ export function TelaDescoberta() {
     topCardXRef.current = x;
   }, []);
 
+  const handleAddFriend = useCallback(async (profileId: string) => {
+    if (sentFriendIds.has(profileId)) return;
+    setSentFriendIds((prev) => new Set(prev).add(profileId));
+    try {
+      await friendsApi.sendRequest(profileId);
+    } catch {
+      setSentFriendIds((prev) => { const next = new Set(prev); next.delete(profileId); return next; });
+    }
+  }, [sentFriendIds]);
+
   if (!isLoggedIn) return null;
 
   if (loading) {
@@ -569,6 +604,8 @@ export function TelaDescoberta() {
                 onSwipe={onCardSwiped}
                 isTop={isTop}
                 onXReady={isTop ? registerTopCardX : undefined}
+                onAddFriend={isTop ? () => handleAddFriend(profile.id) : undefined}
+                friendSent={isTop ? sentFriendIds.has(profile.id) : undefined}
               />
             );
           })}

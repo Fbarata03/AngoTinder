@@ -1,16 +1,17 @@
-import { Heart, MessageCircle, User, Compass, Star } from "lucide-react";
+import { Heart, MessageCircle, User, Compass, Star, Users } from "lucide-react";
 import { useNavigate } from "react-router";
 
-type ActivePage = "discover" | "explore" | "chat" | "likes" | "profile";
+type ActivePage = "discover" | "explore" | "chat" | "friends" | "likes" | "profile";
 
 interface BottomNavProps {
   active: ActivePage;
   likesBadge?: string;
   chatBadge?: string;
+  friendsBadge?: string;
   className?: string;
 }
 
-export function BottomNav({ active, likesBadge, chatBadge, className = "" }: BottomNavProps) {
+export function BottomNav({ active, likesBadge, chatBadge, friendsBadge, className = "" }: BottomNavProps) {
   const navigate = useNavigate();
 
   return (
@@ -34,6 +35,13 @@ export function BottomNav({ active, likesBadge, chatBadge, className = "" }: Bot
           onClick={() => navigate("/chat")}
           active={active === "chat"}
           badge={chatBadge}
+        />
+        <NavBtn
+          icon={<Users className="w-5 h-5" />}
+          label="Amigos"
+          onClick={() => navigate("/friends")}
+          active={active === "friends"}
+          badge={friendsBadge}
         />
         <NavBtn
           icon={<Star className="w-5 h-5" />}

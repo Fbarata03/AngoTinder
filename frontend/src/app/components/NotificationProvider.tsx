@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { Heart, MessageCircle, X, Megaphone, UserPlus } from "lucide-react";
+import { Heart, MessageCircle, X, Megaphone, UserPlus, UserCheck } from "lucide-react";
 import { createNotificationSocket, resolveMediaUrl } from "../api";
 import { useApp } from "../context";
 
@@ -23,6 +23,15 @@ interface FollowerNotif {
   name: string;
 }
 
+interface FriendNotif {
+  id: string;
+  type: "friend_request" | "friend_accepted";
+  name: string;
+  photo?: string;
+  request_id?: number;
+  match_id?: string;
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, userId } = useApp();
   const navigate = useNavigate();
@@ -32,6 +41,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [matchNotifs, setMatchNotifs] = useState<MatchNotif[]>([]);
   const [broadcastNotif, setBroadcastNotif] = useState<BroadcastNotif | null>(null);
   const [followerNotif, setFollowerNotif] = useState<FollowerNotif | null>(null);
+  const [friendNotif, setFriendNotif] = useState<FriendNotif | null>(null);
 
   const dismiss = useCallback((id: string) => {
     setMatchNotifs((n) => n.filter((x) => x.id !== id));
@@ -88,6 +98,31 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             }
             if (payload.type === "user_offline") {
               window.dispatchEvent(new CustomEvent("angotinder:user_offline", { detail: { userId: payload.user_id } }));
+            }
+            if (payload.type === "friend_request") {
+              const notif: FriendNotif = {
+                id: `fr-${Date.now()}`,
+                type: "friend_request",
+                name: payload.name || "Alguém",
+                photo: payload.photos?.[0],
+                request_id: payload.request_id,
+              };
+              setFriendNotif(notif);
+              setTimeout(() => setFriendNotif(null), 8000);
+              window.dispatchEvent(new Event("angotinder:friend_request"));
+            }
+            if (payload.type === "friend_accepted") {
+              const notif: FriendNotif = {
+                id: `fa-${Date.now()}`,
+                type: "friend_accepted",
+                name: payload.user?.name || "Alguém",
+                photo: payload.user?.photos?.[0],
+                match_id: payload.match_id,
+              };
+              setFriendNotif(notif);
+              setTimeout(() => setFriendNotif(null), 8000);
+              window.dispatchEvent(new Event("angotinder:friend_accepted"));
+              window.dispatchEvent(new Event("angotinder:new_match"));
             }
             if (payload.type === "new_follower") {
               const notif: FollowerNotif = {
@@ -188,6 +223,60 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
               >
                 <X className="w-4 h-4" />
               </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Friend request / accepted notifications */}
+      <AnimatePresence>
+        {friendNotif && (
+          <motion.div
+            key={friendNotif.id}
+            initial={{ opacity: 0, y: -80 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -80 }}
+            transition={{ type: "spring", stiffness: 350, damping: 28 }}
+            className="fixed top-4 left-0 right-0 z-[203] flex justify-center px-4 pointer-events-auto"
+          >
+            <div className="w-full max-w-sm bg-gradient-to-r from-[#CE1126] via-[#8B0000] to-black rounded-2xl shadow-2xl border border-secondary/30 px-4 py-3 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-secondary flex-shrink-0">
+                {friendNotif.photo ? (
+                  <img src={resolveMediaUrl(friendNotif.photo)} alt={friendNotif.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-secondary/30 flex items-center justify-center">
+                    {friendNotif.type === "friend_accepted"
+                      ? <UserCheck className="w-5 h-5 text-secondary" />
+                      : <UserPlus className="w-5 h-5 text-secondary" />
+                    }
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-secondary font-black text-sm">
+                  {friendNotif.type === "friend_accepted" ? "Pedido aceite!" : "Novo pedido de amizade!"}
+                </p>
+                <p className="text-white/80 text-xs mt-0.5 truncate">
+                  {friendNotif.type === "friend_accepted"
+                    ? `${friendNotif.name} aceitou o teu pedido`
+                    : `${friendNotif.name} quer ser teu amigo`}
+                </p>
+              </div>
+              <div className="flex gap-1.5 flex-shrink-0">
+                <button
+                  onClick={() => { setFriendNotif(null); navigate("/friends"); }}
+                  className="w-9 h-9 bg-secondary rounded-xl flex items-center justify-center hover:bg-[#FFD700] transition-colors"
+                  title="Ver"
+                >
+                  <UserPlus className="w-4 h-4 text-black" />
+                </button>
+                <button
+                  onClick={() => setFriendNotif(null)}
+                  className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center hover:bg-white/20 transition-colors"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
             </div>
           </motion.div>
         )}

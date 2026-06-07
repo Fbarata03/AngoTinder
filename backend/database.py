@@ -220,6 +220,7 @@ async def init_db():
         """)
         # Migrations: add columns if they don't exist yet (safe for existing DBs)
         for col_sql in [
+            "ALTER TABLE matches ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'match'",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS latitude FLOAT DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS longitude FLOAT DEFAULT NULL",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP DEFAULT NOW()",
@@ -309,6 +310,30 @@ async def init_db():
             )
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS friend_requests (
+                id SERIAL PRIMARY KEY,
+                sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                receiver_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(sender_id, receiver_id)
+            )
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                from_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+                type TEXT NOT NULL,
+                message TEXT NOT NULL DEFAULT '',
+                read BOOLEAN NOT NULL DEFAULT FALSE,
+                ref_id TEXT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
         # Índices para melhorar performance e reduzir uso de BD
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_swiper ON swipes(swiper_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_swipes_swiped ON swipes(swiped_id)")
@@ -343,3 +368,8 @@ async def init_db():
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_match_id_desc ON messages(match_id, id DESC)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(follower_id)")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(following_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_friend_req_sender ON friend_requests(sender_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_friend_req_receiver ON friend_requests(receiver_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_friend_req_status ON friend_requests(status)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, created_at DESC)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_notif_unread ON notifications(user_id, read)")

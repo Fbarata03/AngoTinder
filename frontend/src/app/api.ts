@@ -240,6 +240,36 @@ export interface Match {
   is_verified?: number;
   last_message?: string;
   last_message_at?: string;
+  type?: "match" | "friend";
+}
+
+export interface FriendRequest {
+  request_id: number;
+  id: string;
+  name: string;
+  age: number;
+  location: string;
+  is_verified?: number;
+  bio?: string;
+  photos: string[];
+  created_at?: string;
+}
+
+export interface FriendStatus {
+  status: "none" | "pending" | "accepted" | "rejected";
+  request_id: number | null;
+  is_sender: boolean;
+}
+
+export interface AppNotification {
+  id: number;
+  type: string;
+  message: string;
+  read: boolean;
+  ref_id: string | null;
+  from_name: string | null;
+  from_photo: string | null;
+  created_at: string | null;
 }
 
 export interface SwipeResponse {
@@ -323,6 +353,35 @@ export function createNotificationSocket(): WebSocket {
 
 export const notificationsApi = {
   getOnlineCount: () => request<{ count: number }>("/notifications/online-count"),
+  getAll: () => request<AppNotification[]>("/notifications/"),
+  markRead: () => request<{ success: boolean }>("/notifications/read", { method: "PUT" }),
+  markOneRead: (id: number) => request<{ success: boolean }>(`/notifications/${id}/read`, { method: "PUT" }),
+};
+
+// ---------- Friends ----------
+export const friendsApi = {
+  sendRequest: (targetId: string) =>
+    request<{ success: boolean; request_id: number }>(`/friends/request/${targetId}`, { method: "POST" }),
+
+  acceptRequest: (requestId: number) =>
+    request<{ success: boolean; match_id: string }>(`/friends/requests/${requestId}/accept`, { method: "PUT" }),
+
+  rejectRequest: (requestId: number) =>
+    request<{ success: boolean }>(`/friends/requests/${requestId}/reject`, { method: "PUT" }),
+
+  cancelRequest: (requestId: number) =>
+    request<{ success: boolean }>(`/friends/requests/${requestId}`, { method: "DELETE" }),
+
+  removeFriend: (friendId: string) =>
+    request<{ success: boolean }>(`/friends/${friendId}`, { method: "DELETE" }),
+
+  getFriends: () => request<FriendRequest[]>("/friends/"),
+
+  getReceivedRequests: () => request<FriendRequest[]>("/friends/requests/received"),
+
+  getSentRequests: () => request<FriendRequest[]>("/friends/requests/sent"),
+
+  getStatus: (targetId: string) => request<FriendStatus>(`/friends/status/${targetId}`),
 };
 
 // ---------- Social (follows) ----------
