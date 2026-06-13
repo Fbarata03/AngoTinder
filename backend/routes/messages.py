@@ -92,6 +92,32 @@ def chat_media_dir() -> str:
     return base
 
 
+@router.post("/start/{target_user_id}")
+async def start_conversation(
+    target_user_id: str,
+    user_id: str = Depends(get_current_user_id),
+    db: asyncpg.Connection = Depends(get_db),
+):
+    """Create or retrieve a direct conversation between two users (no swipe needed)."""
+    if target_user_id == user_id:
+        raise HTTPException(status_code=400, detail="Não podes iniciar conversa contigo mesmo")
+    target = await db.fetchrow("SELECT id FROM users WHERE id=$1", target_user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado")
+    existing = await db.fetchrow(
+        "SELECT id FROM matches WHERE (user1_id=$1 AND user2_id=$2) OR (user1_id=$2 AND user2_id=$1)",
+        user_id, target_user_id,
+    )
+    if existing:
+        return {"match_id": existing["id"], "created": False}
+    new_id = str(uuid.uuid4())
+    await db.execute(
+        "INSERT INTO matches (id, user1_id, user2_id) VALUES ($1, $2, $3)",
+        new_id, user_id, target_user_id,
+    )
+    return {"match_id": new_id, "created": True}
+
+
 @router.get("/turn/credentials")
 async def turn_credentials(user_id: str = Depends(get_current_user_id)):
     if not TURN_URLS or not TURN_SHARED_SECRET:

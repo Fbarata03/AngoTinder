@@ -2,44 +2,61 @@
 
 :root {
   --font-size: 16px;
-  --background: #FFFBF0;
+  --background: #F4F4F5;
   --foreground: #1a1a1a;
   --card: #ffffff;
   --card-foreground: #1a1a1a;
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #CE1126;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary: #2AABEE;
   --primary-foreground: #ffffff;
-  --secondary: #FFCD00;
-  --secondary-foreground: #000000;
-  --muted: #F5F5F5;
-  --muted-foreground: #6B6B6B;
-  --accent: #FFCD00;
-  --accent-foreground: #000000;
-  --destructive: #CE1126;
+  --secondary: #54C4F5;
+  --secondary-foreground: #ffffff;
+  --muted: #EBEBEB;
+  --muted-foreground: #707579;
+  --accent: #2AABEE;
+  --accent-foreground: #ffffff;
+  --destructive: #E53935;
   --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
+  --border: rgba(0, 0, 0, 0.09);
   --input: transparent;
-  --input-background: #F9F9F9;
+  --input-background: #F4F4F5;
   --switch-background: #cbced4;
   --font-weight-medium: 600;
   --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
-  --radius: 1rem;
+  --ring: #2AABEE;
+  --radius: 0.75rem;
+
+  /* Telegram chat backgrounds */
+  --tg-bg: #F4F4F5;
+  --tg-bubble-out: #EFFDDE;
+  --tg-bubble-out-text: #1a1a1a;
+  --tg-bubble-in: #FFFFFF;
+  --tg-bubble-in-text: #1a1a1a;
+  --tg-header: #2AABEE;
+  --tg-tick-read: #4FC3F7;
 }
 
 .dark {
-  --background: #0b0b10;
-  --foreground: #f3f4f6;
-  --card: #12121a;
-  --card-foreground: #f3f4f6;
-  --popover: #12121a;
-  --popover-foreground: #f3f4f6;
+  --background: #0E1621;
+  --foreground: #f1f1f1;
+  --card: #17212B;
+  --card-foreground: #f1f1f1;
+  --popover: #17212B;
+  --popover-foreground: #f1f1f1;
   --muted: rgba(255, 255, 255, 0.08);
-  --muted-foreground: rgba(255, 255, 255, 0.7);
-  --border: rgba(255, 255, 255, 0.12);
-  --input-background: rgba(255, 255, 255, 0.06);
-  --switch-background: rgba(255, 255, 255, 0.25);
+  --muted-foreground: rgba(255, 255, 255, 0.55);
+  --border: rgba(255, 255, 255, 0.08);
+  --input-background: rgba(255, 255, 255, 0.05);
+  --switch-background: rgba(255, 255, 255, 0.20);
+
+  --tg-bg: #0E1621;
+  --tg-bubble-out: #2B5278;
+  --tg-bubble-out-text: #ffffff;
+  --tg-bubble-in: #182533;
+  --tg-bubble-in-text: #ffffff;
+  --tg-header: #1c2d3f;
+  --tg-tick-read: #4FC3F7;
 }
 
 @theme inline {
@@ -83,45 +100,11 @@
     font-size: var(--font-size);
   }
 
-  h1 {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  label {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  button {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  input {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-normal);
-    line-height: 1.5;
-  }
+  h1 { font-size: var(--text-2xl); font-weight: var(--font-weight-medium); line-height: 1.5; }
+  h2 { font-size: var(--text-xl); font-weight: var(--font-weight-medium); line-height: 1.5; }
+  h3 { font-size: var(--text-lg); font-weight: var(--font-weight-medium); line-height: 1.5; }
+  h4 { font-size: var(--text-base); font-weight: var(--font-weight-medium); line-height: 1.5; }
+  label { font-size: var(--text-base); font-weight: var(--font-weight-medium); line-height: 1.5; }
+  button { font-size: var(--text-base); font-weight: var(--font-weight-medium); line-height: 1.5; }
+  input { font-size: var(--text-base); font-weight: var(--font-weight-normal); line-height: 1.5; }
 }

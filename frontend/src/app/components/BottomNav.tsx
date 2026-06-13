@@ -1,60 +1,44 @@
-import { Heart, MessageCircle, User, Compass, Star, Users } from "lucide-react";
+import { MessageCircle, Users, Phone, Settings } from "lucide-react";
 import { useNavigate } from "react-router";
 
-type ActivePage = "discover" | "explore" | "chat" | "friends" | "likes" | "profile";
+type ActivePage = "chats" | "contacts" | "calls" | "settings";
 
 interface BottomNavProps {
   active: ActivePage;
-  likesBadge?: string;
   chatBadge?: string;
-  friendsBadge?: string;
   className?: string;
 }
 
-export function BottomNav({ active, likesBadge, chatBadge, friendsBadge, className = "" }: BottomNavProps) {
+export function BottomNav({ active, chatBadge, className = "" }: BottomNavProps) {
   const navigate = useNavigate();
 
   return (
-    <div className={`fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t-4 border-secondary/30 z-30 nav-safe ${className}`}>
-      <div className="max-w-4xl mx-auto px-1 py-3 flex items-center justify-around">
+    <div className={`fixed bottom-0 left-0 right-0 bg-card/98 backdrop-blur-xl border-t border-border z-30 nav-safe ${className}`}>
+      <div className="max-w-4xl mx-auto px-2 py-2 flex items-center justify-around">
         <NavBtn
-          icon={<Heart className="w-5 h-5" />}
-          label="Descobrir"
-          onClick={() => navigate("/discover")}
-          active={active === "discover"}
-        />
-        <NavBtn
-          icon={<Compass className="w-5 h-5" />}
-          label="Explorar"
-          onClick={() => navigate("/search")}
-          active={active === "explore"}
-        />
-        <NavBtn
-          icon={<MessageCircle className="w-5 h-5" />}
-          label="Chat"
+          icon={<MessageCircle className="w-6 h-6" />}
+          label="Chats"
           onClick={() => navigate("/chat")}
-          active={active === "chat"}
+          active={active === "chats"}
           badge={chatBadge}
         />
         <NavBtn
-          icon={<Users className="w-5 h-5" />}
-          label="Amigos"
-          onClick={() => navigate("/friends")}
-          active={active === "friends"}
-          badge={friendsBadge}
+          icon={<Users className="w-6 h-6" />}
+          label="Contactos"
+          onClick={() => navigate("/contacts")}
+          active={active === "contacts"}
         />
         <NavBtn
-          icon={<Star className="w-5 h-5" />}
-          label="Likes"
-          onClick={() => navigate("/likes")}
-          active={active === "likes"}
-          badge={likesBadge}
+          icon={<Phone className="w-6 h-6" />}
+          label="Chamadas"
+          onClick={() => navigate("/calls")}
+          active={active === "calls"}
         />
         <NavBtn
-          icon={<User className="w-5 h-5" />}
-          label="Perfil"
-          onClick={() => navigate("/profile")}
-          active={active === "profile"}
+          icon={<Settings className="w-6 h-6" />}
+          label="Definições"
+          onClick={() => navigate("/settings")}
+          active={active === "settings"}
         />
       </div>
     </div>
@@ -62,11 +46,7 @@ export function BottomNav({ active, likesBadge, chatBadge, friendsBadge, classNa
 }
 
 function NavBtn({
-  icon,
-  label,
-  onClick,
-  active,
-  badge,
+  icon, label, onClick, active, badge,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -77,23 +57,19 @@ function NavBtn({
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 transition-colors ${
+      className={`flex flex-col items-center gap-0.5 px-4 py-1 transition-colors ${
         active ? "text-primary" : "text-muted-foreground hover:text-primary"
       }`}
     >
-      <div
-        className={`p-2 rounded-2xl relative transition-colors ${
-          active ? "bg-gradient-to-br from-primary/20 to-secondary/20" : "hover:bg-secondary/10"
-        }`}
-      >
+      <div className="relative">
         {icon}
         {badge && (
-          <div className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 bg-gradient-to-br from-primary to-[#8B0000] rounded-full border-2 border-card flex items-center justify-center">
+          <div className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-primary rounded-full border-2 border-card flex items-center justify-center">
             <span className="text-[9px] font-black text-white leading-none">{badge}</span>
           </div>
         )}
       </div>
-      <span className="text-[10px] font-black">{label}</span>
+      <span className="text-[10px] font-semibold">{label}</span>
     </button>
   );
 }
