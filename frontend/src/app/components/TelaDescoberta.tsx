@@ -542,7 +542,7 @@ export function TelaDescoberta() {
             </Button>
           </div>
         </div>
-        <BottomNav active="discover" />
+        <BottomNav active="chats" />
       </div>
     );
   }
@@ -667,7 +667,7 @@ export function TelaDescoberta() {
         </div>
       </div>
 
-      <BottomNav active="discover" />
+      <BottomNav active="chats" />
 
       <MatchModal
         isOpen={showMatch}

@@ -326,7 +326,7 @@ export function TelaAmigos() {
         </div>
       </div>
 
-      <BottomNav active="friends" />
+      <BottomNav active="contacts" />
     </div>
   );
 }

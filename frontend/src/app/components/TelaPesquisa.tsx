@@ -145,7 +145,7 @@ export function TelaPesquisa() {
         </div>
       </div>
 
-      <BottomNav active="explore" />
+      <BottomNav active="contacts" />
 
       <ProfileModal
         profile={viewProfile}

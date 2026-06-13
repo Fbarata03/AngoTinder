@@ -131,7 +131,7 @@ export function TelaTopPicks() {
         likeLabel="Dar Like"
       />
 
-      <BottomNav active="discover" />
+      <BottomNav active="chats" />
     </div>
   );
 }

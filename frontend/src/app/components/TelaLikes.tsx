@@ -216,7 +216,7 @@ export function TelaLikes() {
         )}
       </AnimatePresence>
 
-      <BottomNav active="likes" likesBadge={likes.length > 0 ? String(likes.length) : undefined} />
+      <BottomNav active="chats" />
     </div>
   );
 }

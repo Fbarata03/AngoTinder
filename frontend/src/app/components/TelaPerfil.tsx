@@ -324,7 +324,7 @@ export function TelaPerfil() {
         </Button>
       </div>
 
-      <BottomNav active="profile" />
+      <BottomNav active="settings" />
     </div>
   );
 }

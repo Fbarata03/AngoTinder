@@ -452,7 +452,7 @@ function ChatList({ onSelectMatch, autoOpenMatchId, selectedMatchId, hideMobileN
 
       {!hideMobileNav && (
         <div className="md:hidden">
-          <BottomNav active="chat" />
+          <BottomNav active="chats" />
         </div>
       )}
       {viewProfileMatch && (
