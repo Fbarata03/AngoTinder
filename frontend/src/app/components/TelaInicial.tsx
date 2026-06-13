@@ -59,7 +59,7 @@ export function TelaInicial() {
     setError("");
     try {
       await login(email.trim(), password);
-      navigate("/discover");
+      navigate("/chat");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
       try { setError(JSON.parse(msg).detail || "Email ou senha incorretos"); }
@@ -78,7 +78,7 @@ export function TelaInicial() {
       try {
         const res = await authApi.googleAuth(tokenResponse.access_token);
         loginWithToken(res.token, res.user);
-        navigate("/discover");
+        navigate("/chat");
       } catch {
         setError("Erro ao entrar com Google. Tente novamente.");
       } finally {

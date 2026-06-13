@@ -10,6 +10,8 @@ import { TelaConfiguracoes } from "./components/TelaConfiguracoes";
 import { TelaAdmin } from "./components/TelaAdmin";
 import { TelaPesquisa } from "./components/TelaPesquisa";
 import { TelaAmigos } from "./components/TelaAmigos";
+import { TelaContactos } from "./components/TelaContactos";
+import { TelaChamadas } from "./components/TelaChamadas";
 import { NotificationProvider } from "./components/NotificationProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
@@ -33,6 +35,8 @@ export const router = createBrowserRouter(
         { path: "/profile", Component: TelaPerfil },
         { path: "/discover", Component: TelaDescoberta },
         { path: "/chat", Component: TelaChat },
+        { path: "/contacts", Component: TelaContactos },
+        { path: "/calls", Component: TelaChamadas },
         { path: "/likes", Component: TelaLikes },
         { path: "/top-picks", Component: TelaTopPicks },
         { path: "/settings", Component: TelaConfiguracoes },
