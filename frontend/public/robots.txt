@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://angotinder.bafly.net/sitemap.xml
+Sitemap: https://fbarata03.github.io/AngoTinder/sitemap.xml
