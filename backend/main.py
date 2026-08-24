@@ -19,8 +19,7 @@ allowed_origins = [o.strip() for o in _origins_env.split(",") if o.strip()] or [
     "http://localhost:5174",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
-    "https://angotinder.bafly.net",
-    "https://angotinder.netlify.app",
+        "https://angotinder.netlify.app",
 ]
 
 app.add_middleware(
