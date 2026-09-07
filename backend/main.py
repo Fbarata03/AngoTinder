@@ -13,14 +13,19 @@ from notif_manager import notif_manager
 app = FastAPI(title="AngoTinder API", version="1.0.0")
 
 # CORS
-_origins_env = os.getenv("ALLOWED_ORIGINS", "")
-allowed_origins = [o.strip() for o in _origins_env.split(",") if o.strip()] or [
+_default_origins = [
     "http://localhost:5173",
     "http://localhost:5174",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
-        "https://angotinder.netlify.app",
+    "https://angotinder.netlify.app",
+    "https://fbarata03.github.io",
 ]
+_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+_extra_origins = [o.strip() for o in _origins_env.split(",") if o.strip()]
+# Junta as origens da env var às default (sem duplicados) para o login social
+# nunca ficar bloqueado por CORS mesmo que a env var esteja incompleta.
+allowed_origins = list(dict.fromkeys(_default_origins + _extra_origins))
 
 app.add_middleware(
     CORSMiddleware,
