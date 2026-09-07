@@ -550,6 +550,12 @@ export function TelaConfiguracoes() {
                   <p className="text-xs text-red-700 mb-3">Para eliminar a tua conta, envia email para: <strong>suporte@angotinder.com</strong></p>
                 </div>
 
+                <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
+                  <a href="https://angotinder.me/privacy/" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">Política de Privacidade</a>
+                  <span>·</span>
+                  <a href="https://angotinder.me/termos/" target="_blank" rel="noopener noreferrer" className="hover:text-primary underline">Termos de Utilização</a>
+                </div>
+
                 <Button onClick={() => setShowPrivacy(false)}
                   className="w-full h-12 bg-gradient-to-r from-[#CE1126] to-[#8B0000] text-white font-black rounded-2xl">
                   Fechar

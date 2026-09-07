@@ -279,11 +279,16 @@ export function TelaInicial() {
           </motion.div>
         </div>
 
-        <div className="pb-4 text-center flex-shrink-0">
+        <div className="pb-4 text-center flex-shrink-0 space-y-2">
           <div className="inline-flex items-center gap-2 text-secondary/60 text-xs">
             <Heart className="w-3 h-3 fill-current" />
             <span>Feito com amor em Angola</span>
             <Heart className="w-3 h-3 fill-current" />
+          </div>
+          <div className="flex items-center justify-center gap-3 text-white/40 text-xs">
+            <a href="https://angotinder.me/privacy/" className="hover:text-white/70">Privacidade</a>
+            <span>·</span>
+            <a href="https://angotinder.me/termos/" className="hover:text-white/70">Termos</a>
           </div>
         </div>
       </div>
