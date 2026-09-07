@@ -1,62 +1,72 @@
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Paleta AngoTinder — inspirada na bandeira de Angola
+ * Vermelho #CE1126 · Preto #000000 · Dourado #FFCD00
+ */
 :root {
   --font-size: 16px;
-  --background: #F4F4F5;
-  --foreground: #1a1a1a;
+  --background: #FBF6EE;            /* marfim quente */
+  --foreground: #1c1712;
   --card: #ffffff;
-  --card-foreground: #1a1a1a;
+  --card-foreground: #1c1712;
   --popover: #ffffff;
-  --popover-foreground: #1a1a1a;
-  --primary: #2AABEE;
+  --popover-foreground: #1c1712;
+  --primary: #CE1126;              /* vermelho da bandeira */
   --primary-foreground: #ffffff;
-  --secondary: #54C4F5;
-  --secondary-foreground: #ffffff;
-  --muted: #EBEBEB;
-  --muted-foreground: #707579;
-  --accent: #2AABEE;
+  --secondary: #FFCD00;            /* dourado da bandeira */
+  --secondary-foreground: #1c1712;
+  --muted: #EFE7DA;
+  --muted-foreground: #7A6E5C;
+  --accent: #CE1126;
   --accent-foreground: #ffffff;
-  --destructive: #E53935;
+  --destructive: #B00020;
   --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.09);
+  --border: rgba(28, 23, 18, 0.10);
   --input: transparent;
-  --input-background: #F4F4F5;
-  --switch-background: #cbced4;
+  --input-background: #F5EEE1;
+  --switch-background: #d8cbb4;
   --font-weight-medium: 600;
   --font-weight-normal: 400;
-  --ring: #2AABEE;
+  --ring: #CE1126;
   --radius: 0.75rem;
 
-  /* Telegram chat backgrounds */
-  --tg-bg: #F4F4F5;
-  --tg-bubble-out: #EFFDDE;
-  --tg-bubble-out-text: #1a1a1a;
+  /* Fundos do chat */
+  --tg-bg: #FBF6EE;
+  --tg-bubble-out: #FFF3CC;        /* dourado muito claro */
+  --tg-bubble-out-text: #1c1712;
   --tg-bubble-in: #FFFFFF;
-  --tg-bubble-in-text: #1a1a1a;
-  --tg-header: #2AABEE;
-  --tg-tick-read: #4FC3F7;
+  --tg-bubble-in-text: #1c1712;
+  --tg-header: #CE1126;
+  --tg-tick-read: #CE1126;
 }
 
 .dark {
-  --background: #0E1621;
-  --foreground: #f1f1f1;
-  --card: #17212B;
-  --card-foreground: #f1f1f1;
-  --popover: #17212B;
-  --popover-foreground: #f1f1f1;
-  --muted: rgba(255, 255, 255, 0.08);
-  --muted-foreground: rgba(255, 255, 255, 0.55);
-  --border: rgba(255, 255, 255, 0.08);
+  --background: #14100C;            /* preto quente */
+  --foreground: #F3ECE0;
+  --card: #201913;
+  --card-foreground: #F3ECE0;
+  --popover: #201913;
+  --popover-foreground: #F3ECE0;
+  --primary: #E8324A;              /* vermelho um pouco mais claro para contraste */
+  --primary-foreground: #ffffff;
+  --secondary: #FFCD00;
+  --secondary-foreground: #1c1712;
+  --muted: rgba(255, 255, 255, 0.07);
+  --muted-foreground: rgba(243, 236, 224, 0.55);
+  --accent: #E8324A;
+  --border: rgba(255, 205, 0, 0.14);
   --input-background: rgba(255, 255, 255, 0.05);
   --switch-background: rgba(255, 255, 255, 0.20);
+  --ring: #E8324A;
 
-  --tg-bg: #0E1621;
-  --tg-bubble-out: #2B5278;
-  --tg-bubble-out-text: #ffffff;
-  --tg-bubble-in: #182533;
-  --tg-bubble-in-text: #ffffff;
-  --tg-header: #1c2d3f;
-  --tg-tick-read: #4FC3F7;
+  --tg-bg: #14100C;
+  --tg-bubble-out: #5C1420;        /* vinho escuro */
+  --tg-bubble-out-text: #FFF3E6;
+  --tg-bubble-in: #241C15;
+  --tg-bubble-in-text: #F3ECE0;
+  --tg-header: #8B0000;
+  --tg-tick-read: #FFCD00;
 }
 
 @theme inline {

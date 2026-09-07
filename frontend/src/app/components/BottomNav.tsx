@@ -14,6 +14,10 @@ export function BottomNav({ active, chatBadge, className = "" }: BottomNavProps)
 
   return (
     <div className={`fixed bottom-0 left-0 right-0 bg-card/98 backdrop-blur-xl border-t border-border z-30 nav-safe ${className}`}>
+      {/* Faixa da bandeira de Angola */}
+      <div className="h-[3px] w-full bg-gradient-to-r from-[#CE1126] via-[#CE1126] to-[#000000] relative">
+        <div className="absolute inset-0 bg-[#FFCD00]" style={{ clipPath: "polygon(48% 0, 52% 0, 52% 100%, 48% 100%)" }} />
+      </div>
       <div className="max-w-4xl mx-auto px-2 py-2 flex items-center justify-around">
         <NavBtn
           icon={<MessageCircle className="w-6 h-6" />}
