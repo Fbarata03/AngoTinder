@@ -20,6 +20,8 @@ _default_origins = [
     "http://127.0.0.1:5174",
     "https://angotinder.netlify.app",
     "https://fbarata03.github.io",
+    "https://angotinder.me",
+    "https://www.angotinder.me",
 ]
 _origins_env = os.getenv("ALLOWED_ORIGINS", "")
 _extra_origins = [o.strip() for o in _origins_env.split(",") if o.strip()]
