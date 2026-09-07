@@ -75,7 +75,7 @@ export function TelaRegisto() {
     setUploadingPhoto(true);
     try { await profilesApi.uploadPhoto(photoFile); } catch { /* ignore */ }
     setUploadingPhoto(false);
-    navigate("/chat");
+    navigate("/discover");
   };
 
   const handleNext = () => {

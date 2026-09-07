@@ -1,7 +1,7 @@
-import { MessageCircle, Users, Phone, Settings } from "lucide-react";
+import { Flame, MessageCircle, Users, Phone, Settings } from "lucide-react";
 import { useNavigate } from "react-router";
 
-type ActivePage = "chats" | "contacts" | "calls" | "settings";
+type ActivePage = "descobrir" | "chats" | "contacts" | "calls" | "settings";
 
 interface BottomNavProps {
   active: ActivePage;
@@ -18,7 +18,13 @@ export function BottomNav({ active, chatBadge, className = "" }: BottomNavProps)
       <div className="h-[3px] w-full bg-gradient-to-r from-[#CE1126] via-[#CE1126] to-[#000000] relative">
         <div className="absolute inset-0 bg-[#FFCD00]" style={{ clipPath: "polygon(48% 0, 52% 0, 52% 100%, 48% 100%)" }} />
       </div>
-      <div className="max-w-4xl mx-auto px-2 py-2 flex items-center justify-around">
+      <div className="max-w-4xl mx-auto px-1 py-2 flex items-center justify-around">
+        <NavBtn
+          icon={<Flame className="w-6 h-6" />}
+          label="Descobrir"
+          onClick={() => navigate("/discover")}
+          active={active === "descobrir"}
+        />
         <NavBtn
           icon={<MessageCircle className="w-6 h-6" />}
           label="Chats"
@@ -61,7 +67,7 @@ function NavBtn({
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-0.5 px-4 py-1 transition-colors ${
+      className={`flex flex-col items-center gap-0.5 px-2 sm:px-3 py-1 transition-colors ${
         active ? "text-primary" : "text-muted-foreground hover:text-primary"
       }`}
     >
