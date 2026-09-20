@@ -551,7 +551,7 @@ export function TelaDescoberta() {
   const visibleProfiles = [...profiles.slice(currentIndex, currentIndex + 2)].reverse();
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] flex flex-col relative overflow-hidden">
+    <div className="h-[100dvh] bg-gradient-to-br from-[#FFFBF0] via-[#FFF8E1] to-[#FFE4B5] dark:from-[#0b0b10] dark:via-[#101018] dark:to-[#1a1406] flex flex-col relative overflow-hidden pb-24">
       <AfricanPattern className="absolute top-0 right-0 w-96 h-96 text-primary opacity-5" />
       <AfricanPattern className="absolute bottom-0 left-0 w-96 h-96 text-secondary opacity-5" />
 
@@ -593,8 +593,8 @@ export function TelaDescoberta() {
         </div>
       </div>
 
-      <div className="flex-1 px-4 sm:px-6 pb-40 max-w-md mx-auto w-full relative z-10">
-        <div className="card-stack relative h-full min-h-[480px]">
+      <div className="flex-1 min-h-0 px-4 sm:px-6 max-w-md mx-auto w-full relative z-10 flex flex-col">
+        <div className="card-stack relative flex-1 min-h-0">
           {visibleProfiles.map((profile, revIdx) => {
             const isTop = revIdx === visibleProfiles.length - 1;
             return (
@@ -610,10 +610,9 @@ export function TelaDescoberta() {
             );
           })}
         </div>
-      </div>
 
-      <div className="fixed bottom-32 left-0 right-0 px-2 sm:px-6 z-20">
-        <div className="max-w-md mx-auto flex items-center justify-center gap-2 sm:gap-4">
+        <div className="shrink-0 px-2 sm:px-0 pt-3 pb-1 z-20">
+          <div className="max-w-md mx-auto flex items-center justify-center gap-2 sm:gap-4">
           <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
             onClick={handleRewind}
             disabled={history.length === 0}
@@ -664,6 +663,7 @@ export function TelaDescoberta() {
             className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full shadow-xl flex items-center justify-center border-4 transition-all ${boostActive ? "bg-gradient-to-br from-secondary to-[#FFD700] border-secondary/50" : "bg-white border-purple-300 hover:border-purple-500"}`}>
             <Zap className={`w-5 h-5 sm:w-7 sm:h-7 ${boostActive ? "text-black fill-black" : "text-purple-600 fill-purple-600"}`} strokeWidth={2.5} />
           </motion.button>
+          </div>
         </div>
       </div>
 

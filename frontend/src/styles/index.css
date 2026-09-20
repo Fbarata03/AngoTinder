@@ -50,10 +50,6 @@ input, select, textarea {
   -webkit-user-select: none;
 }
 
-/* Contentor de cards adaptável */
-@media (max-height: 700px) {
-  .card-stack { min-height: 380px !important; }
-}
-@media (max-height: 600px) {
-  .card-stack { min-height: 300px !important; }
-}
+/* Contentor de cards adaptável — dimensionado via flex-1 min-h-0 no TelaDescoberta,
+   preenche sempre o espaço disponível acima da barra de ações e do BottomNav. */
+.card-stack { min-height: 220px; }
