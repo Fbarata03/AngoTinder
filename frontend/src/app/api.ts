@@ -51,21 +51,35 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 5000): 
   }
 }
 
+const REQUEST_TIMEOUT_MS = 15000;
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return withRetry(async () => {
-    const res = await fetch(`${BASE_URL}${path}`, {
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders(),
-        ...(options?.headers as Record<string, string> | undefined),
-      },
-      ...options,
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(err || `HTTP ${res.status}`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${BASE_URL}${path}`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders(),
+          ...(options?.headers as Record<string, string> | undefined),
+        },
+        signal: controller.signal,
+        ...options,
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<T>;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new Error("TIMEOUT: O servidor demorou demasiado tempo a responder");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
     }
-    return res.json() as Promise<T>;
   });
 }
 

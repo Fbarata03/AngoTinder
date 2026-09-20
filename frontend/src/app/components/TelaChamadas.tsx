@@ -75,15 +75,19 @@ export function TelaChamadas() {
   const [callHistory, setCallHistory] = useState<CallRecord[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     if (!isLoggedIn) { navigate("/"); return; }
     setCallHistory(loadCallHistory());
+    setLoadingMatches(true);
+    setLoadError(false);
     matchesApi.getMatches()
       .then(setMatches)
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoadingMatches(false));
-  }, [isLoggedIn, navigate]);
+  }, [isLoggedIn, navigate, retryCount]);
 
   const goToChat = (m: Match) => {
     navigate("/chat", {
@@ -157,8 +161,30 @@ export function TelaChamadas() {
             {callHistory.length > 0 ? "Contactos" : "Ligar para"}
           </p>
           {loadingMatches ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="animate-pulse">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-border/40">
+                  <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0" />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="h-3.5 w-28 rounded bg-muted" />
+                    <div className="h-3 w-16 rounded bg-muted" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : loadError ? (
+            <div className="flex flex-col items-center justify-center h-48 gap-3 px-8 text-center">
+              <PhoneCall className="w-12 h-12 text-red-400/60" />
+              <p className="font-semibold text-foreground">Não foi possível carregar os contactos</p>
+              <p className="text-muted-foreground text-sm">
+                O servidor pode estar a arrancar — tenta novamente em alguns segundos.
+              </p>
+              <button
+                onClick={() => setRetryCount((n) => n + 1)}
+                className="mt-1 px-6 py-2 rounded-full bg-primary text-white text-sm font-bold"
+              >
+                Tentar novamente
+              </button>
             </div>
           ) : matches.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 gap-3 px-8 text-center">
